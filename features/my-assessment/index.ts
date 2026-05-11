@@ -1,0 +1,1 @@
+export { MyAssessmentPage } from "./components/my-assessment-page";
