@@ -1,11 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AppShell } from "@/shared/ui/app-shell";
-import { EmptyState } from "@/shared/ui/empty-state";
-import { PageHeader } from "@/shared/ui/page-header";
+import { AppShell, EmptyState, PageHeader } from "@/shared/ui";
 
-export default function Home() {
+export default function PublicHomePage() {
   return (
     <AppShell>
       <PageHeader
@@ -46,8 +44,8 @@ export default function Home() {
 
       <section className="mt-8">
         <EmptyState
-          title="Następny krok: AppShell i layout chroniony"
-          description="Po zatwierdzeniu fundamentu dodamy publiczne i chronione layouty oraz przygotujemy miejsce pod logowanie i tenant context."
+          title="Następny krok: layout publiczny i chroniony"
+          description="Budujemy bazową strukturę aplikacji, zanim przejdziemy do tenantów, logowania i bazy danych."
         />
       </section>
     </AppShell>
