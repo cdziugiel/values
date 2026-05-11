@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: humanet-values-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: humanet_values
+      POSTGRES_PASSWORD: VALvalHUMhumPOSpos02
+      POSTGRES_DB: humanet_control
+    ports:
+      - "5433:5432"
+    volumes:
+      - humanet_values_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  humanet_values_postgres_data:
