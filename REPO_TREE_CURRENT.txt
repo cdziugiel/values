@@ -1,0 +1,134 @@
+[578K]  .
+├── [ 718]  .env.local
+├── [ 480]  .gitignore
+├── [ 327]  AGENTS.md
+├── [  11]  CLAUDE.md
+├── [1.4K]  README.md
+├── [   0]  REPO_TREE_CURRENT.txt
+├── [ 41K]  app
+│   ├── [6.4K]  (protected)
+│   │   ├── [1.3K]  dashboard
+│   │   │   └── [1.2K]  page.tsx
+│   │   ├── [ 530]  layout.tsx
+│   │   ├── [ 319]  my
+│   │   │   └── [ 223]  assessment
+│   │   │       └── [ 127]  page.tsx
+│   │   ├── [ 469]  post-login
+│   │   │   └── [ 373]  page.tsx
+│   │   └── [3.6K]  t
+│   │       └── [3.5K]  [tenantSlug]
+│   │           ├── [ 643]  assessment-projects
+│   │           │   └── [ 547]  page.tsx
+│   │           ├── [1.5K]  dashboard
+│   │           │   └── [1.4K]  page.tsx
+│   │           ├── [ 546]  reports
+│   │           │   └── [ 450]  page.tsx
+│   │           └── [ 652]  respondents
+│   │               └── [ 556]  page.tsx
+│   ├── [3.4K]  (public)
+│   │   ├── [ 187]  layout.tsx
+│   │   ├── [ 579]  login
+│   │   │   └── [ 483]  page.tsx
+│   │   ├── [1.9K]  page.tsx
+│   │   └── [ 659]  verify-request
+│   │       └── [ 563]  page.tsx
+│   ├── [ 759]  api
+│   │   ├── [ 383]  auth
+│   │   │   └── [ 287]  [...nextauth]
+│   │   │       └── [ 191]  route.ts
+│   │   └── [ 248]  health
+│   │       └── [ 152]  route.ts
+│   ├── [ 25K]  favicon.ico
+│   ├── [4.2K]  globals.css
+│   └── [ 858]  layout.tsx
+├── [2.1K]  auth.ts
+├── [ 31K]  components
+│   └── [ 31K]  ui
+│       ├── [2.0K]  alert.tsx
+│       ├── [1.8K]  badge.tsx
+│       ├── [3.3K]  button.tsx
+│       ├── [2.6K]  card.tsx
+│       ├── [4.1K]  dialog.tsx
+│       ├── [8.6K]  dropdown-menu.tsx
+│       ├── [ 968]  input.tsx
+│       ├── [ 606]  label.tsx
+│       ├── [ 644]  separator.tsx
+│       ├── [4.5K]  sheet.tsx
+│       ├── [ 275]  skeleton.tsx
+│       └── [ 842]  textarea.tsx
+├── [ 517]  components.json
+├── [ 405]  docker-compose.yml
+├── [ 17K]  drizzle
+│   ├── [ 13K]  schema
+│   │   ├── [ 11K]  control
+│   │   │   ├── [1.1K]  auth-accounts.ts
+│   │   │   ├── [ 864]  auth-authenticators.ts
+│   │   │   ├── [ 522]  auth-sessions.ts
+│   │   │   ├── [ 455]  auth-verification-tokens.ts
+│   │   │   ├── [ 823]  feature-flags.ts
+│   │   │   ├── [ 421]  index.ts
+│   │   │   ├── [ 822]  login-events.ts
+│   │   │   ├── [1.1K]  system-audit-log.ts
+│   │   │   ├── [ 560]  system-settings.ts
+│   │   │   ├── [1.2K]  tenant-database-connections.ts
+│   │   │   ├── [1.1K]  tenant-memberships.ts
+│   │   │   ├── [ 627]  tenants.ts
+│   │   │   └── [ 922]  users.ts
+│   │   ├── [  58]  index.ts
+│   │   └── [1.4K]  shared
+│   │       ├── [ 521]  common-columns.ts
+│   │       └── [ 822]  enums.ts
+│   └── [4.2K]  seed
+│       └── [4.1K]  control.seed.ts
+├── [ 456]  drizzle.config.ts
+├── [ 465]  eslint.config.mjs
+├── [ 12K]  features
+│   ├── [5.5K]  auth
+│   │   ├── [ 992]  api
+│   │   │   └── [ 896]  post-login.queries.ts
+│   │   ├── [2.1K]  components
+│   │   │   └── [2.0K]  login-form.tsx
+│   │   ├── [ 231]  index.ts
+│   │   ├── [1.7K]  lib
+│   │   │   └── [1.6K]  resolve-post-login-redirect.ts
+│   │   └── [ 340]  types
+│   │       └── [ 244]  post-login.types.ts
+│   └── [5.9K]  my-assessment
+│       ├── [1.2K]  api
+│       │   └── [1.1K]  my-assessment.queries.ts
+│       ├── [3.9K]  components
+│       │   ├── [1.1K]  my-assessment-page.tsx
+│       │   └── [2.6K]  questionnaire-selection-card.tsx
+│       ├── [  67]  index.ts
+│       └── [ 560]  types
+│           └── [ 464]  my-assessment.types.ts
+├── [ 262]  lib
+│   └── [ 166]  utils.ts
+├── [ 251]  next-env.d.ts
+├── [ 133]  next.config.ts
+├── [461K]  package-lock.json
+├── [1.2K]  package.json
+├── [  94]  postcss.config.mjs
+├── [1.5K]  server
+│   ├── [ 553]  auth
+│   │   ├── [ 165]  get-session.ts
+│   │   └── [ 260]  require-session.ts
+│   └── [ 663]  db
+│       └── [ 567]  control-db.ts
+├── [4.8K]  shared
+│   ├── [1.8K]  config
+│   │   └── [1.7K]  env.ts
+│   └── [2.8K]  ui
+│       ├── [ 352]  app-shell.tsx
+│       ├── [ 573]  empty-state.tsx
+│       ├── [ 478]  error-state.tsx
+│       ├── [ 219]  index.ts
+│       ├── [ 297]  loading-state.tsx
+│       └── [ 693]  page-header.tsx
+├── [ 666]  tsconfig.json
+└── [ 336]  types
+    └── [ 240]  next-auth.d.ts
+
+ 578K used in 45 directories, 85 files
+
+TOTAL = rozmiar katalogu głównego pokazany w pierwszej linii tree przy --du
