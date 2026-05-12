@@ -1,3 +1,5 @@
+export { SystemTenantsPage } from "./components/system-tenants-page";
+
 export { createTenantAsSuperAdmin } from "./api/tenant.mutations";
 export {
   createTenantSchema,

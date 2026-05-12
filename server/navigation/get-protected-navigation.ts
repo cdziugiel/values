@@ -16,27 +16,6 @@ const baseUserNavigation: ProtectedNavigationItem[] = [
   },
 ];
 
-function getTenantNavigation(tenantSlug: string): ProtectedNavigationItem[] {
-  return [
-    {
-      label: `Tenant: ${tenantSlug}`,
-      href: `/t/${tenantSlug}/dashboard`,
-    },
-    {
-      label: "Projekty badawcze",
-      href: `/t/${tenantSlug}/assessment-projects`,
-    },
-    {
-      label: "Respondenci",
-      href: `/t/${tenantSlug}/respondents`,
-    },
-    {
-      label: "Raporty",
-      href: `/t/${tenantSlug}/reports`,
-    },
-  ];
-}
-
 export async function getProtectedNavigation(
   session: Session,
 ): Promise<ProtectedNavigationItem[]> {
@@ -56,20 +35,16 @@ export async function getProtectedNavigation(
   }
 
   if (user.globalRole === "SUPER_ADMIN") {
-    const activeTenants = await controlDb.query.tenants.findMany({
-      where: and(eq(tenants.status, "active"), isNull(tenants.deletedAt)),
-      columns: {
-        slug: true,
-      },
-    });
-
     return [
       {
         label: "Dashboard",
         href: "/dashboard",
       },
+      {
+        label: "Tenanty",
+        href: "/dashboard/tenants",
+      },
       ...baseUserNavigation,
-      ...activeTenants.flatMap((tenant) => getTenantNavigation(tenant.slug)),
     ];
   }
 
@@ -102,8 +77,9 @@ export async function getProtectedNavigation(
       href: "/dashboard",
     },
     ...baseUserNavigation,
-    ...activeTenantSlugs.flatMap((tenantSlug) =>
-      getTenantNavigation(tenantSlug),
-    ),
+    {
+      label: "Panel tenanta",
+      href: `/t/${activeTenantSlugs[0]}/dashboard`,
+    },
   ];
 }
