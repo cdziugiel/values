@@ -11,7 +11,11 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check",
-    "db:seed:control": "tsx drizzle/seed/control.seed.ts"
+    "db:seed:control": "tsx drizzle/seed/control.seed.ts",
+    "db:tenant:generate": "drizzle-kit generate --config drizzle.tenant.config.ts",
+    "db:tenant:migrate": "drizzle-kit migrate --config drizzle.tenant.config.ts",
+    "db:tenant:studio": "drizzle-kit studio --config drizzle.tenant.config.ts",
+    "db:tenant:check": "drizzle-kit check --config drizzle.tenant.config.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

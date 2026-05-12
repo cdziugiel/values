@@ -10,7 +10,4 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - humanet_values_postgres_data:/var/lib/postgresql/data
-
-volumes:
-  humanet_values_postgres_data:
+      - ./.docker/postgres/data:/var/lib/postgresql/data

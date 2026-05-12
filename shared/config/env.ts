@@ -1,8 +1,23 @@
 import { z } from "zod";
 
+const booleanFromEnv = z
+  .union([z.boolean(), z.string()])
+  .optional()
+  .transform((value) => {
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    if (!value) {
+      return false;
+    }
+
+    return value.trim().toLowerCase() === "true";
+  });
+
 const envSchema = z.object({
   APP_NAME: z.string().min(1).default("HUMANET VALUES"),
-  APP_URL: z.string().url().default("http://localhost:3000"),
+  APP_URL: z.string().url().default("http://localhost:3020"),
 
   CONTROL_DATABASE_URL: z.string().url(),
 
@@ -25,6 +40,14 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+
+  DATABASE_PROVISIONING_URL: z.string().url(),
+  TENANT_DATABASE_HOST: z.string().min(1),
+  TENANT_DATABASE_PORT: z.coerce.number().int().positive(),
+  TENANT_DATABASE_USER: z.string().min(1),
+  TENANT_DATABASE_PASSWORD: z.string().min(1),
+  TENANT_DATABASE_SSL: booleanFromEnv,
+  DATABASE_ENCRYPTION_KEY: z.string().min(32),
 });
 
 export const env = envSchema.parse({
@@ -51,4 +74,12 @@ export const env = envSchema.parse({
     process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
 
   NODE_ENV: process.env.NODE_ENV,
+
+  DATABASE_PROVISIONING_URL: process.env.DATABASE_PROVISIONING_URL,
+  TENANT_DATABASE_HOST: process.env.TENANT_DATABASE_HOST,
+  TENANT_DATABASE_PORT: process.env.TENANT_DATABASE_PORT,
+  TENANT_DATABASE_USER: process.env.TENANT_DATABASE_USER,
+  TENANT_DATABASE_PASSWORD: process.env.TENANT_DATABASE_PASSWORD,
+  TENANT_DATABASE_SSL: process.env.TENANT_DATABASE_SSL,
+  DATABASE_ENCRYPTION_KEY: process.env.DATABASE_ENCRYPTION_KEY,
 });
