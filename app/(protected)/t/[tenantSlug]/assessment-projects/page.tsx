@@ -1,13 +1,35 @@
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/shared/ui";
+import { requirePermission } from "@/server/permissions/require-permission";
+import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 
-export default function AssessmentProjectsPage() {
+type AssessmentProjectsPageProps = {
+  params: Promise<{
+    tenantSlug: string;
+  }>;
+};
+
+export default async function AssessmentProjectsPage({
+  params,
+}: AssessmentProjectsPageProps) {
+  const { tenantSlug } = await params;
+
+  const ctx = await requireTenantContext({
+    tenantSlug,
+  });
+
+  requirePermission(ctx, "assessment_project:read");
+
   return (
     <>
       <PageHeader
         title="Projekty badawcze"
         description="Zarządzanie badaniami realizowanymi dla klientów tenanta."
-        actions={<Button>Nowy projekt</Button>}
+        actions={
+          ctx.permissions.includes("assessment_project:create") ? (
+            <Button>Nowy projekt</Button>
+          ) : null
+        }
       />
 
       <EmptyState

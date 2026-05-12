@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/shared/ui";
+import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 
 type TenantDashboardPageProps = {
   params: Promise<{
@@ -12,11 +13,15 @@ export default async function TenantDashboardPage({
 }: TenantDashboardPageProps) {
   const { tenantSlug } = await params;
 
+  const ctx = await requireTenantContext({
+    tenantSlug,
+  });
+
   return (
     <>
       <PageHeader
-        title={`Tenant: ${tenantSlug}`}
-        description="Bazowy widok roboczy tenanta. Docelowo dane będą pobierane przez TenantContext."
+        title={`Tenant: ${ctx.tenantName}`}
+        description="Bazowy widok roboczy tenanta. Dostęp jest już sprawdzany przez TenantContext."
       />
 
       <main className="grid gap-6 md:grid-cols-3">
@@ -25,7 +30,7 @@ export default async function TenantDashboardPage({
             <CardTitle>Klienci</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Organizacje badane przez tego tenanta.
+            Organizacje badane przez tenanta {ctx.tenantSlug}.
           </CardContent>
         </Card>
 
@@ -34,7 +39,7 @@ export default async function TenantDashboardPage({
             <CardTitle>Respondenci</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Uczestnicy badań, z separacją danych identyfikujących od wyników.
+            Uczestnicy badań z kontrolą dostępu tenantowego.
           </CardContent>
         </Card>
 

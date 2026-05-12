@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
-import { AppShell } from "@/shared/ui";
+import { getProtectedNavigation } from "@/server/navigation/get-protected-navigation";
 import { requireSession } from "@/server/auth/require-session";
+import { ProtectedAppShell } from "@/shared/ui";
 
 type ProtectedLayoutProps = {
   children: ReactNode;
@@ -10,15 +11,12 @@ type ProtectedLayoutProps = {
 export default async function ProtectedLayout({
   children,
 }: ProtectedLayoutProps) {
-  await requireSession();
+  const session = await requireSession();
+  const navigationItems = await getProtectedNavigation(session);
 
   return (
-    <AppShell>
-      <div className="mb-6 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">
-        Protected layout — sesja aktywna.
-      </div>
-
+    <ProtectedAppShell session={session} navigationItems={navigationItems}>
       {children}
-    </AppShell>
+    </ProtectedAppShell>
   );
 }
