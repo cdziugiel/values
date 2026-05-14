@@ -100,13 +100,13 @@ export function ProjectQuestionnaireList({
   options,
   canManage,
 }: ProjectQuestionnaireListProps) {
-  const assignedVersionIds = new Set(
-    assignedQuestionnaires.map((item) => item.questionnaireVersionId),
-  );
+const assignedQuestionnaireIds = new Set(
+  assignedQuestionnaires.map((item) => item.questionnaireId),
+);
 
-  const availableOptions = options.filter(
-    (option) => !assignedVersionIds.has(option.questionnaireVersionId),
-  );
+const availableOptions = options.filter(
+  (option) => !assignedQuestionnaireIds.has(option.questionnaireId),
+);
 
   return (
     <div className="min-w-[320px] space-y-3 rounded-xl border bg-muted/20 p-3">

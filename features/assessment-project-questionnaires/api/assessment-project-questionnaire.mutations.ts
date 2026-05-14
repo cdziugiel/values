@@ -1,4 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm";
+// features/assessment-project-questionnaires/api/assessment-project-questionnaire.mutations.ts
+// features/assessment-project-questionnaires/api/assessment-project-questionnaire.mutations.ts
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import {
   assessmentProjectQuestionnaires,
@@ -14,6 +16,31 @@ import {
   type AddAssessmentProjectQuestionnaireInput,
   type ArchiveAssessmentProjectQuestionnaireInput,
 } from "../forms/assessment-project-questionnaire.schema";
+
+async function getNextProjectQuestionnaireOrderIndex({
+  db,
+  assessmentProjectId,
+}: {
+  db: TenantDb;
+  assessmentProjectId: string;
+}) {
+  const lastAssignment =
+    await db.query.assessmentProjectQuestionnaires.findFirst({
+      where: and(
+        eq(
+          assessmentProjectQuestionnaires.assessmentProjectId,
+          assessmentProjectId,
+        ),
+        isNull(assessmentProjectQuestionnaires.deletedAt),
+      ),
+      orderBy: desc(assessmentProjectQuestionnaires.orderIndex),
+      columns: {
+        orderIndex: true,
+      },
+    });
+
+  return (lastAssignment?.orderIndex ?? -1) + 1;
+}
 
 export async function addAssessmentProjectQuestionnaire({
   db,
@@ -41,7 +68,37 @@ export async function addAssessmentProjectQuestionnaire({
     throw new Error("Assessment project not found.");
   }
 
-  const existing =
+  /**
+   * Biznesowo: w jednym projekcie trzymamy najwyżej jedną wersję danego
+   * kwestionariusza. Jeżeli chcesz kiedyś dopuścić porównywanie wersji v2/v3
+   * w jednym projekcie, usuń ten blok i zostaw tylko kontrolę po versionId.
+   */
+  const existingSameQuestionnaire =
+    await db.query.assessmentProjectQuestionnaires.findFirst({
+      where: and(
+        eq(
+          assessmentProjectQuestionnaires.assessmentProjectId,
+          parsed.data.assessmentProjectId,
+        ),
+        eq(
+          assessmentProjectQuestionnaires.questionnaireId,
+          parsed.data.questionnaireId,
+        ),
+        isNull(assessmentProjectQuestionnaires.deletedAt),
+      ),
+    });
+
+  if (existingSameQuestionnaire) {
+    throw new Error(
+      "Ten kwestionariusz jest już przypisany do tego badania. Usuń istniejące przypisanie albo wybierz inny kwestionariusz.",
+    );
+  }
+
+  /**
+   * Jeżeli ta sama wersja była kiedyś dodana i zarchiwizowana, przywracamy ją,
+   * zamiast tworzyć drugi rekord, który może naruszyć unikalne indeksy.
+   */
+  const archivedSameVersion =
     await db.query.assessmentProjectQuestionnaires.findFirst({
       where: and(
         eq(
@@ -52,12 +109,51 @@ export async function addAssessmentProjectQuestionnaire({
           assessmentProjectQuestionnaires.questionnaireVersionId,
           parsed.data.questionnaireVersionId,
         ),
-        isNull(assessmentProjectQuestionnaires.deletedAt),
       ),
     });
 
-  if (existing) {
-    throw new Error("Questionnaire version is already assigned to this project.");
+  const now = new Date();
+  const orderIndex = await getNextProjectQuestionnaireOrderIndex({
+    db,
+    assessmentProjectId: parsed.data.assessmentProjectId,
+  });
+
+  if (archivedSameVersion?.deletedAt) {
+    const [restored] = await db
+      .update(assessmentProjectQuestionnaires)
+      .set({
+        questionnaireId: parsed.data.questionnaireId,
+        questionnaireVersionId: parsed.data.questionnaireVersionId,
+        orderIndex,
+        status: "active",
+        deletedAt: null,
+        updatedBy: ctx.userId,
+        updatedAt: now,
+      })
+      .where(eq(assessmentProjectQuestionnaires.id, archivedSameVersion.id))
+      .returning();
+
+    await writeTenantAuditLog({
+      db,
+      ctx,
+      action: "assessment_project_questionnaire_restored",
+      entityType: "assessment_project_questionnaire",
+      entityId: restored.id,
+      before: {
+        status: archivedSameVersion.status,
+        deletedAt: archivedSameVersion.deletedAt,
+      },
+      after: {
+        assessmentProjectId: restored.assessmentProjectId,
+        questionnaireId: restored.questionnaireId,
+        questionnaireVersionId: restored.questionnaireVersionId,
+        orderIndex: restored.orderIndex,
+        status: restored.status,
+        deletedAt: restored.deletedAt,
+      },
+    });
+
+    return restored;
   }
 
   const [projectQuestionnaire] = await db
@@ -66,6 +162,7 @@ export async function addAssessmentProjectQuestionnaire({
       assessmentProjectId: parsed.data.assessmentProjectId,
       questionnaireId: parsed.data.questionnaireId,
       questionnaireVersionId: parsed.data.questionnaireVersionId,
+      orderIndex,
       status: "active",
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
@@ -82,6 +179,7 @@ export async function addAssessmentProjectQuestionnaire({
       assessmentProjectId: projectQuestionnaire.assessmentProjectId,
       questionnaireId: projectQuestionnaire.questionnaireId,
       questionnaireVersionId: projectQuestionnaire.questionnaireVersionId,
+      orderIndex: projectQuestionnaire.orderIndex,
       status: projectQuestionnaire.status,
     },
   });
@@ -149,6 +247,7 @@ export async function archiveAssessmentProjectQuestionnaire({
     entityId: archived.id,
     before: {
       status: existing.status,
+      orderIndex: existing.orderIndex,
     },
     after: {
       status: archived.status,
