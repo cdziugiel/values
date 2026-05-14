@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { PageHeader } from "@/shared/ui";
+import { QuestionnaireRowActions } from "./questionnaire-row-actions";
 
 import {
   listQuestionnairesAdmin,
@@ -97,9 +98,13 @@ export async function QuestionnairesAdminPage() {
                         </p>
                       </div>
 
-                      <CreateQuestionnaireVersionForm
-                        questionnaireId={questionnaire.id}
-                      />
+                      <div className="flex flex-wrap gap-2">
+                        <QuestionnaireRowActions questionnaire={questionnaire} />
+
+                        <CreateQuestionnaireVersionForm
+                          questionnaireId={questionnaire.id}
+                        />
+                      </div>
                     </div>
 
                     <div className="mt-5">
