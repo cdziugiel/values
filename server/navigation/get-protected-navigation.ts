@@ -48,6 +48,10 @@ export async function getProtectedNavigation(
         label: "Migracje tenantów",
         href: "/dashboard/tenant-migrations",
       },
+      {
+        label: "Kwestionariusze",
+        href: "/dashboard/questionnaires",
+      },
       ...baseUserNavigation,
     ];
   }

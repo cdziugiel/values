@@ -59,7 +59,9 @@ export const questionnaireVersionStatusEnum = pgEnum(
 
 export const questionnaireItemTypeEnum = pgEnum("questionnaire_item_type", [
   "likert",
+  "true_false",
   "single_choice",
   "multiple_choice",
   "text",
+  "number",
 ]);

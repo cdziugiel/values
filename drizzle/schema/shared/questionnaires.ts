@@ -6,9 +6,9 @@ import {
   pgTable,
   text,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
-
-import { uuid } from "drizzle-orm/pg-core";
+import { questionnairePages } from "./questionnaire-pages";
 
 import {
   auditColumns,
@@ -90,7 +90,10 @@ export const questionnaireItems = pgTable(
     questionnaireVersionId: uuid("questionnaire_version_id")
       .notNull()
       .references(() => questionnaireVersions.id, { onDelete: "cascade" }),
-
+    questionnairePageId: uuid("questionnaire_page_id").references(
+      () => questionnairePages.id,
+      { onDelete: "set null" },
+    ),
     code: text("code").notNull(),
     orderIndex: integer("order_index").default(0).notNull(),
 
@@ -107,6 +110,8 @@ export const questionnaireItems = pgTable(
     scaleMaxLabel: text("scale_max_label"),
 
     options: jsonb("options").default([]).notNull(),
+    responseConfig: jsonb("response_config").default({}).notNull(),
+    
     scoringKey: jsonb("scoring_key").default({}).notNull(),
     metadata: jsonb("metadata").default({}).notNull(),
 
