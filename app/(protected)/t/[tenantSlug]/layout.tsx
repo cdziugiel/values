@@ -39,6 +39,10 @@ export default async function TenantLayout({
       label: "Raporty",
       href: `/t/${ctx.tenantSlug}/reports`,
     },
+    {
+      label: "Członkowie",
+      href: `/t/${ctx.tenantSlug}/members`,
+    },
   ];
 
   return (
