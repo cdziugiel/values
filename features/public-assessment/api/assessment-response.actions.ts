@@ -20,6 +20,165 @@ export type SaveAssessmentResponsesState = {
   message: string;
 };
 
+type AssessmentResponseValuePayload =
+  | {
+      valueType: "number";
+      numberValue: number;
+      textValue: null;
+      booleanValue: null;
+      jsonValue: null;
+    }
+  | {
+      valueType: "boolean";
+      numberValue: null;
+      textValue: null;
+      booleanValue: boolean;
+      jsonValue: null;
+    }
+  | {
+      valueType: "text";
+      numberValue: null;
+      textValue: string;
+      booleanValue: null;
+      jsonValue: null;
+    }
+  | {
+      valueType: "json";
+      numberValue: null;
+      textValue: null;
+      booleanValue: null;
+      jsonValue: string[];
+    };
+
+function parseBooleanValue(value: string) {
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return null;
+}
+
+function parseResponseFormKey(key: string) {
+  const [, questionnaireId, questionnaireVersionId, itemId, itemCode, itemType] =
+    key.split(":");
+
+  if (
+    !questionnaireId ||
+    !questionnaireVersionId ||
+    !itemId ||
+    !itemCode ||
+    !itemType
+  ) {
+    return null;
+  }
+
+  return {
+    questionnaireId,
+    questionnaireVersionId,
+    itemId,
+    itemCode,
+    itemType,
+  };
+}
+
+function buildResponseValue({
+  itemType,
+  values,
+}: {
+  itemType: string;
+  values: FormDataEntryValue[];
+}): AssessmentResponseValuePayload | null {
+  if (itemType === "likert" || itemType === "number") {
+    const rawValue = String(values[0] ?? "");
+    const parsed = Number(rawValue);
+
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+
+    return {
+      valueType: "number",
+      numberValue: parsed,
+      textValue: null,
+      booleanValue: null,
+      jsonValue: null,
+    };
+  }
+
+  if (itemType === "true_false") {
+    const parsed = parseBooleanValue(String(values[0] ?? ""));
+
+    if (parsed === null) {
+      return null;
+    }
+
+    return {
+      valueType: "boolean",
+      numberValue: null,
+      textValue: null,
+      booleanValue: parsed,
+      jsonValue: null,
+    };
+  }
+
+  if (itemType === "single_choice") {
+    const rawValue = String(values[0] ?? "").trim();
+
+    if (!rawValue) {
+      return null;
+    }
+
+    return {
+      valueType: "text",
+      numberValue: null,
+      textValue: rawValue,
+      booleanValue: null,
+      jsonValue: null,
+    };
+  }
+
+  if (itemType === "multiple_choice") {
+    const selectedValues = values
+      .map((value) => String(value))
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (selectedValues.length === 0) {
+      return null;
+    }
+
+    return {
+      valueType: "json",
+      numberValue: null,
+      textValue: null,
+      booleanValue: null,
+      jsonValue: selectedValues,
+    };
+  }
+
+  if (itemType === "text") {
+    const rawValue = String(values[0] ?? "").trim();
+
+    if (!rawValue) {
+      return null;
+    }
+
+    return {
+      valueType: "text",
+      numberValue: null,
+      textValue: rawValue,
+      booleanValue: null,
+      jsonValue: null,
+    };
+  }
+
+  return null;
+}
+
 export async function saveAssessmentResponsesAction(
   _previousState: SaveAssessmentResponsesState,
   formData: FormData,
@@ -115,7 +274,15 @@ export async function saveAssessmentResponsesAction(
       key.startsWith("response:"),
     );
 
-    if (responseEntries.length === 0) {
+    const groupedResponseEntries = new Map<string, FormDataEntryValue[]>();
+
+    for (const [key, value] of responseEntries) {
+      const values = groupedResponseEntries.get(key) ?? [];
+      values.push(value);
+      groupedResponseEntries.set(key, values);
+    }
+
+    if (groupedResponseEntries.size === 0) {
       return {
         status: "error",
         message: "Brak odpowiedzi do zapisania.",
@@ -124,21 +291,26 @@ export async function saveAssessmentResponsesAction(
 
     const now = new Date();
 
-    for (const [key, rawValue] of responseEntries) {
-      const [, questionnaireId, questionnaireVersionId, itemId, itemCode] =
-        key.split(":");
+    for (const [key, values] of groupedResponseEntries.entries()) {
+      const parsedKey = parseResponseFormKey(key);
 
-      const value = Number(rawValue);
+      if (!parsedKey) {
+        continue;
+      }
 
-      if (!Number.isInteger(value)) {
+      const parsedValue = buildResponseValue({
+        itemType: parsedKey.itemType,
+        values,
+      });
+
+      if (!parsedValue) {
         continue;
       }
 
       const existing = await db.query.assessmentResponses.findFirst({
         where: and(
           eq(assessmentResponses.assessmentSessionId, session.sessionId),
-          eq(assessmentResponses.questionnaireItemId, itemId),
-          isNull(assessmentResponses.deletedAt),
+          eq(assessmentResponses.questionnaireItemId, parsedKey.itemId),
         ),
       });
 
@@ -146,20 +318,27 @@ export async function saveAssessmentResponsesAction(
         await db
           .update(assessmentResponses)
           .set({
-            valueType: "number",
-            numberValue: value,
+            valueType: parsedValue.valueType,
+            numberValue: parsedValue.numberValue,
+            textValue: parsedValue.textValue,
+            booleanValue: parsedValue.booleanValue,
+            jsonValue: parsedValue.jsonValue,
+            deletedAt: null,
             updatedAt: now,
           })
           .where(eq(assessmentResponses.id, existing.id));
       } else {
         await db.insert(assessmentResponses).values({
           assessmentSessionId: session.sessionId,
-          questionnaireId,
-          questionnaireVersionId,
-          questionnaireItemId: itemId,
-          itemCode,
-          valueType: "number",
-          numberValue: value,
+          questionnaireId: parsedKey.questionnaireId,
+          questionnaireVersionId: parsedKey.questionnaireVersionId,
+          questionnaireItemId: parsedKey.itemId,
+          itemCode: parsedKey.itemCode,
+          valueType: parsedValue.valueType,
+          numberValue: parsedValue.numberValue,
+          textValue: parsedValue.textValue,
+          booleanValue: parsedValue.booleanValue,
+          jsonValue: parsedValue.jsonValue,
           createdAt: now,
           updatedAt: now,
         });
@@ -173,7 +352,7 @@ export async function saveAssessmentResponsesAction(
       entityType: "assessment_session",
       entityId: session.sessionId,
       after: {
-        responseCount: responseEntries.length,
+        responseCount: groupedResponseEntries.size,
       },
     });
 

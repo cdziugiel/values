@@ -40,5 +40,5 @@ export const assessmentProjectQuestionnaireStatusEnum = pgEnum(
 
 export const assessmentResponseValueTypeEnum = pgEnum(
   "assessment_response_value_type",
-  ["number", "text", "json"],
+  ["number", "text", "boolean", "json"],
 );

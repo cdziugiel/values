@@ -5,14 +5,12 @@ import { redirect } from "next/navigation";
 
 import {
   questionnaireItems,
-  questionnaireVersions,
   tenantDatabaseConnections,
   tenants,
 } from "@/drizzle/schema";
 import {
   assessmentAccessLinks,
   assessmentProjectQuestionnaires,
-  assessmentProjectRespondents,
   assessmentResponses,
   assessmentSessions,
   tenantAuditLog,
@@ -23,9 +21,35 @@ import { hashAssessmentAccessToken } from "@/server/security/assessment-token";
 import { decryptSecret } from "@/server/security/encryption";
 
 export type CompleteAssessmentSessionState = {
-  status: "idle" | "error";
+  status: "idle" | "success" | "error";
   message: string;
 };
+
+function isResponseFilled(response: {
+  valueType: string;
+  numberValue: number | null;
+  textValue: string | null;
+  booleanValue: boolean | null;
+  jsonValue: unknown | null;
+}) {
+  if (response.valueType === "number") {
+    return response.numberValue !== null && response.numberValue !== undefined;
+  }
+
+  if (response.valueType === "text") {
+    return typeof response.textValue === "string" && response.textValue.trim();
+  }
+
+  if (response.valueType === "boolean") {
+    return typeof response.booleanValue === "boolean";
+  }
+
+  if (response.valueType === "json") {
+    return Array.isArray(response.jsonValue) && response.jsonValue.length > 0;
+  }
+
+  return false;
+}
 
 export async function completeAssessmentSessionAction(
   _previousState: CompleteAssessmentSessionState,
@@ -42,7 +66,6 @@ export async function completeAssessmentSessionAction(
   }
 
   const tokenHash = hashAssessmentAccessToken(token);
-  const now = new Date();
 
   const activeTenantConnections = await controlDb
     .select({
@@ -85,11 +108,8 @@ export async function completeAssessmentSessionAction(
       .select({
         sessionId: assessmentSessions.id,
         sessionStatus: assessmentSessions.status,
-        accessLinkId: assessmentAccessLinks.id,
-        accessLinkStatus: assessmentAccessLinks.status,
         assessmentProjectId: assessmentSessions.assessmentProjectId,
-        respondentId: assessmentSessions.respondentId,
-        projectRespondentId: assessmentSessions.projectRespondentId,
+        accessLinkId: assessmentAccessLinks.id,
       })
       .from(assessmentSessions)
       .innerJoin(
@@ -100,6 +120,7 @@ export async function completeAssessmentSessionAction(
         and(
           eq(assessmentSessions.id, sessionId),
           eq(assessmentAccessLinks.tokenHash, tokenHash),
+          eq(assessmentAccessLinks.status, "active"),
           isNull(assessmentSessions.deletedAt),
           isNull(assessmentAccessLinks.deletedAt),
         ),
@@ -123,13 +144,6 @@ export async function completeAssessmentSessionAction(
       };
     }
 
-    if (session.accessLinkStatus !== "active") {
-      return {
-        status: "error",
-        message: "Link do badania nie jest aktywny.",
-      };
-    }
-
     const projectQuestionnaires = await db
       .select({
         questionnaireVersionId:
@@ -147,39 +161,38 @@ export async function completeAssessmentSessionAction(
         ),
       );
 
-    if (projectQuestionnaires.length === 0) {
+    const questionnaireVersionIds = projectQuestionnaires.map(
+      (item) => item.questionnaireVersionId,
+    );
+
+    if (questionnaireVersionIds.length === 0) {
       return {
         status: "error",
-        message: "Do projektu nie przypisano żadnego kwestionariusza.",
+        message: "Projekt nie ma przypisanych aktywnych kwestionariuszy.",
       };
     }
-
-    const questionnaireVersionIds = projectQuestionnaires.map(
-      (row) => row.questionnaireVersionId,
-    );
 
     const requiredItems = await controlDb
       .select({
         id: questionnaireItems.id,
-        code: questionnaireItems.code,
       })
       .from(questionnaireItems)
-      .innerJoin(
-        questionnaireVersions,
-        eq(questionnaireVersions.id, questionnaireItems.questionnaireVersionId),
-      )
       .where(
         and(
           inArray(questionnaireItems.questionnaireVersionId, questionnaireVersionIds),
           eq(questionnaireItems.required, true),
           isNull(questionnaireItems.deletedAt),
-          isNull(questionnaireVersions.deletedAt),
         ),
       );
 
     const responses = await db
       .select({
         questionnaireItemId: assessmentResponses.questionnaireItemId,
+        valueType: assessmentResponses.valueType,
+        numberValue: assessmentResponses.numberValue,
+        textValue: assessmentResponses.textValue,
+        booleanValue: assessmentResponses.booleanValue,
+        jsonValue: assessmentResponses.jsonValue,
       })
       .from(assessmentResponses)
       .where(
@@ -189,20 +202,24 @@ export async function completeAssessmentSessionAction(
         ),
       );
 
-    const answeredItemIds = new Set(
-      responses.map((response) => response.questionnaireItemId),
+    const filledResponseItemIds = new Set(
+      responses
+        .filter((response) => isResponseFilled(response))
+        .map((response) => response.questionnaireItemId),
     );
 
-    const missingRequiredItems = requiredItems.filter(
-      (item) => !answeredItemIds.has(item.id),
-    );
+    const missingRequiredCount = requiredItems.filter(
+      (item) => !filledResponseItemIds.has(item.id),
+    ).length;
 
-    if (missingRequiredItems.length > 0) {
+    if (missingRequiredCount > 0) {
       return {
         status: "error",
-        message: `Nie można zakończyć badania. Brakuje odpowiedzi na ${missingRequiredItems.length} wymagane pytania.`,
+        message: `Nie wszystkie wymagane pytania mają odpowiedzi. Brakuje: ${missingRequiredCount}.`,
       };
     }
+
+    const now = new Date();
 
     await db
       .update(assessmentSessions)
@@ -213,29 +230,6 @@ export async function completeAssessmentSessionAction(
       })
       .where(eq(assessmentSessions.id, session.sessionId));
 
-    await db
-      .update(assessmentProjectRespondents)
-      .set({
-        status: "completed",
-        completedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        eq(
-          assessmentProjectRespondents.id,
-          session.projectRespondentId,
-        ),
-      );
-
-    await db
-      .update(assessmentAccessLinks)
-      .set({
-        status: "used",
-        usedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(assessmentAccessLinks.id, session.accessLinkId));
-
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
       actorRole: "PUBLIC_RESPONDENT",
@@ -243,11 +237,7 @@ export async function completeAssessmentSessionAction(
       entityType: "assessment_session",
       entityId: session.sessionId,
       after: {
-        assessmentProjectId: session.assessmentProjectId,
-        respondentId: session.respondentId,
-        projectRespondentId: session.projectRespondentId,
-        responseCount: responses.length,
-        completedAt: now,
+        completedAt: now.toISOString(),
       },
     });
 

@@ -1,7 +1,5 @@
-import {
-  AssessmentResponseForm,
-  CompleteAssessmentSessionForm,
-} from "@/features/public-assessment";
+// app/a/[token]/session/[sessionId]/page.tsx
+import { AssessmentResponseForm } from "@/features/public-assessment";
 import { resolveAssessmentSessionForm } from "@/server/assessment/resolve-assessment-session-form";
 
 
@@ -92,7 +90,6 @@ export default async function PublicAssessmentSessionPage({
           sessionId={sessionId}
           items={data.items}
         />
-        <CompleteAssessmentSessionForm token={token} sessionId={sessionId} />
       </div>
     </main>
   );

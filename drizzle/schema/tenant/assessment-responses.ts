@@ -1,7 +1,9 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   uniqueIndex,
@@ -36,8 +38,13 @@ export const assessmentResponses = pgTable(
       .default("number")
       .notNull(),
 
-    numberValue: integer("number_value"),
+    numberValue: numeric("number_value", {
+      precision: 12,
+      scale: 4,
+      mode: "number",
+    }),
     textValue: text("text_value"),
+    booleanValue: boolean("boolean_value"),
     jsonValue: jsonb("json_value"),
 
     ...timestamps,

@@ -9,7 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { questionnairePages } from "./questionnaire-pages";
-
+import { sql } from "drizzle-orm";
 import {
   auditColumns,
   id,
@@ -111,7 +111,7 @@ export const questionnaireItems = pgTable(
 
     options: jsonb("options").default([]).notNull(),
     responseConfig: jsonb("response_config").default({}).notNull(),
-    
+
     scoringKey: jsonb("scoring_key").default({}).notNull(),
     metadata: jsonb("metadata").default({}).notNull(),
 
@@ -124,6 +124,9 @@ export const questionnaireItems = pgTable(
       table.questionnaireVersionId,
       table.code,
     ),
+    uniqueIndex("questionnaire_items_version_order_active_uidx")
+      .on(table.questionnaireVersionId, table.orderIndex)
+      .where(sql`${table.deletedAt} is null`),
     index("questionnaire_items_version_id_idx").on(
       table.questionnaireVersionId,
     ),

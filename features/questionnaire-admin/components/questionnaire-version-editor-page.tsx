@@ -50,6 +50,7 @@ export async function QuestionnaireVersionEditorPage({
       <QuestionnairePagesEditor
         versionId={versionId}
         pages={data.pages}
+        dimensions={data.dimensions}
       />
 
       <QuestionnaireDimensionsEditor

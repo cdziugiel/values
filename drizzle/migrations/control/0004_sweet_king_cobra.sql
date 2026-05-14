@@ -1,0 +1,2 @@
+DROP INDEX "questionnaire_item_dimension_scores_item_dimension_uidx";--> statement-breakpoint
+CREATE UNIQUE INDEX "questionnaire_item_dimension_scores_item_dimension_active_uidx" ON "questionnaire_item_dimension_scores" USING btree ("questionnaire_item_id","questionnaire_dimension_id") WHERE "questionnaire_item_dimension_scores"."deleted_at" is null;

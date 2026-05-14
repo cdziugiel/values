@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "questionnaire_items_version_order_active_uidx" ON "questionnaire_items" USING btree ("questionnaire_version_id","order_index") WHERE "questionnaire_items"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "questionnaire_pages_version_order_active_uidx" ON "questionnaire_pages" USING btree ("questionnaire_version_id","order_index") WHERE "questionnaire_pages"."deleted_at" is null;

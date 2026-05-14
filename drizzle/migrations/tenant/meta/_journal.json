@@ -43,6 +43,13 @@
       "when": 1778746605994,
       "tag": "0005_solid_dexter_bennett",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778756968850,
+      "tag": "0006_worried_vengeance",
+      "breakpoints": true
     }
   ]
 }

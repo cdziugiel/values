@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -6,7 +7,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+
 import {
   auditColumns,
   id,
@@ -14,16 +15,16 @@ import {
   timestamps,
 } from "./common-columns";
 import { questionnaireDimensions } from "./questionnaire-dimensions";
-import { questionnaireItems } from "./questionnaires";
+import { questionnairePages } from "./questionnaire-pages";
 
-export const questionnaireItemDimensionScores = pgTable(
-  "questionnaire_item_dimension_scores",
+export const questionnairePageDimensionScores = pgTable(
+  "questionnaire_page_dimension_scores",
   {
     ...id,
 
-    questionnaireItemId: uuid("questionnaire_item_id")
+    questionnairePageId: uuid("questionnaire_page_id")
       .notNull()
-      .references(() => questionnaireItems.id, { onDelete: "cascade" }),
+      .references(() => questionnairePages.id, { onDelete: "cascade" }),
 
     questionnaireDimensionId: uuid("questionnaire_dimension_id")
       .notNull()
@@ -40,17 +41,19 @@ export const questionnaireItemDimensionScores = pgTable(
     ...softDelete,
   },
   (table) => [
-    uniqueIndex("questionnaire_item_dimension_scores_item_dimension_active_uidx")
-    .on(table.questionnaireItemId, table.questionnaireDimensionId)
-    .where(sql`${table.deletedAt} is null`),
-    
-    index("questionnaire_item_dimension_scores_item_id_idx").on(
-      table.questionnaireItemId,
+    uniqueIndex("questionnaire_page_dimension_scores_page_dimension_active_uidx")
+      .on(table.questionnairePageId, table.questionnaireDimensionId)
+      .where(sql`${table.deletedAt} is null`),
+
+    index("questionnaire_page_dimension_scores_page_id_idx").on(
+      table.questionnairePageId,
     ),
-    index("questionnaire_item_dimension_scores_dimension_id_idx").on(
+
+    index("questionnaire_page_dimension_scores_dimension_id_idx").on(
       table.questionnaireDimensionId,
     ),
-    index("questionnaire_item_dimension_scores_deleted_at_idx").on(
+
+    index("questionnaire_page_dimension_scores_deleted_at_idx").on(
       table.deletedAt,
     ),
   ],

@@ -29,6 +29,27 @@
       "when": 1778747848524,
       "tag": "0003_simple_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778749824178,
+      "tag": "0004_sweet_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778750891285,
+      "tag": "0005_heavy_king_bedlam",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778752475429,
+      "tag": "0006_small_echo",
+      "breakpoints": true
     }
   ]
 }

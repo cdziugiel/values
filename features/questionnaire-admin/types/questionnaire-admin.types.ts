@@ -26,6 +26,7 @@ export type QuestionnairePageEditorItem = {
   title: string;
   description: string | null;
   orderIndex: number;
+  dimensionScores: QuestionnairePageDimensionScoreEditorItem[];
 };
 
 export type QuestionnaireDimensionEditorItem = {
@@ -62,6 +63,8 @@ export type QuestionnaireItemEditorItem = {
   scaleMinLabel: string | null;
   scaleMaxLabel: string | null;
   dimensionScores: QuestionnaireItemDimensionScoreEditorItem[];
+  options: unknown;
+  responseConfig: unknown;
 };
 
 export type QuestionnaireVersionEditorData = {
@@ -69,4 +72,14 @@ export type QuestionnaireVersionEditorData = {
   pages: QuestionnairePageEditorItem[];
   dimensions: QuestionnaireDimensionEditorItem[];
   items: QuestionnaireItemEditorItem[];
+};
+
+export type QuestionnairePageDimensionScoreEditorItem = {
+  id: string;
+  questionnairePageId: string;
+  questionnaireDimensionId: string;
+  dimensionCode: string;
+  dimensionName: string;
+  weight: string;
+  reverseScored: boolean;
 };
