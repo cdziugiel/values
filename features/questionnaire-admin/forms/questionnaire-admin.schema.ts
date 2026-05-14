@@ -181,7 +181,7 @@ export const assignItemDimensionSchema = z.object({
     itemId: z.string().uuid(),
     dimensionId: z.string().uuid(),
     weight: z.coerce.number().min(-100).max(100).default(1),
-    reverseScored: z.coerce.boolean().default(false),
+    reverseScored: z.boolean().default(false),
 });
 
 export const removeItemDimensionSchema = z.object({
@@ -272,7 +272,7 @@ export const assignPageDimensionSchema = z.object({
     pageId: z.string().uuid(),
     dimensionId: z.string().uuid(),
     weight: z.coerce.number().min(-100).max(100).default(1),
-    reverseScored: z.coerce.boolean().default(false),
+    reverseScored: z.boolean().default(false),
 });
 
 export const removePageDimensionSchema = z.object({

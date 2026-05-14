@@ -18,6 +18,10 @@ export type AssessmentProjectRespondentListItem = {
   accessLinkExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  sessionId: string | null;
+  sessionStatus: string | null;
+  sessionStartedAt: Date | null;
+  sessionCompletedAt: Date | null;
 };
 
 export type AssessmentProjectRespondentOption = {

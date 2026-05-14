@@ -12,7 +12,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 import { listActiveQuestionnaireVersions } from "@/features/questionnaires/api/questionnaire.queries";
-import { ProjectQuestionnairePicker } from "@/features/assessment-project-questionnaires";
+import {
+  listAssessmentProjectQuestionnaireAssignments,
+  ProjectQuestionnaireList,
+} from "@/features/assessment-project-questionnaires";
 
 import {
   listAssessmentProjectOrganizations,
@@ -50,11 +53,27 @@ export async function AssessmentProjectsPage({
 
   const db = await getTenantDb(ctx);
 
-  const [projects, organizations, questionnaireOptions] = await Promise.all([
-    listAssessmentProjects(db),
-    listAssessmentProjectOrganizations(db),
-    listActiveQuestionnaireVersions(),
-  ]);
+const [projects, organizations, questionnaireOptions] = await Promise.all([
+  listAssessmentProjects(db),
+  listAssessmentProjectOrganizations(db),
+  listActiveQuestionnaireVersions(),
+]);
+
+const projectQuestionnaireAssignments =
+  await listAssessmentProjectQuestionnaireAssignments({
+    db,
+    assessmentProjectIds: projects.map((project) => project.id),
+  });
+
+const projectQuestionnairesByProjectId =
+  projectQuestionnaireAssignments.reduce(
+    (acc, assignment) => {
+      acc[assignment.assessmentProjectId] ??= [];
+      acc[assignment.assessmentProjectId].push(assignment);
+      return acc;
+    },
+    {} as Record<string, typeof projectQuestionnaireAssignments>,
+  );
 
   return (
     <div className="space-y-8">
@@ -91,6 +110,7 @@ export async function AssessmentProjectsPage({
                     <th className="py-3 pr-4 font-medium">Koniec</th>
                     <th className="py-3 pr-4 font-medium">Opis</th>
                     <th className="py-3 pr-4 font-medium">Aktualizacja</th>
+                    <th className="py-3 pr-4 font-medium">Kwestionariusze</th>
                     <th className="py-3 pr-4 font-medium">Akcje</th>
                   </tr>
                 </thead>
@@ -125,7 +145,17 @@ export async function AssessmentProjectsPage({
                       <td className="py-3 pr-4">
                         {formatDateTime(project.updatedAt)}
                       </td>
-
+<td className="py-3 pr-4 align-top">
+  <ProjectQuestionnaireList
+    tenantSlug={ctx.tenantSlug}
+    assessmentProjectId={project.id}
+    assignedQuestionnaires={
+      projectQuestionnairesByProjectId[project.id] ?? []
+    }
+    options={questionnaireOptions}
+    canManage={canUpdate}
+  />
+</td>
                       <td className="py-3 pr-4">
                         <div className="flex flex-wrap gap-2">
                           <Button asChild size="sm" variant="outline">
@@ -135,17 +165,18 @@ export async function AssessmentProjectsPage({
                               Uczestnicy
                             </Link>
                           </Button>
-
+                          <Button asChild size="sm" variant="outline">
+                            <Link
+                              href={`/t/${ctx.tenantSlug}/assessment-projects/${project.id}/results`}
+                            >
+                              Wyniki
+                            </Link>
+                          </Button>
                           <AssessmentProjectRowActions
                             tenantSlug={ctx.tenantSlug}
                             project={project}
                             organizations={organizations}
                             canManage={canUpdate}
-                          />
-                          <ProjectQuestionnairePicker
-                            tenantSlug={ctx.tenantSlug}
-                            assessmentProjectId={project.id}
-                            options={questionnaireOptions}
                           />
                         </div>
                       </td>

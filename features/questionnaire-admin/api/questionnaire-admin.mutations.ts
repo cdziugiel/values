@@ -2,84 +2,91 @@ import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import { max } from "drizzle-orm";
 import { validateQuestionnaireVersionForPublishing } from "./questionnaire-version-publishing.validation";
 import {
-    questionnaireDimensions,
-    questionnaireItemDimensionScores,
-    questionnairePageDimensionScores,
-    questionnaireItems,
-    questionnairePages,
-    questionnaires,
-    questionnaireVersions,
-    systemAuditLog,
+  questionnaireDimensions,
+  questionnaireItemDimensionScores,
+  questionnairePageDimensionScores,
+  questionnaireItems,
+  questionnairePages,
+  questionnaires,
+  questionnaireVersions,
+  systemAuditLog,
 } from "@/drizzle/schema";
 import { controlDb } from "@/server/db/control-db";
 
 import {
-    assignItemDimensionSchema,
-    createQuestionnaireDimensionSchema,
-    createQuestionnaireItemSchema,
-    createQuestionnairePageSchema,
-    createQuestionnaireSchema,
-    createQuestionnaireVersionSchema,
-    removeItemDimensionSchema,
-    updateQuestionnaireDimensionSchema,
-    updateQuestionnaireItemSchema,
-    updateQuestionnairePageSchema,
-    updateQuestionnaireSchema,
-    updateQuestionnaireVersionSchema,
-    archiveQuestionnaireItemSchema,
-    archiveQuestionnairePageSchema,
-    archiveQuestionnaireDimensionSchema,
-    reorderQuestionnairePageSchema,
-    reorderQuestionnaireItemSchema,
-    assignPageDimensionSchema,
-    removePageDimensionSchema,
-    publishQuestionnaireVersionSchema,
-    cloneQuestionnaireVersionSchema,
-    type CloneQuestionnaireVersionInput,
-    type PublishQuestionnaireVersionInput,
-    type ReorderQuestionnairePageInput,
-    type ReorderQuestionnaireItemInput,
-    type ArchiveQuestionnairePageInput,
-    type ArchiveQuestionnaireDimensionInput,
-    type ArchiveQuestionnaireItemInput,
-    type AssignItemDimensionInput,
-    type CreateQuestionnaireDimensionInput,
-    type CreateQuestionnaireInput,
-    type CreateQuestionnaireItemInput,
-    type CreateQuestionnairePageInput,
-    type CreateQuestionnaireVersionInput,
-    type RemoveItemDimensionInput,
-    type UpdateQuestionnaireDimensionInput,
-    type UpdateQuestionnaireInput,
-    type UpdateQuestionnaireItemInput,
-    type UpdateQuestionnairePageInput,
-    type UpdateQuestionnaireVersionInput,
-    AssignPageDimensionInput,
-    RemovePageDimensionInput,
+  assertQuestionnaireDimensionVersionIsDraft,
+  assertQuestionnaireItemVersionIsDraft,
+  assertQuestionnairePageVersionIsDraft,
+  assertQuestionnaireVersionIsDraft,
+} from "./questionnaire-version-guards";
+
+import {
+  assignItemDimensionSchema,
+  createQuestionnaireDimensionSchema,
+  createQuestionnaireItemSchema,
+  createQuestionnairePageSchema,
+  createQuestionnaireSchema,
+  createQuestionnaireVersionSchema,
+  removeItemDimensionSchema,
+  updateQuestionnaireDimensionSchema,
+  updateQuestionnaireItemSchema,
+  updateQuestionnairePageSchema,
+  updateQuestionnaireSchema,
+  updateQuestionnaireVersionSchema,
+  archiveQuestionnaireItemSchema,
+  archiveQuestionnairePageSchema,
+  archiveQuestionnaireDimensionSchema,
+  reorderQuestionnairePageSchema,
+  reorderQuestionnaireItemSchema,
+  assignPageDimensionSchema,
+  removePageDimensionSchema,
+  publishQuestionnaireVersionSchema,
+  cloneQuestionnaireVersionSchema,
+  type CloneQuestionnaireVersionInput,
+  type PublishQuestionnaireVersionInput,
+  type ReorderQuestionnairePageInput,
+  type ReorderQuestionnaireItemInput,
+  type ArchiveQuestionnairePageInput,
+  type ArchiveQuestionnaireDimensionInput,
+  type ArchiveQuestionnaireItemInput,
+  type AssignItemDimensionInput,
+  type CreateQuestionnaireDimensionInput,
+  type CreateQuestionnaireInput,
+  type CreateQuestionnaireItemInput,
+  type CreateQuestionnairePageInput,
+  type CreateQuestionnaireVersionInput,
+  type RemoveItemDimensionInput,
+  type UpdateQuestionnaireDimensionInput,
+  type UpdateQuestionnaireInput,
+  type UpdateQuestionnaireItemInput,
+  type UpdateQuestionnairePageInput,
+  type UpdateQuestionnaireVersionInput,
+  AssignPageDimensionInput,
+  RemovePageDimensionInput,
 } from "../forms/questionnaire-admin.schema";
 
 function nullIfEmpty(value?: string | null) {
-    const normalized = value?.trim();
-    return normalized ? normalized : null;
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function nullableUuid(value?: string | null) {
-    const normalized = value?.trim();
-    return normalized ? normalized : null;
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function nullableInt(value: unknown) {
-    if (value === "" || value === undefined || value === null) {
-        return null;
-    }
+  if (value === "" || value === undefined || value === null) {
+    return null;
+  }
 
-    const numberValue = Number(value);
+  const numberValue = Number(value);
 
-    if (!Number.isInteger(numberValue)) {
-        return null;
-    }
+  if (!Number.isInteger(numberValue)) {
+    return null;
+  }
 
-    return numberValue;
+  return numberValue;
 }
 
 
@@ -206,6 +213,7 @@ export async function assignPageDimensionAsSuperAdmin({
   input: AssignPageDimensionInput;
 }) {
   const parsed = assignPageDimensionSchema.parse(input);
+  await assertQuestionnairePageVersionIsDraft(parsed.pageId);
   const now = new Date();
 
   const existing =
@@ -297,7 +305,21 @@ export async function removePageDimensionAsSuperAdmin({
   input: RemovePageDimensionInput;
 }) {
   const parsed = removePageDimensionSchema.parse(input);
+  const score = await controlDb.query.questionnairePageDimensionScores.findFirst({
+    where: eq(
+      questionnairePageDimensionScores.id,
+      parsed.pageDimensionScoreId,
+    ),
+    columns: {
+      questionnairePageId: true,
+    },
+  });
 
+  if (!score) {
+    throw new Error("Nie znaleziono przypisania wymiaru do strony.");
+  }
+
+  await assertQuestionnairePageVersionIsDraft(score.questionnairePageId);
   const now = new Date();
 
   const [removed] = await controlDb
@@ -339,184 +361,184 @@ async function buildUniqueItemCode(versionId: string, orderIndex: number) {
 }
 
 export async function createQuestionnaireAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: CreateQuestionnaireInput;
+  actorUserId: string;
+  input: CreateQuestionnaireInput;
 }) {
-    const parsed = createQuestionnaireSchema.parse(input);
+  const parsed = createQuestionnaireSchema.parse(input);
 
-    const [questionnaire] = await controlDb
-        .insert(questionnaires)
-        .values({
-            code: parsed.code.trim().toUpperCase(),
-            name: parsed.name.trim(),
-            description: nullIfEmpty(parsed.description),
-            status: "draft",
-            createdBy: actorUserId,
-            updatedBy: actorUserId,
-        })
-        .returning();
+  const [questionnaire] = await controlDb
+    .insert(questionnaires)
+    .values({
+      code: parsed.code.trim().toUpperCase(),
+      name: parsed.name.trim(),
+      description: nullIfEmpty(parsed.description),
+      status: "draft",
+      createdBy: actorUserId,
+      updatedBy: actorUserId,
+    })
+    .returning();
 
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_created",
-        entityType: "questionnaire",
-        entityId: questionnaire.id,
-        after: {
-            code: questionnaire.code,
-            name: questionnaire.name,
-            status: questionnaire.status,
-        },
-    });
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_created",
+    entityType: "questionnaire",
+    entityId: questionnaire.id,
+    after: {
+      code: questionnaire.code,
+      name: questionnaire.name,
+      status: questionnaire.status,
+    },
+  });
 
-    return questionnaire;
+  return questionnaire;
 }
 
 export async function updateQuestionnaireAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: UpdateQuestionnaireInput;
+  actorUserId: string;
+  input: UpdateQuestionnaireInput;
 }) {
-    const parsed = updateQuestionnaireSchema.parse(input);
+  const parsed = updateQuestionnaireSchema.parse(input);
 
-    const existing = await controlDb.query.questionnaires.findFirst({
-        where: and(
-            eq(questionnaires.id, parsed.questionnaireId),
-            isNull(questionnaires.deletedAt),
-        ),
-    });
+  const existing = await controlDb.query.questionnaires.findFirst({
+    where: and(
+      eq(questionnaires.id, parsed.questionnaireId),
+      isNull(questionnaires.deletedAt),
+    ),
+  });
 
-    if (!existing) {
-        throw new Error("Questionnaire not found.");
-    }
+  if (!existing) {
+    throw new Error("Questionnaire not found.");
+  }
 
-    const [updated] = await controlDb
-        .update(questionnaires)
-        .set({
-            code: parsed.code.trim().toUpperCase(),
-            name: parsed.name.trim(),
-            description: nullIfEmpty(parsed.description),
-            status: parsed.status,
-            updatedBy: actorUserId,
-            updatedAt: new Date(),
-        })
-        .where(eq(questionnaires.id, parsed.questionnaireId))
-        .returning();
+  const [updated] = await controlDb
+    .update(questionnaires)
+    .set({
+      code: parsed.code.trim().toUpperCase(),
+      name: parsed.name.trim(),
+      description: nullIfEmpty(parsed.description),
+      status: parsed.status,
+      updatedBy: actorUserId,
+      updatedAt: new Date(),
+    })
+    .where(eq(questionnaires.id, parsed.questionnaireId))
+    .returning();
 
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_updated",
-        entityType: "questionnaire",
-        entityId: updated.id,
-        before: {
-            code: existing.code,
-            name: existing.name,
-            status: existing.status,
-        },
-        after: {
-            code: updated.code,
-            name: updated.name,
-            status: updated.status,
-        },
-    });
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_updated",
+    entityType: "questionnaire",
+    entityId: updated.id,
+    before: {
+      code: existing.code,
+      name: existing.name,
+      status: existing.status,
+    },
+    after: {
+      code: updated.code,
+      name: updated.name,
+      status: updated.status,
+    },
+  });
 
-    return updated;
+  return updated;
 }
 
 export async function createQuestionnaireVersionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: CreateQuestionnaireVersionInput;
+  actorUserId: string;
+  input: CreateQuestionnaireVersionInput;
 }) {
-    const parsed = createQuestionnaireVersionSchema.parse(input);
+  const parsed = createQuestionnaireVersionSchema.parse(input);
 
-    const [version] = await controlDb
-        .insert(questionnaireVersions)
-        .values({
-            questionnaireId: parsed.questionnaireId,
-            version: parsed.version.trim(),
-            name: parsed.name.trim(),
-            description: nullIfEmpty(parsed.description),
-            status: "draft",
-            createdBy: actorUserId,
-            updatedBy: actorUserId,
-        })
-        .returning();
+  const [version] = await controlDb
+    .insert(questionnaireVersions)
+    .values({
+      questionnaireId: parsed.questionnaireId,
+      version: parsed.version.trim(),
+      name: parsed.name.trim(),
+      description: nullIfEmpty(parsed.description),
+      status: "draft",
+      createdBy: actorUserId,
+      updatedBy: actorUserId,
+    })
+    .returning();
 
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_version_created",
-        entityType: "questionnaire_version",
-        entityId: version.id,
-        after: {
-            questionnaireId: version.questionnaireId,
-            version: version.version,
-            name: version.name,
-            status: version.status,
-        },
-    });
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_version_created",
+    entityType: "questionnaire_version",
+    entityId: version.id,
+    after: {
+      questionnaireId: version.questionnaireId,
+      version: version.version,
+      name: version.name,
+      status: version.status,
+    },
+  });
 
-    return version;
+  return version;
 }
 
 export async function updateQuestionnaireVersionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: UpdateQuestionnaireVersionInput;
+  actorUserId: string;
+  input: UpdateQuestionnaireVersionInput;
 }) {
-    const parsed = updateQuestionnaireVersionSchema.parse(input);
+  const parsed = updateQuestionnaireVersionSchema.parse(input);
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
+  const existing = await controlDb.query.questionnaireVersions.findFirst({
+    where: and(
+      eq(questionnaireVersions.id, parsed.versionId),
+      isNull(questionnaireVersions.deletedAt),
+    ),
+  });
 
-    const existing = await controlDb.query.questionnaireVersions.findFirst({
-        where: and(
-            eq(questionnaireVersions.id, parsed.versionId),
-            isNull(questionnaireVersions.deletedAt),
-        ),
-    });
+  if (!existing) {
+    throw new Error("Questionnaire version not found.");
+  }
 
-    if (!existing) {
-        throw new Error("Questionnaire version not found.");
-    }
+  const [updated] = await controlDb
+    .update(questionnaireVersions)
+    .set({
+      name: parsed.name.trim(),
+      description: nullIfEmpty(parsed.description),
+      status: parsed.status,
+      updatedBy: actorUserId,
+      updatedAt: new Date(),
+    })
+    .where(eq(questionnaireVersions.id, parsed.versionId))
+    .returning();
 
-    const [updated] = await controlDb
-        .update(questionnaireVersions)
-        .set({
-            name: parsed.name.trim(),
-            description: nullIfEmpty(parsed.description),
-            status: parsed.status,
-            updatedBy: actorUserId,
-            updatedAt: new Date(),
-        })
-        .where(eq(questionnaireVersions.id, parsed.versionId))
-        .returning();
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_version_updated",
+    entityType: "questionnaire_version",
+    entityId: updated.id,
+    before: {
+      name: existing.name,
+      status: existing.status,
+    },
+    after: {
+      name: updated.name,
+      status: updated.status,
+    },
+  });
 
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_version_updated",
-        entityType: "questionnaire_version",
-        entityId: updated.id,
-        before: {
-            name: existing.name,
-            status: existing.status,
-        },
-        after: {
-            name: updated.name,
-            status: updated.status,
-        },
-    });
-
-    return updated;
+  return updated;
 }
 
 export async function createQuestionnairePageAsSuperAdmin({
@@ -527,7 +549,7 @@ export async function createQuestionnairePageAsSuperAdmin({
   input: CreateQuestionnairePageInput;
 }) {
   const parsed = createQuestionnairePageSchema.parse(input);
-
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
   const orderIndex = await getNextPageOrderIndex(parsed.versionId);
   const code = await buildUniquePageCode(parsed.versionId, orderIndex);
 
@@ -568,7 +590,7 @@ export async function updateQuestionnairePageAsSuperAdmin({
   input: UpdateQuestionnairePageInput;
 }) {
   const parsed = updateQuestionnairePageSchema.parse(input);
-
+  await assertQuestionnairePageVersionIsDraft(parsed.pageId);
   const existing = await controlDb.query.questionnairePages.findFirst({
     where: and(
       eq(questionnairePages.id, parsed.pageId),
@@ -598,53 +620,53 @@ export async function updateQuestionnairePageAsSuperAdmin({
 
 
 export async function createQuestionnaireDimensionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: CreateQuestionnaireDimensionInput;
+  actorUserId: string;
+  input: CreateQuestionnaireDimensionInput;
 }) {
-    const parsed = createQuestionnaireDimensionSchema.parse(input);
+  const parsed = createQuestionnaireDimensionSchema.parse(input);
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
+  const [dimension] = await controlDb
+    .insert(questionnaireDimensions)
+    .values({
+      questionnaireVersionId: parsed.versionId,
+      code: parsed.code.trim().toUpperCase(),
+      name: parsed.name.trim(),
+      description: nullIfEmpty(parsed.description),
+      orderIndex: parsed.orderIndex,
+      createdBy: actorUserId,
+      updatedBy: actorUserId,
+    })
+    .returning();
 
-    const [dimension] = await controlDb
-        .insert(questionnaireDimensions)
-        .values({
-            questionnaireVersionId: parsed.versionId,
-            code: parsed.code.trim().toUpperCase(),
-            name: parsed.name.trim(),
-            description: nullIfEmpty(parsed.description),
-            orderIndex: parsed.orderIndex,
-            createdBy: actorUserId,
-            updatedBy: actorUserId,
-        })
-        .returning();
-
-    return dimension;
+  return dimension;
 }
 
 export async function updateQuestionnaireDimensionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: UpdateQuestionnaireDimensionInput;
+  actorUserId: string;
+  input: UpdateQuestionnaireDimensionInput;
 }) {
-    const parsed = updateQuestionnaireDimensionSchema.parse(input);
+  const parsed = updateQuestionnaireDimensionSchema.parse(input);
+  await assertQuestionnaireDimensionVersionIsDraft(parsed.dimensionId);
+  const [dimension] = await controlDb
+    .update(questionnaireDimensions)
+    .set({
+      code: parsed.code.trim().toUpperCase(),
+      name: parsed.name.trim(),
+      description: nullIfEmpty(parsed.description),
+      orderIndex: parsed.orderIndex,
+      updatedBy: actorUserId,
+      updatedAt: new Date(),
+    })
+    .where(eq(questionnaireDimensions.id, parsed.dimensionId))
+    .returning();
 
-    const [dimension] = await controlDb
-        .update(questionnaireDimensions)
-        .set({
-            code: parsed.code.trim().toUpperCase(),
-            name: parsed.name.trim(),
-            description: nullIfEmpty(parsed.description),
-            orderIndex: parsed.orderIndex,
-            updatedBy: actorUserId,
-            updatedAt: new Date(),
-        })
-        .where(eq(questionnaireDimensions.id, parsed.dimensionId))
-        .returning();
-
-    return dimension;
+  return dimension;
 }
 
 
@@ -730,11 +752,11 @@ export async function createQuestionnaireItemAsSuperAdmin({
   input: CreateQuestionnaireItemInput;
 }) {
   const parsed = createQuestionnaireItemSchema.parse(input);
-
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
   const orderIndex = await getNextItemOrderIndex(parsed.versionId);
   const code = await buildUniqueItemCode(parsed.versionId, orderIndex);
   const pageId = nullableUuid(parsed.pageId);
-const answerConfig = buildItemAnswerConfig(parsed);
+  const answerConfig = buildItemAnswerConfig(parsed);
   const [item] = await controlDb.transaction(async (tx) => {
     const [createdItem] = await tx
       .insert(questionnaireItems)
@@ -747,12 +769,12 @@ const answerConfig = buildItemAnswerConfig(parsed);
         text: parsed.text.trim(),
         helpText: nullIfEmpty(parsed.helpText),
         required: parsed.required,
-scaleMin: answerConfig.scaleMin,
-scaleMax: answerConfig.scaleMax,
-scaleMinLabel: answerConfig.scaleMinLabel,
-scaleMaxLabel: answerConfig.scaleMaxLabel,
-options: answerConfig.options,
-responseConfig: answerConfig.responseConfig,
+        scaleMin: answerConfig.scaleMin,
+        scaleMax: answerConfig.scaleMax,
+        scaleMinLabel: answerConfig.scaleMinLabel,
+        scaleMaxLabel: answerConfig.scaleMaxLabel,
+        options: answerConfig.options,
+        responseConfig: answerConfig.responseConfig,
         createdBy: actorUserId,
         updatedBy: actorUserId,
       })
@@ -795,7 +817,7 @@ export async function updateQuestionnaireItemAsSuperAdmin({
   input: UpdateQuestionnaireItemInput;
 }) {
   const parsed = updateQuestionnaireItemSchema.parse(input);
-
+  await assertQuestionnaireItemVersionIsDraft(parsed.itemId);
   const existing = await controlDb.query.questionnaireItems.findFirst({
     where: and(
       eq(questionnaireItems.id, parsed.itemId),
@@ -809,7 +831,7 @@ export async function updateQuestionnaireItemAsSuperAdmin({
   }
 
   const pageId = nullableUuid(parsed.pageId);
-const answerConfig = buildItemAnswerConfig(parsed);
+  const answerConfig = buildItemAnswerConfig(parsed);
   const [item] = await controlDb.transaction(async (tx) => {
     const [updatedItem] = await tx
       .update(questionnaireItems)
@@ -819,12 +841,12 @@ const answerConfig = buildItemAnswerConfig(parsed);
         text: parsed.text.trim(),
         helpText: nullIfEmpty(parsed.helpText),
         required: parsed.required,
-scaleMin: answerConfig.scaleMin,
-scaleMax: answerConfig.scaleMax,
-scaleMinLabel: answerConfig.scaleMinLabel,
-scaleMaxLabel: answerConfig.scaleMaxLabel,
-options: answerConfig.options,
-responseConfig: answerConfig.responseConfig,
+        scaleMin: answerConfig.scaleMin,
+        scaleMax: answerConfig.scaleMax,
+        scaleMinLabel: answerConfig.scaleMinLabel,
+        scaleMaxLabel: answerConfig.scaleMaxLabel,
+        options: answerConfig.options,
+        responseConfig: answerConfig.responseConfig,
         updatedBy: actorUserId,
         updatedAt: new Date(),
       })
@@ -847,446 +869,460 @@ responseConfig: answerConfig.responseConfig,
 }
 
 export async function assignItemDimensionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: AssignItemDimensionInput;
+  actorUserId: string;
+  input: AssignItemDimensionInput;
 }) {
-    const parsed = assignItemDimensionSchema.parse(input);
+  const parsed = assignItemDimensionSchema.parse(input);
+  await assertQuestionnaireItemVersionIsDraft(parsed.itemId);
+  const existing = await controlDb.query.questionnaireItemDimensionScores.findFirst({
+    where: and(
+      eq(questionnaireItemDimensionScores.questionnaireItemId, parsed.itemId),
+      eq(
+        questionnaireItemDimensionScores.questionnaireDimensionId,
+        parsed.dimensionId,
+      ),
+    ),
+  });
 
-    const existing = await controlDb.query.questionnaireItemDimensionScores.findFirst({
-        where: and(
-            eq(questionnaireItemDimensionScores.questionnaireItemId, parsed.itemId),
-            eq(
-                questionnaireItemDimensionScores.questionnaireDimensionId,
-                parsed.dimensionId,
-            ),
-        ),
-    });
+  const now = new Date();
 
-    const now = new Date();
+  if (existing && !existing.deletedAt) {
+    throw new Error("Ten wymiar jest już przypisany do tego itemu.");
+  }
 
-    if (existing && !existing.deletedAt) {
-        throw new Error("Ten wymiar jest już przypisany do tego itemu.");
-    }
-
-    if (existing && existing.deletedAt) {
-        const [restored] = await controlDb
-            .update(questionnaireItemDimensionScores)
-            .set({
-                weight: String(parsed.weight),
-                reverseScored: parsed.reverseScored,
-                deletedAt: null,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnaireItemDimensionScores.id, existing.id))
-            .returning();
-
-        await controlDb.insert(systemAuditLog).values({
-            actorUserId,
-            actorRole: "SUPER_ADMIN",
-            action: "questionnaire_item_dimension_score_restored",
-            entityType: "questionnaire_item_dimension_score",
-            entityId: restored.id,
-            after: {
-                questionnaireItemId: restored.questionnaireItemId,
-                questionnaireDimensionId: restored.questionnaireDimensionId,
-                weight: restored.weight,
-                reverseScored: restored.reverseScored,
-            },
-        });
-
-        return restored;
-    }
-
-    const [score] = await controlDb
-        .insert(questionnaireItemDimensionScores)
-        .values({
-            questionnaireItemId: parsed.itemId,
-            questionnaireDimensionId: parsed.dimensionId,
-            weight: String(parsed.weight),
-            reverseScored: parsed.reverseScored,
-            createdBy: actorUserId,
-            updatedBy: actorUserId,
-        })
-        .returning();
+  if (existing && existing.deletedAt) {
+    const [restored] = await controlDb
+      .update(questionnaireItemDimensionScores)
+      .set({
+        weight: String(parsed.weight),
+        reverseScored: parsed.reverseScored,
+        deletedAt: null,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireItemDimensionScores.id, existing.id))
+      .returning();
 
     await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_item_dimension_score_created",
-        entityType: "questionnaire_item_dimension_score",
-        entityId: score.id,
-        after: {
-            questionnaireItemId: score.questionnaireItemId,
-            questionnaireDimensionId: score.questionnaireDimensionId,
-            weight: score.weight,
-            reverseScored: score.reverseScored,
-        },
+      actorUserId,
+      actorRole: "SUPER_ADMIN",
+      action: "questionnaire_item_dimension_score_restored",
+      entityType: "questionnaire_item_dimension_score",
+      entityId: restored.id,
+      after: {
+        questionnaireItemId: restored.questionnaireItemId,
+        questionnaireDimensionId: restored.questionnaireDimensionId,
+        weight: restored.weight,
+        reverseScored: restored.reverseScored,
+      },
     });
 
-    return score;
+    return restored;
+  }
+
+  const [score] = await controlDb
+    .insert(questionnaireItemDimensionScores)
+    .values({
+      questionnaireItemId: parsed.itemId,
+      questionnaireDimensionId: parsed.dimensionId,
+      weight: String(parsed.weight),
+      reverseScored: parsed.reverseScored,
+      createdBy: actorUserId,
+      updatedBy: actorUserId,
+    })
+    .returning();
+
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_item_dimension_score_created",
+    entityType: "questionnaire_item_dimension_score",
+    entityId: score.id,
+    after: {
+      questionnaireItemId: score.questionnaireItemId,
+      questionnaireDimensionId: score.questionnaireDimensionId,
+      weight: score.weight,
+      reverseScored: score.reverseScored,
+    },
+  });
+
+  return score;
 }
 
 export async function removeItemDimensionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: RemoveItemDimensionInput;
+  actorUserId: string;
+  input: RemoveItemDimensionInput;
 }) {
-    const parsed = removeItemDimensionSchema.parse(input);
+  const parsed = removeItemDimensionSchema.parse(input);
+  const score = await controlDb.query.questionnaireItemDimensionScores.findFirst({
+    where: eq(
+      questionnaireItemDimensionScores.id,
+      parsed.itemDimensionScoreId,
+    ),
+    columns: {
+      questionnaireItemId: true,
+    },
+  });
 
-    const now = new Date();
+  if (!score) {
+    throw new Error("Nie znaleziono przypisania wymiaru do itemu.");
+  }
 
-    const [removed] = await controlDb
-        .update(questionnaireItemDimensionScores)
-        .set({
-            deletedAt: now,
-            updatedBy: actorUserId,
-            updatedAt: now,
-        })
-        .where(
-            eq(
-                questionnaireItemDimensionScores.id,
-                parsed.itemDimensionScoreId,
-            ),
-        )
-        .returning();
+  await assertQuestionnaireItemVersionIsDraft(score.questionnaireItemId);
+  const now = new Date();
 
-    return removed;
+  const [removed] = await controlDb
+    .update(questionnaireItemDimensionScores)
+    .set({
+      deletedAt: now,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(
+      eq(
+        questionnaireItemDimensionScores.id,
+        parsed.itemDimensionScoreId,
+      ),
+    )
+    .returning();
+
+  return removed;
 }
 
 export async function archiveQuestionnaireItemAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: ArchiveQuestionnaireItemInput;
+  actorUserId: string;
+  input: ArchiveQuestionnaireItemInput;
 }) {
-    const parsed = archiveQuestionnaireItemSchema.parse(input);
+  const parsed = archiveQuestionnaireItemSchema.parse(input);
+  await assertQuestionnaireItemVersionIsDraft(parsed.itemId);
+  const existing = await controlDb.query.questionnaireItems.findFirst({
+    where: and(
+      eq(questionnaireItems.id, parsed.itemId),
+      isNull(questionnaireItems.deletedAt),
+    ),
+  });
 
-    const existing = await controlDb.query.questionnaireItems.findFirst({
-        where: and(
-            eq(questionnaireItems.id, parsed.itemId),
-            isNull(questionnaireItems.deletedAt),
-        ),
-    });
+  if (!existing) {
+    throw new Error("Item not found.");
+  }
 
-    if (!existing) {
-        throw new Error("Item not found.");
-    }
+  const now = new Date();
 
-    const now = new Date();
+  const [archived] = await controlDb
+    .update(questionnaireItems)
+    .set({
+      deletedAt: now,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(questionnaireItems.id, parsed.itemId))
+    .returning();
 
-    const [archived] = await controlDb
-        .update(questionnaireItems)
-        .set({
-            deletedAt: now,
-            updatedBy: actorUserId,
-            updatedAt: now,
-        })
-        .where(eq(questionnaireItems.id, parsed.itemId))
-        .returning();
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_item_archived",
+    entityType: "questionnaire_item",
+    entityId: archived.id,
+    before: {
+      code: existing.code,
+      text: existing.text,
+      type: existing.type,
+    },
+    after: {
+      deletedAt: archived.deletedAt,
+    },
+  });
 
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_item_archived",
-        entityType: "questionnaire_item",
-        entityId: archived.id,
-        before: {
-            code: existing.code,
-            text: existing.text,
-            type: existing.type,
-        },
-        after: {
-            deletedAt: archived.deletedAt,
-        },
-    });
-
-    return archived;
+  return archived;
 }
 export async function archiveQuestionnairePageAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: ArchiveQuestionnairePageInput;
+  actorUserId: string;
+  input: ArchiveQuestionnairePageInput;
 }) {
-    const parsed = archiveQuestionnairePageSchema.parse(input);
+  const parsed = archiveQuestionnairePageSchema.parse(input);
+  await assertQuestionnairePageVersionIsDraft(parsed.pageId);
+  const existing = await controlDb.query.questionnairePages.findFirst({
+    where: and(
+      eq(questionnairePages.id, parsed.pageId),
+      isNull(questionnairePages.deletedAt),
+    ),
+  });
 
-    const existing = await controlDb.query.questionnairePages.findFirst({
-        where: and(
-            eq(questionnairePages.id, parsed.pageId),
-            isNull(questionnairePages.deletedAt),
-        ),
-    });
+  if (!existing) {
+    throw new Error("Questionnaire page not found.");
+  }
 
-    if (!existing) {
-        throw new Error("Questionnaire page not found.");
-    }
+  const now = new Date();
 
-    const now = new Date();
+  const [archived] = await controlDb
+    .update(questionnairePages)
+    .set({
+      deletedAt: now,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(questionnairePages.id, parsed.pageId))
+    .returning();
 
-    const [archived] = await controlDb
-        .update(questionnairePages)
-        .set({
-            deletedAt: now,
-            updatedBy: actorUserId,
-            updatedAt: now,
-        })
-        .where(eq(questionnairePages.id, parsed.pageId))
-        .returning();
+  await controlDb
+    .update(questionnaireItems)
+    .set({
+      questionnairePageId: null,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(questionnaireItems.questionnairePageId, parsed.pageId));
 
-    await controlDb
-        .update(questionnaireItems)
-        .set({
-            questionnairePageId: null,
-            updatedBy: actorUserId,
-            updatedAt: now,
-        })
-        .where(eq(questionnaireItems.questionnairePageId, parsed.pageId));
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_page_archived",
+    entityType: "questionnaire_page",
+    entityId: archived.id,
+    before: {
+      code: existing.code,
+      title: existing.title,
+      orderIndex: existing.orderIndex,
+    },
+    after: {
+      deletedAt: archived.deletedAt,
+      detachedItemsFromPage: true,
+    },
+  });
 
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_page_archived",
-        entityType: "questionnaire_page",
-        entityId: archived.id,
-        before: {
-            code: existing.code,
-            title: existing.title,
-            orderIndex: existing.orderIndex,
-        },
-        after: {
-            deletedAt: archived.deletedAt,
-            detachedItemsFromPage: true,
-        },
-    });
-
-    return archived;
+  return archived;
 }
 
 export async function archiveQuestionnaireDimensionAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: ArchiveQuestionnaireDimensionInput;
+  actorUserId: string;
+  input: ArchiveQuestionnaireDimensionInput;
 }) {
-    const parsed = archiveQuestionnaireDimensionSchema.parse(input);
+  const parsed = archiveQuestionnaireDimensionSchema.parse(input);
+  await assertQuestionnaireDimensionVersionIsDraft(parsed.dimensionId);
+  const existing = await controlDb.query.questionnaireDimensions.findFirst({
+    where: and(
+      eq(questionnaireDimensions.id, parsed.dimensionId),
+      isNull(questionnaireDimensions.deletedAt),
+    ),
+  });
 
-    const existing = await controlDb.query.questionnaireDimensions.findFirst({
-        where: and(
-            eq(questionnaireDimensions.id, parsed.dimensionId),
-            isNull(questionnaireDimensions.deletedAt),
+  if (!existing) {
+    throw new Error("Questionnaire dimension not found.");
+  }
+
+  const now = new Date();
+
+  const [archived] = await controlDb
+    .update(questionnaireDimensions)
+    .set({
+      deletedAt: now,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(questionnaireDimensions.id, parsed.dimensionId))
+    .returning();
+
+  await controlDb
+    .update(questionnaireItemDimensionScores)
+    .set({
+      deletedAt: now,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(
+          questionnaireItemDimensionScores.questionnaireDimensionId,
+          parsed.dimensionId,
         ),
-    });
+        isNull(questionnaireItemDimensionScores.deletedAt),
+      ),
+    );
 
-    if (!existing) {
-        throw new Error("Questionnaire dimension not found.");
-    }
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_dimension_archived",
+    entityType: "questionnaire_dimension",
+    entityId: archived.id,
+    before: {
+      code: existing.code,
+      name: existing.name,
+      orderIndex: existing.orderIndex,
+    },
+    after: {
+      deletedAt: archived.deletedAt,
+      detachedItemScores: true,
+    },
+  });
 
-    const now = new Date();
-
-    const [archived] = await controlDb
-        .update(questionnaireDimensions)
-        .set({
-            deletedAt: now,
-            updatedBy: actorUserId,
-            updatedAt: now,
-        })
-        .where(eq(questionnaireDimensions.id, parsed.dimensionId))
-        .returning();
-
-    await controlDb
-        .update(questionnaireItemDimensionScores)
-        .set({
-            deletedAt: now,
-            updatedBy: actorUserId,
-            updatedAt: now,
-        })
-        .where(
-            and(
-                eq(
-                    questionnaireItemDimensionScores.questionnaireDimensionId,
-                    parsed.dimensionId,
-                ),
-                isNull(questionnaireItemDimensionScores.deletedAt),
-            ),
-        );
-
-    await controlDb.insert(systemAuditLog).values({
-        actorUserId,
-        actorRole: "SUPER_ADMIN",
-        action: "questionnaire_dimension_archived",
-        entityType: "questionnaire_dimension",
-        entityId: archived.id,
-        before: {
-            code: existing.code,
-            name: existing.name,
-            orderIndex: existing.orderIndex,
-        },
-        after: {
-            deletedAt: archived.deletedAt,
-            detachedItemScores: true,
-        },
-    });
-
-    return archived;
+  return archived;
 }
 
 export async function reorderQuestionnairePageAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: ReorderQuestionnairePageInput;
+  actorUserId: string;
+  input: ReorderQuestionnairePageInput;
 }) {
-    const parsed = reorderQuestionnairePageSchema.parse(input);
+  const parsed = reorderQuestionnairePageSchema.parse(input);
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
+  const current = await controlDb.query.questionnairePages.findFirst({
+    where: and(
+      eq(questionnairePages.id, parsed.pageId),
+      eq(questionnairePages.questionnaireVersionId, parsed.versionId),
+      isNull(questionnairePages.deletedAt),
+    ),
+  });
 
-    const current = await controlDb.query.questionnairePages.findFirst({
-        where: and(
-            eq(questionnairePages.id, parsed.pageId),
-            eq(questionnairePages.questionnaireVersionId, parsed.versionId),
-            isNull(questionnairePages.deletedAt),
-        ),
-    });
+  if (!current) {
+    throw new Error("Questionnaire page not found.");
+  }
 
-    if (!current) {
-        throw new Error("Questionnaire page not found.");
-    }
+  const sibling = await controlDb.query.questionnairePages.findFirst({
+    where: and(
+      eq(questionnairePages.questionnaireVersionId, parsed.versionId),
+      isNull(questionnairePages.deletedAt),
+      parsed.direction === "up"
+        ? lt(questionnairePages.orderIndex, current.orderIndex)
+        : gt(questionnairePages.orderIndex, current.orderIndex),
+    ),
+    orderBy:
+      parsed.direction === "up"
+        ? desc(questionnairePages.orderIndex)
+        : asc(questionnairePages.orderIndex),
+  });
 
-    const sibling = await controlDb.query.questionnairePages.findFirst({
-        where: and(
-            eq(questionnairePages.questionnaireVersionId, parsed.versionId),
-            isNull(questionnairePages.deletedAt),
-            parsed.direction === "up"
-                ? lt(questionnairePages.orderIndex, current.orderIndex)
-                : gt(questionnairePages.orderIndex, current.orderIndex),
-        ),
-        orderBy:
-            parsed.direction === "up"
-                ? desc(questionnairePages.orderIndex)
-                : asc(questionnairePages.orderIndex),
-    });
-
-    if (!sibling) {
-        return current;
-    }
-
-    const now = new Date();
-
-    /**
-     * Żeby nie naruszyć unique index podczas zamiany miejsc,
-     * chwilowo ustawiamy current na wartość techniczną -1.
-     */
-    await controlDb.transaction(async (tx) => {
-        await tx
-            .update(questionnairePages)
-            .set({
-                orderIndex: -1,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnairePages.id, current.id));
-
-        await tx
-            .update(questionnairePages)
-            .set({
-                orderIndex: current.orderIndex,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnairePages.id, sibling.id));
-
-        await tx
-            .update(questionnairePages)
-            .set({
-                orderIndex: sibling.orderIndex,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnairePages.id, current.id));
-    });
-
+  if (!sibling) {
     return current;
+  }
+
+  const now = new Date();
+
+  /**
+   * Żeby nie naruszyć unique index podczas zamiany miejsc,
+   * chwilowo ustawiamy current na wartość techniczną -1.
+   */
+  await controlDb.transaction(async (tx) => {
+    await tx
+      .update(questionnairePages)
+      .set({
+        orderIndex: -1,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnairePages.id, current.id));
+
+    await tx
+      .update(questionnairePages)
+      .set({
+        orderIndex: current.orderIndex,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnairePages.id, sibling.id));
+
+    await tx
+      .update(questionnairePages)
+      .set({
+        orderIndex: sibling.orderIndex,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnairePages.id, current.id));
+  });
+
+  return current;
 }
 
 export async function reorderQuestionnaireItemAsSuperAdmin({
-    actorUserId,
-    input,
+  actorUserId,
+  input,
 }: {
-    actorUserId: string;
-    input: ReorderQuestionnaireItemInput;
+  actorUserId: string;
+  input: ReorderQuestionnaireItemInput;
 }) {
-    const parsed = reorderQuestionnaireItemSchema.parse(input);
+  const parsed = reorderQuestionnaireItemSchema.parse(input);
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
+  const current = await controlDb.query.questionnaireItems.findFirst({
+    where: and(
+      eq(questionnaireItems.id, parsed.itemId),
+      eq(questionnaireItems.questionnaireVersionId, parsed.versionId),
+      isNull(questionnaireItems.deletedAt),
+    ),
+  });
 
-    const current = await controlDb.query.questionnaireItems.findFirst({
-        where: and(
-            eq(questionnaireItems.id, parsed.itemId),
-            eq(questionnaireItems.questionnaireVersionId, parsed.versionId),
-            isNull(questionnaireItems.deletedAt),
-        ),
-    });
+  if (!current) {
+    throw new Error("Questionnaire item not found.");
+  }
 
-    if (!current) {
-        throw new Error("Questionnaire item not found.");
-    }
+  const sibling = await controlDb.query.questionnaireItems.findFirst({
+    where: and(
+      eq(questionnaireItems.questionnaireVersionId, parsed.versionId),
+      isNull(questionnaireItems.deletedAt),
+      parsed.direction === "up"
+        ? lt(questionnaireItems.orderIndex, current.orderIndex)
+        : gt(questionnaireItems.orderIndex, current.orderIndex),
+    ),
+    orderBy:
+      parsed.direction === "up"
+        ? desc(questionnaireItems.orderIndex)
+        : asc(questionnaireItems.orderIndex),
+  });
 
-    const sibling = await controlDb.query.questionnaireItems.findFirst({
-        where: and(
-            eq(questionnaireItems.questionnaireVersionId, parsed.versionId),
-            isNull(questionnaireItems.deletedAt),
-            parsed.direction === "up"
-                ? lt(questionnaireItems.orderIndex, current.orderIndex)
-                : gt(questionnaireItems.orderIndex, current.orderIndex),
-        ),
-        orderBy:
-            parsed.direction === "up"
-                ? desc(questionnaireItems.orderIndex)
-                : asc(questionnaireItems.orderIndex),
-    });
-
-    if (!sibling) {
-        return current;
-    }
-
-    const now = new Date();
-
-    await controlDb.transaction(async (tx) => {
-        await tx
-            .update(questionnaireItems)
-            .set({
-                orderIndex: -1,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnaireItems.id, current.id));
-
-        await tx
-            .update(questionnaireItems)
-            .set({
-                orderIndex: current.orderIndex,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnaireItems.id, sibling.id));
-
-        await tx
-            .update(questionnaireItems)
-            .set({
-                orderIndex: sibling.orderIndex,
-                updatedBy: actorUserId,
-                updatedAt: now,
-            })
-            .where(eq(questionnaireItems.id, current.id));
-    });
-
+  if (!sibling) {
     return current;
+  }
+
+  const now = new Date();
+
+  await controlDb.transaction(async (tx) => {
+    await tx
+      .update(questionnaireItems)
+      .set({
+        orderIndex: -1,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireItems.id, current.id));
+
+    await tx
+      .update(questionnaireItems)
+      .set({
+        orderIndex: current.orderIndex,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireItems.id, sibling.id));
+
+    await tx
+      .update(questionnaireItems)
+      .set({
+        orderIndex: sibling.orderIndex,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireItems.id, current.id));
+  });
+
+  return current;
 }
 
 

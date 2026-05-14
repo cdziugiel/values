@@ -1,3 +1,4 @@
+// features/assessment-project-respondents/components/assessment-project-respondents-page.tsx
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -137,6 +138,7 @@ export async function AssessmentProjectRespondentsPage({
                                         <th className="py-3 pr-4 font-medium">Zaproszony</th>
                                         <th className="py-3 pr-4 font-medium">Link</th>
                                         <th className="py-3 pr-4 font-medium">Ukończony</th>
+                                        <th className="py-3 pr-4 font-medium">Wyniki</th>
                                         <th className="py-3 pr-4 font-medium">Akcje</th>
                                     </tr>
                                 </thead>
@@ -193,7 +195,19 @@ export async function AssessmentProjectRespondentsPage({
                                             <td className="py-3 pr-4">
                                                 {formatDate(participant.completedAt)}
                                             </td>
-
+                                            <td className="py-3 pr-4">
+                                                {participant.sessionId && participant.sessionStatus === "completed" ? (
+                                                    <Button asChild size="sm" variant="outline">
+                                                        <Link
+                                                            href={`/t/${ctx.tenantSlug}/assessment-sessions/${participant.sessionId}/results`}
+                                                        >
+                                                            Wyniki
+                                                        </Link>
+                                                    </Button>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">—</span>
+                                                )}
+                                            </td>
                                             <td className="py-3 pr-4">
                                                 <ProjectRespondentRowActions
                                                     tenantSlug={ctx.tenantSlug}

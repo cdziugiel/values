@@ -10,3 +10,4 @@ export * from "./assessment-access-links";
 export * from "./assessment-sessions";
 export * from "./assessment-project-questionnaires";
 export * from "./assessment-responses";
+export * from "./assessment-dimension-scores";

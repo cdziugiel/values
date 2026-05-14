@@ -664,7 +664,7 @@ function AssignItemDimensionForm({
                 />
 
                 <label className="flex h-10 items-center gap-2 text-sm">
-                    <input type="checkbox" name="reverseScored" />
+                    <input type="checkbox" name="reverseScored" value="true" />
                     Odwrócony
                 </label>
 

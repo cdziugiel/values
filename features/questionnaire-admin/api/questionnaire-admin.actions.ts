@@ -493,7 +493,7 @@ export async function assignItemDimensionAction(
         itemId: String(formData.get("itemId") ?? ""),
         dimensionId: String(formData.get("dimensionId") ?? ""),
         weight: String(formData.get("weight") ?? "1"),
-        reverseScored: formData.get("reverseScored") === "on" ? "true" : "false",
+        reverseScored: formData.get("reverseScored") === "true",
     };
 
     const parsed = assignItemDimensionSchema.safeParse(rawInput);
@@ -740,7 +740,7 @@ export async function assignPageDimensionAction(
         pageId: String(formData.get("pageId") ?? ""),
         dimensionId: String(formData.get("dimensionId") ?? ""),
         weight: String(formData.get("weight") ?? "1"),
-        reverseScored: formData.get("reverseScored") === "on" ? "true" : "false",
+        reverseScored: formData.get("reverseScored") === "true",
     };
 
     const parsed = assignPageDimensionSchema.safeParse(rawInput);

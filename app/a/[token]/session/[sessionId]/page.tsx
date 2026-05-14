@@ -1,4 +1,62 @@
 // app/a/[token]/session/[sessionId]/page.tsx
+
+import { PublicAssessmentSessionOverview } from "@/features/public-assessment/components/public-assessment-session-overview";
+import { resolveAssessmentSessionOverview } from "@/server/assessment/resolve-assessment-session-overview";
+
+type PublicAssessmentSessionPageProps = {
+  params: Promise<{
+    token: string;
+    sessionId: string;
+  }>;
+};
+
+export default async function PublicAssessmentSessionPage({
+  params,
+}: PublicAssessmentSessionPageProps) {
+  const { token, sessionId } = await params;
+
+  const result = await resolveAssessmentSessionOverview({
+    token,
+    sessionId,
+  });
+
+  if (!result.ok) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
+        <div className="rounded-2xl border bg-card p-8">
+          <div className="text-sm font-medium text-muted-foreground">
+            HUMANET VALUES
+          </div>
+
+          <h1 className="mt-4 text-3xl font-semibold">
+            Sesja badania jest niedostępna
+          </h1>
+
+          <p className="mt-4 text-muted-foreground">{result.message}</p>
+        </div>
+      </main>
+    );
+  }
+
+  const { data } = result;
+
+  return (
+    <main className="mx-auto min-h-screen max-w-4xl px-6 py-10">
+      <PublicAssessmentSessionOverview
+        token={token}
+        sessionId={sessionId}
+        project={data.project}
+        respondent={data.respondent}
+        session={data.session}
+        questionnaires={data.questionnaires}
+        allRequiredCompleted={data.allRequiredCompleted}
+      />
+    </main>
+  );
+}
+
+
+/* 
 import { AssessmentResponseForm } from "@/features/public-assessment";
 import { resolveAssessmentSessionForm } from "@/server/assessment/resolve-assessment-session-form";
 
@@ -93,4 +151,4 @@ export default async function PublicAssessmentSessionPage({
       </div>
     </main>
   );
-}
+} */

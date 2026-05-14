@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, notInArray } from "drizzle-orm";
 
 import {
   assessmentProjectRespondents,
@@ -7,6 +7,7 @@ import {
   respondentIdentities,
   respondents,
   assessmentAccessLinks,
+  assessmentSessions,
 } from "@/drizzle/schema/tenant-schema";
 import type { TenantDb } from "@/server/db/tenant-db";
 
@@ -41,6 +42,10 @@ export async function listAssessmentProjectRespondents({
       accessLinkExpiresAt: assessmentAccessLinks.expiresAt,
       createdAt: assessmentProjectRespondents.createdAt,
       updatedAt: assessmentProjectRespondents.updatedAt,
+      sessionId: assessmentSessions.id,
+      sessionStatus: assessmentSessions.status,
+      sessionStartedAt: assessmentSessions.startedAt,
+      sessionCompletedAt: assessmentSessions.completedAt,
     })
     .from(assessmentProjectRespondents)
     .innerJoin(
@@ -57,16 +62,26 @@ export async function listAssessmentProjectRespondents({
     )
     .leftJoin(clientUnits, eq(clientUnits.id, respondents.clientUnitId))
     .leftJoin(
-        assessmentAccessLinks,
-        and(
-            eq(
-            assessmentAccessLinks.projectRespondentId,
-            assessmentProjectRespondents.id,
-            ),
-            eq(assessmentAccessLinks.status, "active"),
-            isNull(assessmentAccessLinks.deletedAt),
+      assessmentAccessLinks,
+      and(
+        eq(
+          assessmentAccessLinks.projectRespondentId,
+          assessmentProjectRespondents.id,
         ),
-        )
+        eq(assessmentAccessLinks.status, "active"),
+        isNull(assessmentAccessLinks.deletedAt),
+      ),
+    )
+    .leftJoin(
+      assessmentSessions,
+      and(
+        eq(
+          assessmentSessions.projectRespondentId,
+          assessmentProjectRespondents.id,
+        ),
+        isNull(assessmentSessions.deletedAt),
+      ),
+    )
     .where(
       and(
         eq(assessmentProjectRespondents.assessmentProjectId, assessmentProjectId),
@@ -74,9 +89,42 @@ export async function listAssessmentProjectRespondents({
         isNull(respondents.deletedAt),
       ),
     )
-    .orderBy(asc(respondentIdentities.lastName), asc(respondentIdentities.email));
+    .orderBy(
+  asc(respondentIdentities.lastName),
+  asc(respondentIdentities.email),
+  desc(assessmentSessions.completedAt),
+  desc(assessmentSessions.startedAt),
+  desc(assessmentSessions.createdAt),
+);
 
-  return rows as AssessmentProjectRespondentListItem[];
+  const rowsByParticipantId = new Map<string, AssessmentProjectRespondentListItem>();
+
+for (const row of rows as AssessmentProjectRespondentListItem[]) {
+  const existing = rowsByParticipantId.get(row.id);
+
+  if (!existing) {
+    rowsByParticipantId.set(row.id, row);
+    continue;
+  }
+
+  const existingScore =
+    (existing.sessionStatus === "completed" ? 30 : 0) +
+    (existing.sessionStatus === "in_progress" ? 20 : 0) +
+    (existing.sessionId ? 10 : 0) +
+    (existing.activeAccessLinkId ? 1 : 0);
+
+  const rowScore =
+    (row.sessionStatus === "completed" ? 30 : 0) +
+    (row.sessionStatus === "in_progress" ? 20 : 0) +
+    (row.sessionId ? 10 : 0) +
+    (row.activeAccessLinkId ? 1 : 0);
+
+  if (rowScore > existingScore) {
+    rowsByParticipantId.set(row.id, row);
+  }
+}
+
+return Array.from(rowsByParticipantId.values());
 }
 
 export async function listRespondentOptionsForProject({

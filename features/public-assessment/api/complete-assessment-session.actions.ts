@@ -2,7 +2,7 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
-
+import { calculateAssessmentSessionScores } from "@/server/assessment/calculate-assessment-session-scores";
 import {
   questionnaireItems,
   tenantDatabaseConnections,
@@ -230,6 +230,11 @@ export async function completeAssessmentSessionAction(
       })
       .where(eq(assessmentSessions.id, session.sessionId));
 
+    const scoringResult = await calculateAssessmentSessionScores({
+      db,
+      sessionId: session.sessionId,
+    });
+
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
       actorRole: "PUBLIC_RESPONDENT",
@@ -238,6 +243,7 @@ export async function completeAssessmentSessionAction(
       entityId: session.sessionId,
       after: {
         completedAt: now.toISOString(),
+        scoring: scoringResult,
       },
     });
 
