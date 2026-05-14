@@ -28,6 +28,8 @@ export type MyAssessmentQuestionnaire = {
   projectName?: string | null;
   sessionId?: string | null;
   sessionStatus?: string | null;
+  secondaryActionHref?: string | null;
+  secondaryActionLabel?: string | null;
 };
 
 export type MyAssessment = {

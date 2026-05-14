@@ -6,13 +6,18 @@ type PageProps = {
   params: Promise<{
     questionnaireVersionId: string;
   }>;
+  searchParams: Promise<{
+    mode?: string;
+  }>;
 };
 
-export default async function Page({ params }: PageProps) {
+export default async function Page({ params, searchParams }: PageProps) {
   const { questionnaireVersionId } = await params;
+  const { mode } = await searchParams;
 
   const result = await startOrContinuePublicAssessmentSession({
     questionnaireVersionId,
+    forceNew: mode === "new",
   });
 
   redirect(result.href);

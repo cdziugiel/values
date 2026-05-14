@@ -81,10 +81,11 @@ export function QuestionnaireSelectionCard({
   const disabled = isActionDisabled(questionnaire);
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <CardHeader className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <CardTitle className="leading-7">{questionnaire.name}</CardTitle>
+
           <Badge variant={getStatusVariant(questionnaire.status)}>
             {getStatusLabel(questionnaire.status)}
           </Badge>
@@ -113,22 +114,33 @@ export function QuestionnaireSelectionCard({
         ) : null}
       </CardHeader>
 
-      <CardContent className="space-y-5">
+      <CardContent className="flex flex-1 flex-col justify-between gap-5">
         <p className="text-sm leading-6 text-muted-foreground">
-          {questionnaire.description}
+          {questionnaire.description ??
+            "Kwestionariusz dostępny w ramach HUMANET VALUES."}
         </p>
 
-        {disabled ? (
-          <Button className="w-full" disabled>
-            {getActionLabel(questionnaire.status)}
-          </Button>
-        ) : (
-          <Button asChild className="w-full">
-            <Link href={questionnaire.actionHref!}>
+        <div className="space-y-2">
+          {disabled ? (
+            <Button className="w-full" disabled>
               {getActionLabel(questionnaire.status)}
-            </Link>
-          </Button>
-        )}
+            </Button>
+          ) : (
+            <Button asChild className="w-full">
+              <Link href={questionnaire.actionHref!}>
+                {getActionLabel(questionnaire.status)}
+              </Link>
+            </Button>
+          )}
+
+          {questionnaire.secondaryActionHref ? (
+            <Button asChild className="w-full" variant="outline">
+              <Link href={questionnaire.secondaryActionHref}>
+                {questionnaire.secondaryActionLabel ?? "Wypełnij ponownie"}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

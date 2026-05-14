@@ -1,3 +1,5 @@
+// features/my-assessment/api/start-or-continue-public-assessment-session.ts
+
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import {
@@ -312,28 +314,32 @@ async function findOrCreateSession({
     respondentId,
     projectRespondentId,
     userId,
+    forceNew = false,
 }: {
     db: any;
     projectId: string;
     respondentId: string;
     projectRespondentId: string;
     userId: string;
+    forceNew?: boolean;
 }) {
-    const existing = await db.query.assessmentSessions.findFirst({
-        where: and(
-            eq(assessmentSessions.assessmentProjectId, projectId),
-            eq(assessmentSessions.respondentId, respondentId),
-            eq(assessmentSessions.projectRespondentId, projectRespondentId),
-            isNull(assessmentSessions.deletedAt),
-        ),
-        orderBy: desc(assessmentSessions.updatedAt),
-    });
+    if (!forceNew) {
+        const existing = await db.query.assessmentSessions.findFirst({
+            where: and(
+                eq(assessmentSessions.assessmentProjectId, projectId),
+                eq(assessmentSessions.respondentId, respondentId),
+                eq(assessmentSessions.projectRespondentId, projectRespondentId),
+                isNull(assessmentSessions.deletedAt),
+            ),
+            orderBy: desc(assessmentSessions.updatedAt),
+        });
 
-    if (
-        existing &&
-        (existing.status === "not_started" || existing.status === "in_progress")
-    ) {
-        return existing;
+        if (
+            existing &&
+            (existing.status === "not_started" || existing.status === "in_progress")
+        ) {
+            return existing;
+        }
     }
 
     const now = new Date();
@@ -369,8 +375,10 @@ async function findOrCreateSession({
 
 export async function startOrContinuePublicAssessmentSession({
     questionnaireVersionId,
+    forceNew = false,
 }: {
     questionnaireVersionId: string;
+    forceNew?: boolean;
 }) {
     const session = await requireSession();
 
@@ -420,6 +428,7 @@ export async function startOrContinuePublicAssessmentSession({
         respondentId: respondent.id,
         projectRespondentId: projectRespondent.id,
         userId: session.user.id,
+        forceNew,
     });
 
     return {
