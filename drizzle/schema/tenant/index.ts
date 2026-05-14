@@ -6,3 +6,4 @@ export * from "./respondent-identities";
 export * from "./respondents";
 export * from "./tenant-audit-log";
 export * from "./assessment-project-respondents";
+export * from "./assessment-access-links";

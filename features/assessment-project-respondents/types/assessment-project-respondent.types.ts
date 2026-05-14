@@ -14,6 +14,8 @@ export type AssessmentProjectRespondentListItem = {
   externalCode: string | null;
   clientOrganizationName: string | null;
   clientUnitName: string | null;
+  activeAccessLinkId: string | null;
+  accessLinkExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };

@@ -15,6 +15,13 @@
       "when": 1778743729498,
       "tag": "0001_parallel_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778744419031,
+      "tag": "0002_flashy_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

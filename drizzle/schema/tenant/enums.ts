@@ -22,3 +22,8 @@ export const assessmentProjectRespondentStatusEnum = pgEnum(
   "assessment_project_respondent_status",
   ["invited", "started", "completed", "excluded", "archived"],
 );
+
+export const assessmentAccessLinkStatusEnum = pgEnum(
+  "assessment_access_link_status",
+  ["active", "used", "revoked", "expired"],
+);

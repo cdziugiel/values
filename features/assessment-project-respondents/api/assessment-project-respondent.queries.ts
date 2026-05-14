@@ -6,6 +6,7 @@ import {
   clientUnits,
   respondentIdentities,
   respondents,
+  assessmentAccessLinks,
 } from "@/drizzle/schema/tenant-schema";
 import type { TenantDb } from "@/server/db/tenant-db";
 
@@ -36,6 +37,8 @@ export async function listAssessmentProjectRespondents({
       externalCode: respondents.externalCode,
       clientOrganizationName: clientOrganizations.name,
       clientUnitName: clientUnits.name,
+      activeAccessLinkId: assessmentAccessLinks.id,
+      accessLinkExpiresAt: assessmentAccessLinks.expiresAt,
       createdAt: assessmentProjectRespondents.createdAt,
       updatedAt: assessmentProjectRespondents.updatedAt,
     })
@@ -53,6 +56,17 @@ export async function listAssessmentProjectRespondents({
       eq(clientOrganizations.id, respondents.clientOrganizationId),
     )
     .leftJoin(clientUnits, eq(clientUnits.id, respondents.clientUnitId))
+    .leftJoin(
+        assessmentAccessLinks,
+        and(
+            eq(
+            assessmentAccessLinks.projectRespondentId,
+            assessmentProjectRespondents.id,
+            ),
+            eq(assessmentAccessLinks.status, "active"),
+            isNull(assessmentAccessLinks.deletedAt),
+        ),
+        )
     .where(
       and(
         eq(assessmentProjectRespondents.assessmentProjectId, assessmentProjectId),
