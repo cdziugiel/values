@@ -1,0 +1,1 @@
+export { ClientOrganizationsPage } from "./components/client-organizations-page";
