@@ -179,12 +179,42 @@ export async function AssessmentProjectResultsPage({
           ) : null}
         </div>
 
-        <Link
-          href={`/t/${tenantSlug}/assessment-projects`}
-          className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-        >
-          Wróć do projektów
-        </Link>
+<div className="flex flex-wrap gap-2">
+  <Link
+    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=xlsx`}
+    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+  >
+    Eksport XLSX
+  </Link>
+
+  <Link
+    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=dimensions`}
+    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+  >
+    CSV wymiary
+  </Link>
+
+  <Link
+    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=respondents`}
+    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+  >
+    CSV respondenci
+  </Link>
+
+  <Link
+    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=categorical`}
+    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+  >
+    CSV kategorie
+  </Link>
+
+  <Link
+    href={`/t/${tenantSlug}/assessment-projects`}
+    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+  >
+    Wróć do projektów
+  </Link>
+</div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-4">
