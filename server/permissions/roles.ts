@@ -31,7 +31,12 @@ export type Permission =
   | "scoring_model:manage"
   | "client_unit:read"
   | "client_unit:create"
-  | "client_unit:update";
+  | "client_unit:update"
+  | "assessment_project_respondent:read"
+  | "assessment_project_respondent:create"
+  | "assessment_project_respondent:update"
+  
+  ;
 
 export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
   TENANT_OWNER: [
@@ -56,6 +61,9 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "client_unit:read",
     "client_unit:create",
     "client_unit:update",
+    "assessment_project_respondent:read",
+    "assessment_project_respondent:create",
+    "assessment_project_respondent:update",
   ],
 
   TENANT_ADMIN: [
@@ -77,16 +85,9 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "client_unit:read",
     "client_unit:create",
     "client_unit:update",
-  ],
-
-  TENANT_MEMBER: [
-    "tenant:read",
-    "client_organization:read",
-    "assessment_project:read",
-    "respondent:read",
-    "report:read",
-    "client_unit:read",
-    "respondent:read"
+    "assessment_project_respondent:read",
+    "assessment_project_respondent:create",
+    "assessment_project_respondent:update",
   ],
 
   CONSULTANT: [
@@ -107,7 +108,22 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "client_unit:read",
     "client_unit:create",
     "client_unit:update",
+    "assessment_project_respondent:read",
+    "assessment_project_respondent:create",
+    "assessment_project_respondent:update",
   ],
+  
+  TENANT_MEMBER: [
+    "tenant:read",
+    "client_organization:read",
+    "assessment_project:read",
+    "respondent:read",
+    "report:read",
+    "client_unit:read",
+    "respondent:read",
+    "assessment_project_respondent:read",
+  ],
+
 
   CLIENT_COMPANY_ADMIN: [
     "tenant:read",
@@ -116,7 +132,8 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "respondent:read",
     "report:read",
     "client_unit:read",
-    "respondent:read"
+    "respondent:read",
+    "assessment_project_respondent:read",
   ],
 
   CLIENT_MANAGER: [
@@ -126,7 +143,8 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "respondent:read",
     "report:read",
     "client_unit:read",
-    "respondent:read"
+    "respondent:read",
+    "assessment_project_respondent:read",
   ],
 
   PSYCHOMETRIC_ADMIN: [
@@ -139,6 +157,9 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "scoring_model:manage",
     "respondent:create",
     "respondent:update",
+    "assessment_project_respondent:read",
+    "assessment_project_respondent:create",
+    "assessment_project_respondent:update",
   ],
 
   BILLING_ADMIN: ["tenant:read"],

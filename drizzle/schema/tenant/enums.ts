@@ -17,3 +17,8 @@ export const assessmentProjectStatusEnum = pgEnum(
   "assessment_project_status",
   ["draft", "active", "closed", "archived"],
 );
+
+export const assessmentProjectRespondentStatusEnum = pgEnum(
+  "assessment_project_respondent_status",
+  ["invited", "started", "completed", "excluded", "archived"],
+);

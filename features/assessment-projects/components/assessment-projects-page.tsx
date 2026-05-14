@@ -8,6 +8,8 @@ import {
 import { getTenantDb } from "@/server/db/tenant-db";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 import { PageHeader } from "@/shared/ui";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 import {
   listAssessmentProjectOrganizations,
@@ -121,12 +123,22 @@ export async function AssessmentProjectsPage({
                       </td>
 
                       <td className="py-3 pr-4">
-                        <AssessmentProjectRowActions
-                          tenantSlug={ctx.tenantSlug}
-                          project={project}
-                          organizations={organizations}
-                          canManage={canUpdate}
-                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link
+                              href={`/t/${ctx.tenantSlug}/assessment-projects/${project.id}/respondents`}
+                            >
+                              Uczestnicy
+                            </Link>
+                          </Button>
+
+                          <AssessmentProjectRowActions
+                            tenantSlug={ctx.tenantSlug}
+                            project={project}
+                            organizations={organizations}
+                            canManage={canUpdate}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}

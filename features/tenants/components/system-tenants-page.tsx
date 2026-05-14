@@ -118,6 +118,7 @@ export async function SystemTenantsPage() {
 
                       <td className="py-3 pr-4">
                         <div className="flex flex-wrap gap-2">
+                          
                           <Button asChild size="sm" variant="outline">
                             <Link href={`/t/${tenant.slug}/dashboard`}>Otwórz</Link>
                           </Button>
