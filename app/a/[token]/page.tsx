@@ -1,4 +1,5 @@
 import { resolveAssessmentAccessToken } from "@/server/assessment/resolve-assessment-access-token";
+import { StartPublicAssessmentForm } from "@/features/public-assessment";
 
 type AssessmentAccessPageProps = {
   params: Promise<{
@@ -123,13 +124,7 @@ export default async function AssessmentAccessPage({
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled
-            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground opacity-60"
-          >
-            Rozpocznij badanie — wkrótce
-          </button>
+            <StartPublicAssessmentForm token={token} />
         </div>
       </div>
     </main>

@@ -27,3 +27,8 @@ export const assessmentAccessLinkStatusEnum = pgEnum(
   "assessment_access_link_status",
   ["active", "used", "revoked", "expired"],
 );
+
+export const assessmentSessionStatusEnum = pgEnum(
+  "assessment_session_status",
+  ["in_progress", "completed", "abandoned", "expired"],
+);
