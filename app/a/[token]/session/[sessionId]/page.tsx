@@ -1,5 +1,10 @@
-import { AssessmentResponseForm } from "@/features/public-assessment";
+import {
+  AssessmentResponseForm,
+  CompleteAssessmentSessionForm,
+} from "@/features/public-assessment";
 import { resolveAssessmentSessionForm } from "@/server/assessment/resolve-assessment-session-form";
+
+
 
 type PublicAssessmentSessionPageProps = {
   params: Promise<{
@@ -87,6 +92,7 @@ export default async function PublicAssessmentSessionPage({
           sessionId={sessionId}
           items={data.items}
         />
+        <CompleteAssessmentSessionForm token={token} sessionId={sessionId} />
       </div>
     </main>
   );
