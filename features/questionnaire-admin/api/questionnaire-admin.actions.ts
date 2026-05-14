@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
-
+import { redirect } from "next/navigation";
 import {
     assignItemDimensionAsSuperAdmin,
     createQuestionnaireAsSuperAdmin,
@@ -24,6 +24,8 @@ import {
     reorderQuestionnaireItemAsSuperAdmin,
     assignPageDimensionAsSuperAdmin,
     removePageDimensionAsSuperAdmin,
+    publishQuestionnaireVersionAsSuperAdmin,
+    cloneQuestionnaireVersionAsSuperAdmin,
 } from "./questionnaire-admin.mutations";
 import {
     assignItemDimensionSchema,
@@ -45,6 +47,8 @@ import {
     reorderQuestionnaireItemSchema,
     assignPageDimensionSchema,
     removePageDimensionSchema,
+    publishQuestionnaireVersionSchema,
+    cloneQuestionnaireVersionSchema,
 } from "../forms/questionnaire-admin.schema";
 
 export type QuestionnaireAdminActionState = {
@@ -369,33 +373,33 @@ export async function createQuestionnaireItemAction(
 ): Promise<QuestionnaireAdminActionState> {
     const actor = await requireSuperAdmin();
 
-const rawInput = {
-  versionId: String(formData.get("versionId") ?? ""),
-  pageId: String(formData.get("pageId") ?? ""),
-  type: String(formData.get("type") ?? ""),
-  text: String(formData.get("text") ?? ""),
-  helpText: String(formData.get("helpText") ?? ""),
-  required: formData.get("required") === "on" ? "true" : "false",
+    const rawInput = {
+        versionId: String(formData.get("versionId") ?? ""),
+        pageId: String(formData.get("pageId") ?? ""),
+        type: String(formData.get("type") ?? ""),
+        text: String(formData.get("text") ?? ""),
+        helpText: String(formData.get("helpText") ?? ""),
+        required: formData.get("required") === "on" ? "true" : "false",
 
-  scaleMin: String(formData.get("scaleMin") ?? ""),
-  scaleMax: String(formData.get("scaleMax") ?? ""),
-  scaleMinLabel: String(formData.get("scaleMinLabel") ?? ""),
-  scaleMaxLabel: String(formData.get("scaleMaxLabel") ?? ""),
-  likertStep: String(formData.get("likertStep") ?? ""),
-  likertDisplay: String(formData.get("likertDisplay") ?? ""),
+        scaleMin: String(formData.get("scaleMin") ?? ""),
+        scaleMax: String(formData.get("scaleMax") ?? ""),
+        scaleMinLabel: String(formData.get("scaleMinLabel") ?? ""),
+        scaleMaxLabel: String(formData.get("scaleMaxLabel") ?? ""),
+        likertStep: String(formData.get("likertStep") ?? ""),
+        likertDisplay: String(formData.get("likertDisplay") ?? ""),
 
-  trueLabel: String(formData.get("trueLabel") ?? ""),
-  falseLabel: String(formData.get("falseLabel") ?? ""),
+        trueLabel: String(formData.get("trueLabel") ?? ""),
+        falseLabel: String(formData.get("falseLabel") ?? ""),
 
-  choiceOptionsText: String(formData.get("choiceOptionsText") ?? ""),
+        choiceOptionsText: String(formData.get("choiceOptionsText") ?? ""),
 
-  textMultiline: formData.get("textMultiline") === "on" ? "true" : "false",
-  textMaxLength: String(formData.get("textMaxLength") ?? ""),
+        textMultiline: formData.get("textMultiline") === "on" ? "true" : "false",
+        textMaxLength: String(formData.get("textMaxLength") ?? ""),
 
-  numberMin: String(formData.get("numberMin") ?? ""),
-  numberMax: String(formData.get("numberMax") ?? ""),
-  numberStep: String(formData.get("numberStep") ?? ""),
-};
+        numberMin: String(formData.get("numberMin") ?? ""),
+        numberMax: String(formData.get("numberMax") ?? ""),
+        numberStep: String(formData.get("numberStep") ?? ""),
+    };
 
     const parsed = createQuestionnaireItemSchema.safeParse(rawInput);
 
@@ -426,34 +430,34 @@ export async function updateQuestionnaireItemAction(
 ): Promise<QuestionnaireAdminActionState> {
     const actor = await requireSuperAdmin();
 
-const rawInput = {
-  itemId: String(formData.get("itemId") ?? ""),
-  versionId: String(formData.get("versionId") ?? ""),
-  pageId: String(formData.get("pageId") ?? ""),
-  type: String(formData.get("type") ?? ""),
-  text: String(formData.get("text") ?? ""),
-  helpText: String(formData.get("helpText") ?? ""),
-  required: formData.get("required") === "on" ? "true" : "false",
+    const rawInput = {
+        itemId: String(formData.get("itemId") ?? ""),
+        versionId: String(formData.get("versionId") ?? ""),
+        pageId: String(formData.get("pageId") ?? ""),
+        type: String(formData.get("type") ?? ""),
+        text: String(formData.get("text") ?? ""),
+        helpText: String(formData.get("helpText") ?? ""),
+        required: formData.get("required") === "on" ? "true" : "false",
 
-  scaleMin: String(formData.get("scaleMin") ?? ""),
-  scaleMax: String(formData.get("scaleMax") ?? ""),
-  scaleMinLabel: String(formData.get("scaleMinLabel") ?? ""),
-  scaleMaxLabel: String(formData.get("scaleMaxLabel") ?? ""),
-  likertStep: String(formData.get("likertStep") ?? ""),
-  likertDisplay: String(formData.get("likertDisplay") ?? ""),
+        scaleMin: String(formData.get("scaleMin") ?? ""),
+        scaleMax: String(formData.get("scaleMax") ?? ""),
+        scaleMinLabel: String(formData.get("scaleMinLabel") ?? ""),
+        scaleMaxLabel: String(formData.get("scaleMaxLabel") ?? ""),
+        likertStep: String(formData.get("likertStep") ?? ""),
+        likertDisplay: String(formData.get("likertDisplay") ?? ""),
 
-  trueLabel: String(formData.get("trueLabel") ?? ""),
-  falseLabel: String(formData.get("falseLabel") ?? ""),
+        trueLabel: String(formData.get("trueLabel") ?? ""),
+        falseLabel: String(formData.get("falseLabel") ?? ""),
 
-  choiceOptionsText: String(formData.get("choiceOptionsText") ?? ""),
+        choiceOptionsText: String(formData.get("choiceOptionsText") ?? ""),
 
-  textMultiline: formData.get("textMultiline") === "on" ? "true" : "false",
-  textMaxLength: String(formData.get("textMaxLength") ?? ""),
+        textMultiline: formData.get("textMultiline") === "on" ? "true" : "false",
+        textMaxLength: String(formData.get("textMaxLength") ?? ""),
 
-  numberMin: String(formData.get("numberMin") ?? ""),
-  numberMax: String(formData.get("numberMax") ?? ""),
-  numberStep: String(formData.get("numberStep") ?? ""),
-};
+        numberMin: String(formData.get("numberMin") ?? ""),
+        numberMax: String(formData.get("numberMax") ?? ""),
+        numberStep: String(formData.get("numberStep") ?? ""),
+    };
 
     const parsed = updateQuestionnaireItemSchema.safeParse(rawInput);
 
@@ -796,4 +800,79 @@ export async function removePageDimensionAction(
     } catch (error) {
         return fail(error);
     }
+}
+export async function publishQuestionnaireVersionAction(
+    _previousState: QuestionnaireAdminActionState,
+    formData: FormData,
+): Promise<QuestionnaireAdminActionState> {
+    const actor = await requireSuperAdmin();
+
+    const rawInput = {
+        versionId: String(formData.get("versionId") ?? ""),
+    };
+
+    const parsed = publishQuestionnaireVersionSchema.safeParse(rawInput);
+
+    if (!parsed.success) {
+        return {
+            status: "error",
+            message: validationMessage(parsed.error.issues),
+        };
+    }
+
+    try {
+        await publishQuestionnaireVersionAsSuperAdmin({
+            actorUserId: actor.id,
+            input: parsed.data,
+        });
+
+        revalidatePath(`/dashboard/questionnaires/editor/${parsed.data.versionId}`);
+
+        return {
+            status: "success",
+            message:
+                "Wersja kwestionariusza została opublikowana. Od teraz jest traktowana jako stabilna wersja badawcza.",
+        };
+    } catch (error) {
+        return fail(error);
+    }
+}
+export async function cloneQuestionnaireVersionAction(
+    _previousState: QuestionnaireAdminActionState,
+    formData: FormData,
+): Promise<QuestionnaireAdminActionState> {
+    const actor = await requireSuperAdmin();
+
+    const rawInput = {
+        sourceVersionId: String(formData.get("sourceVersionId") ?? ""),
+        version: String(formData.get("version") ?? ""),
+        name: String(formData.get("name") ?? ""),
+        description: String(formData.get("description") ?? ""),
+    };
+
+    const parsed = cloneQuestionnaireVersionSchema.safeParse(rawInput);
+
+    if (!parsed.success) {
+        return {
+            status: "error",
+            message: validationMessage(parsed.error.issues),
+        };
+    }
+
+    let clonedVersionId: string;
+
+    try {
+        const clonedVersion = await cloneQuestionnaireVersionAsSuperAdmin({
+            actorUserId: actor.id,
+            input: parsed.data,
+        });
+
+        clonedVersionId = clonedVersion.id;
+
+        revalidatePath("/dashboard/questionnaires");
+    } catch (error) {
+        return fail(error);
+    }
+
+    redirect(`/dashboard/questionnaires/editor/${clonedVersionId}`);
 }

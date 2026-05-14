@@ -283,3 +283,23 @@ export const removePageDimensionSchema = z.object({
 export type AssignPageDimensionInput = z.infer<typeof assignPageDimensionSchema>;
 
 export type RemovePageDimensionInput = z.infer<typeof removePageDimensionSchema>;
+
+export const publishQuestionnaireVersionSchema = z.object({
+  versionId: z.string().uuid(),
+});
+
+export type PublishQuestionnaireVersionInput = z.infer<
+  typeof publishQuestionnaireVersionSchema
+>;
+
+
+export const cloneQuestionnaireVersionSchema = z.object({
+  sourceVersionId: z.string().uuid(),
+  version: z.string().min(1).max(80),
+  name: z.string().min(2).max(220),
+  description: z.string().max(2000).optional().or(z.literal("")),
+});
+
+export type CloneQuestionnaireVersionInput = z.infer<
+  typeof cloneQuestionnaireVersionSchema
+>;

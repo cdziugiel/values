@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import { max } from "drizzle-orm";
-
+import { validateQuestionnaireVersionForPublishing } from "./questionnaire-version-publishing.validation";
 import {
     questionnaireDimensions,
     questionnaireItemDimensionScores,
@@ -33,6 +33,10 @@ import {
     reorderQuestionnaireItemSchema,
     assignPageDimensionSchema,
     removePageDimensionSchema,
+    publishQuestionnaireVersionSchema,
+    cloneQuestionnaireVersionSchema,
+    type CloneQuestionnaireVersionInput,
+    type PublishQuestionnaireVersionInput,
     type ReorderQuestionnairePageInput,
     type ReorderQuestionnaireItemInput,
     type ArchiveQuestionnairePageInput,
@@ -1427,4 +1431,322 @@ function buildItemAnswerConfig(parsed: {
     options: [],
     responseConfig: {},
   };
+}
+
+export async function publishQuestionnaireVersionAsSuperAdmin({
+  actorUserId,
+  input,
+}: {
+  actorUserId: string;
+  input: PublishQuestionnaireVersionInput;
+}) {
+  const parsed = publishQuestionnaireVersionSchema.parse(input);
+
+  const existing = await controlDb.query.questionnaireVersions.findFirst({
+    where: and(
+      eq(questionnaireVersions.id, parsed.versionId),
+      isNull(questionnaireVersions.deletedAt),
+    ),
+  });
+
+  if (!existing) {
+    throw new Error("Nie znaleziono wersji kwestionariusza.");
+  }
+
+  if (existing.status !== "draft") {
+    throw new Error("Opublikować można tylko wersję roboczą.");
+  }
+
+  const validation = await validateQuestionnaireVersionForPublishing(
+    parsed.versionId,
+  );
+
+  if (!validation.valid) {
+    throw new Error(
+      [
+        "Nie można opublikować wersji kwestionariusza.",
+        ...validation.issues.map((issue) => `- ${issue}`),
+      ].join("\n"),
+    );
+  }
+
+  const now = new Date();
+
+  const [published] = await controlDb
+    .update(questionnaireVersions)
+    .set({
+      status: "active",
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(questionnaireVersions.id, parsed.versionId))
+    .returning();
+
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_version_published",
+    entityType: "questionnaire_version",
+    entityId: published.id,
+    before: {
+      status: existing.status,
+    },
+    after: {
+      status: published.status,
+      validationPassed: true,
+    },
+  });
+
+  return published;
+}
+export async function cloneQuestionnaireVersionAsSuperAdmin({
+  actorUserId,
+  input,
+}: {
+  actorUserId: string;
+  input: CloneQuestionnaireVersionInput;
+}) {
+  const parsed = cloneQuestionnaireVersionSchema.parse(input);
+
+  const sourceVersion = await controlDb.query.questionnaireVersions.findFirst({
+    where: and(
+      eq(questionnaireVersions.id, parsed.sourceVersionId),
+      isNull(questionnaireVersions.deletedAt),
+    ),
+  });
+
+  if (!sourceVersion) {
+    throw new Error("Nie znaleziono wersji źródłowej kwestionariusza.");
+  }
+
+  const existingVersionLabel =
+    await controlDb.query.questionnaireVersions.findFirst({
+      where: and(
+        eq(questionnaireVersions.questionnaireId, sourceVersion.questionnaireId),
+        eq(questionnaireVersions.version, parsed.version.trim()),
+        isNull(questionnaireVersions.deletedAt),
+      ),
+    });
+
+  if (existingVersionLabel) {
+    throw new Error(
+      `Wersja o numerze/oznaczeniu "${parsed.version.trim()}" już istnieje dla tego kwestionariusza.`,
+    );
+  }
+
+  const sourceDimensions = await controlDb
+    .select()
+    .from(questionnaireDimensions)
+    .where(
+      and(
+        eq(
+          questionnaireDimensions.questionnaireVersionId,
+          parsed.sourceVersionId,
+        ),
+        isNull(questionnaireDimensions.deletedAt),
+      ),
+    )
+    .orderBy(asc(questionnaireDimensions.orderIndex));
+
+  const sourcePages = await controlDb
+    .select()
+    .from(questionnairePages)
+    .where(
+      and(
+        eq(questionnairePages.questionnaireVersionId, parsed.sourceVersionId),
+        isNull(questionnairePages.deletedAt),
+      ),
+    )
+    .orderBy(asc(questionnairePages.orderIndex));
+
+  const sourceItems = await controlDb
+    .select()
+    .from(questionnaireItems)
+    .where(
+      and(
+        eq(questionnaireItems.questionnaireVersionId, parsed.sourceVersionId),
+        isNull(questionnaireItems.deletedAt),
+      ),
+    )
+    .orderBy(asc(questionnaireItems.orderIndex));
+
+  const sourcePageDimensionScores = await controlDb
+    .select()
+    .from(questionnairePageDimensionScores)
+    .where(isNull(questionnairePageDimensionScores.deletedAt));
+
+  const sourceItemDimensionScores = await controlDb
+    .select()
+    .from(questionnaireItemDimensionScores)
+    .where(isNull(questionnaireItemDimensionScores.deletedAt));
+
+  const sourcePageIds = new Set(sourcePages.map((page) => page.id));
+  const sourceItemIds = new Set(sourceItems.map((item) => item.id));
+  const sourceDimensionIds = new Set(
+    sourceDimensions.map((dimension) => dimension.id),
+  );
+
+  const filteredPageDimensionScores = sourcePageDimensionScores.filter(
+    (score) =>
+      sourcePageIds.has(score.questionnairePageId) &&
+      sourceDimensionIds.has(score.questionnaireDimensionId),
+  );
+
+  const filteredItemDimensionScores = sourceItemDimensionScores.filter(
+    (score) =>
+      sourceItemIds.has(score.questionnaireItemId) &&
+      sourceDimensionIds.has(score.questionnaireDimensionId),
+  );
+
+  const now = new Date();
+
+  const clonedVersion = await controlDb.transaction(async (tx) => {
+    const [newVersion] = await tx
+      .insert(questionnaireVersions)
+      .values({
+        questionnaireId: sourceVersion.questionnaireId,
+        version: parsed.version.trim(),
+        name: parsed.name.trim(),
+        description: nullIfEmpty(parsed.description),
+        status: "draft",
+        createdBy: actorUserId,
+        updatedBy: actorUserId,
+      })
+      .returning();
+
+    const dimensionIdMap = new Map<string, string>();
+    const pageIdMap = new Map<string, string>();
+    const itemIdMap = new Map<string, string>();
+
+    for (const sourceDimension of sourceDimensions) {
+      const [newDimension] = await tx
+        .insert(questionnaireDimensions)
+        .values({
+          questionnaireVersionId: newVersion.id,
+          code: sourceDimension.code,
+          name: sourceDimension.name,
+          description: sourceDimension.description,
+          orderIndex: sourceDimension.orderIndex,
+          createdBy: actorUserId,
+          updatedBy: actorUserId,
+        })
+        .returning();
+
+      dimensionIdMap.set(sourceDimension.id, newDimension.id);
+    }
+
+    for (const sourcePage of sourcePages) {
+      const [newPage] = await tx
+        .insert(questionnairePages)
+        .values({
+          questionnaireVersionId: newVersion.id,
+          code: sourcePage.code,
+          title: sourcePage.title,
+          description: sourcePage.description,
+          orderIndex: sourcePage.orderIndex,
+          createdBy: actorUserId,
+          updatedBy: actorUserId,
+        })
+        .returning();
+
+      pageIdMap.set(sourcePage.id, newPage.id);
+    }
+
+    for (const sourceItem of sourceItems) {
+      const newPageId = sourceItem.questionnairePageId
+        ? pageIdMap.get(sourceItem.questionnairePageId) ?? null
+        : null;
+
+      const [newItem] = await tx
+        .insert(questionnaireItems)
+        .values({
+          questionnaireVersionId: newVersion.id,
+          questionnairePageId: newPageId,
+          code: sourceItem.code,
+          orderIndex: sourceItem.orderIndex,
+          type: sourceItem.type,
+          text: sourceItem.text,
+          helpText: sourceItem.helpText,
+          required: sourceItem.required,
+          scaleMin: sourceItem.scaleMin,
+          scaleMax: sourceItem.scaleMax,
+          scaleMinLabel: sourceItem.scaleMinLabel,
+          scaleMaxLabel: sourceItem.scaleMaxLabel,
+          options: sourceItem.options,
+          responseConfig: sourceItem.responseConfig,
+          createdBy: actorUserId,
+          updatedBy: actorUserId,
+        })
+        .returning();
+
+      itemIdMap.set(sourceItem.id, newItem.id);
+    }
+
+    for (const sourceScore of filteredPageDimensionScores) {
+      const newPageId = pageIdMap.get(sourceScore.questionnairePageId);
+      const newDimensionId = dimensionIdMap.get(
+        sourceScore.questionnaireDimensionId,
+      );
+
+      if (!newPageId || !newDimensionId) {
+        continue;
+      }
+
+      await tx.insert(questionnairePageDimensionScores).values({
+        questionnairePageId: newPageId,
+        questionnaireDimensionId: newDimensionId,
+        weight: sourceScore.weight,
+        reverseScored: sourceScore.reverseScored,
+        createdBy: actorUserId,
+        updatedBy: actorUserId,
+      });
+    }
+
+    for (const sourceScore of filteredItemDimensionScores) {
+      const newItemId = itemIdMap.get(sourceScore.questionnaireItemId);
+      const newDimensionId = dimensionIdMap.get(
+        sourceScore.questionnaireDimensionId,
+      );
+
+      if (!newItemId || !newDimensionId) {
+        continue;
+      }
+
+      await tx.insert(questionnaireItemDimensionScores).values({
+        questionnaireItemId: newItemId,
+        questionnaireDimensionId: newDimensionId,
+        weight: sourceScore.weight,
+        reverseScored: sourceScore.reverseScored,
+        createdBy: actorUserId,
+        updatedBy: actorUserId,
+      });
+    }
+
+    await tx.insert(systemAuditLog).values({
+      actorUserId,
+      actorRole: "SUPER_ADMIN",
+      action: "questionnaire_version_cloned",
+      entityType: "questionnaire_version",
+      entityId: newVersion.id,
+      before: {
+        sourceVersionId: sourceVersion.id,
+        sourceVersion: sourceVersion.version,
+        sourceStatus: sourceVersion.status,
+      },
+      after: {
+        newVersionId: newVersion.id,
+        newVersion: newVersion.version,
+        status: newVersion.status,
+        dimensionsCount: sourceDimensions.length,
+        pagesCount: sourcePages.length,
+        itemsCount: sourceItems.length,
+        pageDimensionScoresCount: filteredPageDimensionScores.length,
+        itemDimensionScoresCount: filteredItemDimensionScores.length,
+      },
+    });
+
+    return newVersion;
+  });
+
+  return clonedVersion;
 }

@@ -8,6 +8,9 @@ import { getQuestionnaireVersionEditorData } from "../api/questionnaire-admin.qu
 import { QuestionnaireDimensionsEditor } from "./questionnaire-dimensions-editor";
 import { QuestionnaireItemsEditor } from "./questionnaire-items-editor";
 import { QuestionnairePagesEditor } from "./questionnaire-pages-editor";
+import { QuestionnaireVersionPublishPanel } from "./questionnaire-version-publish-panel";
+
+import { QuestionnaireVersionClonePanel } from "./questionnaire-version-clone-panel";
 
 type QuestionnaireVersionEditorPageProps = {
   versionId: string;
@@ -34,7 +37,7 @@ export async function QuestionnaireVersionEditorPage({
       </div>
     );
   }
-
+const isDraft = data.version.status === "draft";
   return (
     <div className="space-y-8">
       <PageHeader
@@ -47,23 +50,48 @@ export async function QuestionnaireVersionEditorPage({
         }
       />
 
-      <QuestionnairePagesEditor
-        versionId={versionId}
-        pages={data.pages}
-        dimensions={data.dimensions}
-      />
+<QuestionnaireVersionPublishPanel
+  versionId={versionId}
+  status={data.version.status}
+/>
 
-      <QuestionnaireDimensionsEditor
-        versionId={versionId}
-        dimensions={data.dimensions}
-      />
+{data.version.status !== "draft" ? (
+  <QuestionnaireVersionClonePanel
+    sourceVersionId={versionId}
+    sourceVersion={data.version.version}
+    sourceName={data.version.name}
+    sourceStatus={data.version.status}
+  />
+) : null}
+      {isDraft ? (
+  <>
+    <QuestionnaireDimensionsEditor
+      versionId={versionId}
+      dimensions={data.dimensions}
+    />
 
-      <QuestionnaireItemsEditor
-        versionId={versionId}
-        pages={data.pages}
-        dimensions={data.dimensions}
-        items={data.items}
-      />
+    <QuestionnairePagesEditor
+      versionId={versionId}
+      pages={data.pages}
+      dimensions={data.dimensions}
+    />
+
+    <QuestionnaireItemsEditor
+      versionId={versionId}
+      pages={data.pages}
+      dimensions={data.dimensions}
+      items={data.items}
+    />
+  </>
+) : (
+  <section className="rounded-2xl border bg-muted/30 p-5">
+    <h2 className="text-lg font-semibold">Wersja tylko do odczytu</h2>
+    <p className="mt-2 text-sm text-muted-foreground">
+      Ta wersja kwestionariusza jest opublikowana lub archiwalna. Aby wprowadzić
+      zmiany, utwórz nową wersję na podstawie tej wersji.
+    </p>
+  </section>
+)}
     </div>
   );
 }
