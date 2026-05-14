@@ -1,0 +1,1 @@
+export { RespondentsPage } from "./components/respondents-page";

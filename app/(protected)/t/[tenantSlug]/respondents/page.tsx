@@ -1,19 +1,15 @@
-import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader } from "@/shared/ui";
+import { RespondentsPage } from "@/features/respondents";
 
-export default function RespondentsPage() {
-  return (
-    <>
-      <PageHeader
-        title="Respondenci"
-        description="Lista respondentów przypisanych do organizacji i projektów badawczych."
-        actions={<Button>Dodaj respondenta</Button>}
-      />
+type RespondentsRouteProps = {
+  params: Promise<{
+    tenantSlug: string;
+  }>;
+};
 
-      <EmptyState
-        title="Brak respondentów"
-        description="Docelowo dane identyfikujące respondentów będą oddzielone od odpowiedzi i wyników."
-      />
-    </>
-  );
+export default async function RespondentsRoute({
+  params,
+}: RespondentsRouteProps) {
+  const { tenantSlug } = await params;
+
+  return <RespondentsPage tenantSlug={tenantSlug} />;
 }

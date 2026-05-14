@@ -21,6 +21,8 @@ export type Permission =
   | "assessment_project:update"
   | "respondent:read"
   | "respondent:invite"
+  | "respondent:create"
+  | "respondent:update"
   | "assessment_result:read"
   | "report:generate"
   | "report:read"
@@ -43,6 +45,8 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "assessment_project:update",
     "respondent:read",
     "respondent:invite",
+    "respondent:create",
+    "respondent:update",
     "assessment_result:read",
     "report:generate",
     "report:read",
@@ -64,6 +68,8 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "assessment_project:update",
     "respondent:read",
     "respondent:invite",
+    "respondent:create",
+    "respondent:update",
     "assessment_result:read",
     "report:generate",
     "report:read",
@@ -80,6 +86,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "respondent:read",
     "report:read",
     "client_unit:read",
+    "respondent:read"
   ],
 
   CONSULTANT: [
@@ -91,6 +98,8 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "assessment_project:update",
     "respondent:read",
     "respondent:invite",
+    "respondent:create",
+    "respondent:update",
     "assessment_result:read",
     "report:generate",
     "report:read",
@@ -107,6 +116,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "respondent:read",
     "report:read",
     "client_unit:read",
+    "respondent:read"
   ],
 
   CLIENT_MANAGER: [
@@ -116,6 +126,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "respondent:read",
     "report:read",
     "client_unit:read",
+    "respondent:read"
   ],
 
   PSYCHOMETRIC_ADMIN: [
@@ -126,6 +137,8 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "report:download",
     "questionnaire:manage",
     "scoring_model:manage",
+    "respondent:create",
+    "respondent:update",
   ],
 
   BILLING_ADMIN: ["tenant:read"],
