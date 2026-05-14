@@ -43,3 +43,23 @@ export const migrationStatusEnum = pgEnum("migration_status", [
   "success",
   "failed",
 ]);
+
+
+
+export const questionnaireStatusEnum = pgEnum("questionnaire_status", [
+  "draft",
+  "active",
+  "archived",
+]);
+
+export const questionnaireVersionStatusEnum = pgEnum(
+  "questionnaire_version_status",
+  ["draft", "active", "archived"],
+);
+
+export const questionnaireItemTypeEnum = pgEnum("questionnaire_item_type", [
+  "likert",
+  "single_choice",
+  "multiple_choice",
+  "text",
+]);

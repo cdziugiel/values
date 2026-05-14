@@ -32,3 +32,13 @@ export const assessmentSessionStatusEnum = pgEnum(
   "assessment_session_status",
   ["in_progress", "completed", "abandoned", "expired"],
 );
+
+export const assessmentProjectQuestionnaireStatusEnum = pgEnum(
+  "assessment_project_questionnaire_status",
+  ["active", "archived"],
+);
+
+export const assessmentResponseValueTypeEnum = pgEnum(
+  "assessment_response_value_type",
+  ["number", "text", "json"],
+);

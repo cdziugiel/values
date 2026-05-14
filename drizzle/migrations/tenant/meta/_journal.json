@@ -29,6 +29,20 @@
       "when": 1778745165212,
       "tag": "0003_common_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778745744365,
+      "tag": "0004_zippy_scorpion",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778746605994,
+      "tag": "0005_solid_dexter_bennett",
+      "breakpoints": true
     }
   ]
 }

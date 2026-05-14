@@ -1,4 +1,5 @@
-import { resolveAssessmentSession } from "@/server/assessment/resolve-assessment-session";
+import { AssessmentResponseForm } from "@/features/public-assessment";
+import { resolveAssessmentSessionForm } from "@/server/assessment/resolve-assessment-session-form";
 
 type PublicAssessmentSessionPageProps = {
   params: Promise<{
@@ -12,7 +13,7 @@ export default async function PublicAssessmentSessionPage({
 }: PublicAssessmentSessionPageProps) {
   const { token, sessionId } = await params;
 
-  const result = await resolveAssessmentSession({
+  const result = await resolveAssessmentSessionForm({
     token,
     sessionId,
   });
@@ -39,64 +40,53 @@ export default async function PublicAssessmentSessionPage({
 
   return (
     <main className="mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <div className="rounded-2xl border bg-card p-8">
-        <div className="text-sm font-medium text-muted-foreground">
-          HUMANET VALUES
-        </div>
-
-        <h1 className="mt-4 text-3xl font-semibold">
-          {data.project.name}
-        </h1>
-
-        <p className="mt-4 text-muted-foreground">
-          Sesja badania została rozpoczęta. W następnym kroku podłączymy
-          kwestionariusze, pytania i zapis odpowiedzi.
-        </p>
-
-        <div className="mt-8 grid gap-4 rounded-xl border bg-muted/30 p-4 md:grid-cols-2">
-          <div>
-            <div className="text-xs uppercase text-muted-foreground">
-              Sesja
-            </div>
-            <div className="mt-1 font-mono text-sm">{data.session.id}</div>
+      <div className="space-y-8">
+        <div className="rounded-2xl border bg-card p-8">
+          <div className="text-sm font-medium text-muted-foreground">
+            HUMANET VALUES
           </div>
 
-          <div>
-            <div className="text-xs uppercase text-muted-foreground">
-              Status
-            </div>
-            <div className="mt-1 font-medium">{data.session.status}</div>
-          </div>
+          <h1 className="mt-4 text-3xl font-semibold">
+            {data.project.name}
+          </h1>
 
-          <div>
-            <div className="text-xs uppercase text-muted-foreground">
-              Respondent
-            </div>
-            <div className="mt-1 font-medium">
-              {data.respondent.displayName}
-            </div>
-          </div>
+          {data.project.description ? (
+            <p className="mt-4 text-muted-foreground">
+              {data.project.description}
+            </p>
+          ) : null}
 
-          <div>
-            <div className="text-xs uppercase text-muted-foreground">
-              Token
+          <div className="mt-8 grid gap-4 rounded-xl border bg-muted/30 p-4 md:grid-cols-3">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Respondent
+              </div>
+              <div className="mt-1 font-medium">
+                {data.respondent.displayName}
+              </div>
             </div>
-            <div className="mt-1 font-mono text-xs">
-              {token.slice(0, 8)}…
+
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Status sesji
+              </div>
+              <div className="mt-1 font-medium">{data.session.status}</div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Liczba pytań
+              </div>
+              <div className="mt-1 font-medium">{data.items.length}</div>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 rounded-xl border border-dashed p-5">
-          <h2 className="text-lg font-semibold">
-            Tu pojawi się pierwszy kwestionariusz
-          </h2>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            Następny etap: definicje kwestionariuszy, itemy i formularz
-            odpowiedzi.
-          </p>
-        </div>
+        <AssessmentResponseForm
+          token={token}
+          sessionId={sessionId}
+          items={data.items}
+        />
       </div>
     </main>
   );

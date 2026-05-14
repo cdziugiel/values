@@ -11,6 +11,9 @@ import { PageHeader } from "@/shared/ui";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+import { listActiveQuestionnaireVersions } from "@/features/questionnaires/api/questionnaire.queries";
+import { ProjectQuestionnairePicker } from "@/features/assessment-project-questionnaires";
+
 import {
   listAssessmentProjectOrganizations,
   listAssessmentProjects,
@@ -47,9 +50,10 @@ export async function AssessmentProjectsPage({
 
   const db = await getTenantDb(ctx);
 
-  const [projects, organizations] = await Promise.all([
+  const [projects, organizations, questionnaireOptions] = await Promise.all([
     listAssessmentProjects(db),
     listAssessmentProjectOrganizations(db),
+    listActiveQuestionnaireVersions(),
   ]);
 
   return (
@@ -137,6 +141,11 @@ export async function AssessmentProjectsPage({
                             project={project}
                             organizations={organizations}
                             canManage={canUpdate}
+                          />
+                          <ProjectQuestionnairePicker
+                            tenantSlug={ctx.tenantSlug}
+                            assessmentProjectId={project.id}
+                            options={questionnaireOptions}
                           />
                         </div>
                       </td>

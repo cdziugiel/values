@@ -8,3 +8,5 @@ export * from "./tenant-audit-log";
 export * from "./assessment-project-respondents";
 export * from "./assessment-access-links";
 export * from "./assessment-sessions";
+export * from "./assessment-project-questionnaires";
+export * from "./assessment-responses";
