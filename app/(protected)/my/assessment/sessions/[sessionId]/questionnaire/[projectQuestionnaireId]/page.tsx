@@ -1,25 +1,27 @@
-// app/a/[token]/session/[sessionId]/questionnaire/[projectQuestionnaireId]/page.tsx
-
 import Link from "next/link";
 
 import { AssessmentResponseForm } from "@/features/public-assessment";
-import { resolveAssessmentSessionQuestionnaireForm } from "@/server/assessment/resolve-assessment-session-questionnaire-form";
+import { resolveMyAssessmentSessionQuestionnaireForm } from "@/features/my-assessment/api/resolve-my-assessment-session-questionnaire-form";
 
-type PublicAssessmentQuestionnairePageProps = {
+type PageProps = {
   params: Promise<{
-    token: string;
     sessionId: string;
     projectQuestionnaireId: string;
   }>;
+  searchParams: Promise<{
+    tenant?: string;
+  }>;
 };
 
-export default async function PublicAssessmentQuestionnairePage({
+export default async function MyAssessmentQuestionnairePage({
   params,
-}: PublicAssessmentQuestionnairePageProps) {
-  const { token, sessionId, projectQuestionnaireId } = await params;
+  searchParams,
+}: PageProps) {
+  const { sessionId, projectQuestionnaireId } = await params;
+  const { tenant } = await searchParams;
 
-  const result = await resolveAssessmentSessionQuestionnaireForm({
-    token,
+  const result = await resolveMyAssessmentSessionQuestionnaireForm({
+    tenantSlug: tenant ?? "",
     sessionId,
     projectQuestionnaireId,
   });
@@ -39,10 +41,10 @@ export default async function PublicAssessmentQuestionnairePage({
           <p className="mt-4 text-muted-foreground">{result.message}</p>
 
           <Link
-            href={`/a/${token}/session/${sessionId}`}
+            href="/my/assessment"
             className="mt-6 inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium"
           >
-            Wróć do listy kwestionariuszy
+            Wróć do moich badań
           </Link>
         </div>
       </main>
@@ -69,16 +71,18 @@ export default async function PublicAssessmentQuestionnairePage({
 
           <div className="mt-6">
             <Link
-              href={`/a/${token}/session/${sessionId}`}
+              href="/my/assessment"
               className="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium"
             >
-              Wróć do listy kwestionariuszy
+              Wróć do moich badań
             </Link>
           </div>
         </section>
 
         <AssessmentResponseForm
-          token={token}
+          mode="my-assessment"
+          token=""
+          tenantSlug={data.tenantSlug}
           sessionId={sessionId}
           items={data.items}
         />

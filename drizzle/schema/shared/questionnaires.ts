@@ -60,7 +60,8 @@ export const questionnaireVersions = pgTable(
     description: text("description"),
 
     status: questionnaireVersionStatusEnum("status").default("draft").notNull(),
-
+    isPublic: boolean("is_public").default(false).notNull(),
+    
     scoringConfig: jsonb("scoring_config").default({}).notNull(),
     metadata: jsonb("metadata").default({}).notNull(),
 

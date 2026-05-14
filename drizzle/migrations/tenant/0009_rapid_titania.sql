@@ -1,0 +1,1 @@
+ALTER TABLE "assessment_sessions" ALTER COLUMN "access_link_id" DROP NOT NULL;

@@ -57,6 +57,20 @@
       "when": 1778762684592,
       "tag": "0007_brief_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778775895335,
+      "tag": "0008_slow_bushwacker",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778778001415,
+      "tag": "0009_rapid_titania",
+      "breakpoints": true
     }
   ]
 }

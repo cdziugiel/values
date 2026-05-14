@@ -65,6 +65,7 @@ export async function listQuestionnaireVersionsAdmin(
             name: questionnaireVersions.name,
             description: questionnaireVersions.description,
             status: questionnaireVersions.status,
+            isPublic: questionnaireVersions.isPublic,
             createdAt: questionnaireVersions.createdAt,
             updatedAt: questionnaireVersions.updatedAt,
         })
@@ -261,6 +262,7 @@ export async function getQuestionnaireVersionEditorData(
             name: version.name,
             description: version.description,
             status: version.status,
+            isPublic: version.isPublic,
             createdAt: version.createdAt,
             updatedAt: version.updatedAt,
         },

@@ -498,7 +498,7 @@ export async function updateQuestionnaireVersionAsSuperAdmin({
   input: UpdateQuestionnaireVersionInput;
 }) {
   const parsed = updateQuestionnaireVersionSchema.parse(input);
-  await assertQuestionnaireVersionIsDraft(parsed.versionId);
+
   const existing = await controlDb.query.questionnaireVersions.findFirst({
     where: and(
       eq(questionnaireVersions.id, parsed.versionId),
@@ -516,6 +516,7 @@ export async function updateQuestionnaireVersionAsSuperAdmin({
       name: parsed.name.trim(),
       description: nullIfEmpty(parsed.description),
       status: parsed.status,
+      isPublic: parsed.isPublic,
       updatedBy: actorUserId,
       updatedAt: new Date(),
     })
@@ -531,10 +532,12 @@ export async function updateQuestionnaireVersionAsSuperAdmin({
     before: {
       name: existing.name,
       status: existing.status,
+      isPublic: existing.isPublic,
     },
     after: {
       name: updated.name,
       status: updated.status,
+      isPublic: updated.isPublic,
     },
   });
 

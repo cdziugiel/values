@@ -192,6 +192,7 @@ export async function updateQuestionnaireVersionAction(
         name: String(formData.get("name") ?? ""),
         description: String(formData.get("description") ?? ""),
         status: String(formData.get("status") ?? ""),
+        isPublic: formData.get("isPublic") === "on",
     };
 
     const parsed = updateQuestionnaireVersionSchema.safeParse(rawInput);
@@ -210,6 +211,8 @@ export async function updateQuestionnaireVersionAction(
         });
 
         revalidatePath("/dashboard/questionnaires");
+        revalidatePath(`/dashboard/questionnaires/editor/${parsed.data.versionId}`);
+        revalidatePath("/my/assessment");
 
         return ok("Wersja została zaktualizowana.");
     } catch (error) {
@@ -493,7 +496,9 @@ export async function assignItemDimensionAction(
         itemId: String(formData.get("itemId") ?? ""),
         dimensionId: String(formData.get("dimensionId") ?? ""),
         weight: String(formData.get("weight") ?? "1"),
-        reverseScored: formData.get("reverseScored") === "true",
+        reverseScored:
+            formData.get("reverseScored") === "on" ||
+            formData.get("reverseScored") === "true",
     };
 
     const parsed = assignItemDimensionSchema.safeParse(rawInput);
@@ -740,7 +745,9 @@ export async function assignPageDimensionAction(
         pageId: String(formData.get("pageId") ?? ""),
         dimensionId: String(formData.get("dimensionId") ?? ""),
         weight: String(formData.get("weight") ?? "1"),
-        reverseScored: formData.get("reverseScored") === "true",
+        reverseScored:
+            formData.get("reverseScored") === "on" ||
+            formData.get("reverseScored") === "true",
     };
 
     const parsed = assignPageDimensionSchema.safeParse(rawInput);

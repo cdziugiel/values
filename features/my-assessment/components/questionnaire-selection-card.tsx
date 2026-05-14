@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,13 +59,27 @@ function getActionLabel(status: MyAssessmentQuestionnaireStatus) {
   }
 }
 
-function isActionDisabled(status: MyAssessmentQuestionnaireStatus) {
-  return status === "locked" || status === "coming_soon" || status === "disabled";
+function isActionDisabled(questionnaire: MyAssessmentQuestionnaire) {
+  return (
+    questionnaire.status === "locked" ||
+    questionnaire.status === "coming_soon" ||
+    questionnaire.status === "disabled" ||
+    !questionnaire.actionHref
+  );
+}
+
+function getSourceLabel(source: MyAssessmentQuestionnaire["source"]) {
+  if (source === "public") return "Publiczny";
+  if (source === "invited") return "Zaproszenie";
+
+  return source;
 }
 
 export function QuestionnaireSelectionCard({
   questionnaire,
 }: QuestionnaireSelectionCardProps) {
+  const disabled = isActionDisabled(questionnaire);
+
   return (
     <Card>
       <CardHeader className="space-y-4">
@@ -74,12 +90,27 @@ export function QuestionnaireSelectionCard({
           </Badge>
         </div>
 
-        <div className="text-xs text-muted-foreground">
-          Kod: {questionnaire.code}
-          {questionnaire.estimatedMinutes
-            ? ` · ok. ${questionnaire.estimatedMinutes} min`
-            : null}
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <span>Kod: {questionnaire.code}</span>
+
+          {questionnaire.estimatedMinutes ? (
+            <span>· ok. {questionnaire.estimatedMinutes} min</span>
+          ) : null}
+
+          <span>· {getSourceLabel(questionnaire.source)}</span>
         </div>
+
+        {questionnaire.projectName ? (
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Projekt: {questionnaire.projectName}
+          </div>
+        ) : null}
+
+        {questionnaire.questionnaireVersionName ? (
+          <div className="text-xs text-muted-foreground">
+            Wersja: {questionnaire.questionnaireVersionName}
+          </div>
+        ) : null}
       </CardHeader>
 
       <CardContent className="space-y-5">
@@ -87,12 +118,17 @@ export function QuestionnaireSelectionCard({
           {questionnaire.description}
         </p>
 
-        <Button
-          className="w-full"
-          disabled={isActionDisabled(questionnaire.status)}
-        >
-          {getActionLabel(questionnaire.status)}
-        </Button>
+        {disabled ? (
+          <Button className="w-full" disabled>
+            {getActionLabel(questionnaire.status)}
+          </Button>
+        ) : (
+          <Button asChild className="w-full">
+            <Link href={questionnaire.actionHref!}>
+              {getActionLabel(questionnaire.status)}
+            </Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

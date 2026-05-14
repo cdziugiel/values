@@ -1,0 +1,1 @@
+ALTER TYPE "public"."assessment_session_status" ADD VALUE 'not_started';

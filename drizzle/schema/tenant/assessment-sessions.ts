@@ -37,7 +37,6 @@ export const assessmentSessions = pgTable(
       }),
 
     accessLinkId: uuid("access_link_id")
-      .notNull()
       .references(() => assessmentAccessLinks.id, {
         onDelete: "cascade",
       }),

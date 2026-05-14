@@ -1,3 +1,4 @@
+// features/public-assessment/components/assessment-response-form.tsx
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
@@ -55,6 +56,8 @@ type AssessmentResponseFormProps = {
   token: string;
   sessionId: string;
   items: AssessmentResponseFormItem[];
+  mode?: "token" | "my-assessment";
+  tenantSlug?: string;
 };
 
 const initialState: SaveAssessmentResponsesState = {
@@ -490,6 +493,8 @@ export function AssessmentResponseForm({
   token,
   sessionId,
   items,
+  mode = "token",
+  tenantSlug = "",
 }: AssessmentResponseFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -681,6 +686,8 @@ export function AssessmentResponseForm({
       const completeFormData = new FormData();
       completeFormData.set("token", token);
       completeFormData.set("sessionId", sessionId);
+      completeFormData.set("mode", mode);
+      completeFormData.set("tenantSlug", tenantSlug);
 
       await completeAssessmentSessionAction(
         {
@@ -708,6 +715,8 @@ export function AssessmentResponseForm({
       <form ref={formRef} className="space-y-8">
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="sessionId" value={sessionId} />
+        <input type="hidden" name="mode" value={mode} />
+        <input type="hidden" name="tenantSlug" value={tenantSlug} />
 
         <section className="rounded-2xl border bg-card p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

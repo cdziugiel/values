@@ -16,6 +16,7 @@ export type QuestionnaireVersionListItem = {
   name: string;
   description: string | null;
   status: string;
+  isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
 };

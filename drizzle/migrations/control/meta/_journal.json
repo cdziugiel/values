@@ -50,6 +50,13 @@
       "when": 1778752475429,
       "tag": "0006_small_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778775864055,
+      "tag": "0007_dazzling_proteus",
+      "breakpoints": true
     }
   ]
 }

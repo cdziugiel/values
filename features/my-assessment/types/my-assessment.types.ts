@@ -6,12 +6,28 @@ export type MyAssessmentQuestionnaireStatus =
   | "coming_soon"
   | "disabled";
 
+export type MyAssessmentQuestionnaireSource = "public" | "invited";
+
 export type MyAssessmentQuestionnaire = {
+  id: string;
   code: string;
   name: string;
-  description: string;
+  description: string | null;
   status: MyAssessmentQuestionnaireStatus;
-  estimatedMinutes?: number;
+  estimatedMinutes?: number | null;
+
+  source: MyAssessmentQuestionnaireSource;
+  actionHref: string | null;
+
+  questionnaireId: string | null;
+  questionnaireVersionId: string | null;
+  questionnaireVersionName: string | null;
+
+  tenantSlug?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
+  sessionId?: string | null;
+  sessionStatus?: string | null;
 };
 
 export type MyAssessment = {
@@ -19,5 +35,6 @@ export type MyAssessment = {
   code: string;
   name: string;
   description: string;
-  questionnaires: MyAssessmentQuestionnaire[];
+  publicQuestionnaires: MyAssessmentQuestionnaire[];
+  invitedQuestionnaires: MyAssessmentQuestionnaire[];
 };

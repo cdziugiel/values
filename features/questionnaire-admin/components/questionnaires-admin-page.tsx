@@ -11,6 +11,7 @@ import {
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { PageHeader } from "@/shared/ui";
 import { QuestionnaireRowActions } from "./questionnaire-row-actions";
+import { QuestionnaireVersionRowActions } from "./questionnaire-version-row-actions";
 
 import {
   listQuestionnairesAdmin,
@@ -137,21 +138,27 @@ export async function QuestionnairesAdminPage() {
                                   </td>
                                   <td className="py-2 pr-4">{version.name}</td>
                                   <td className="py-2 pr-4">
-                                    <Badge variant="outline">
-                                      {version.status}
-                                    </Badge>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge variant="outline">{version.status}</Badge>
+
+                                      {version.isPublic ? (
+                                        <Badge variant="secondary">publiczna</Badge>
+                                      ) : null}
+                                    </div>
                                   </td>
                                   <td className="py-2 pr-4">
                                     {formatDate(version.updatedAt)}
                                   </td>
                                   <td className="py-2 pr-4">
-                                    <Button asChild size="sm" variant="outline">
-                                      <Link
-                                        href={`/dashboard/questionnaires/editor/${version.id}`}
-                                      >
-                                        Edytuj wersję
-                                      </Link>
-                                    </Button>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button asChild size="sm" variant="outline">
+                                        <Link href={`/dashboard/questionnaires/editor/${version.id}`}>
+                                          Edytuj treść
+                                        </Link>
+                                      </Button>
+
+                                      <QuestionnaireVersionRowActions version={version} />
+                                    </div>
                                   </td>
                                 </tr>
                               ))}
