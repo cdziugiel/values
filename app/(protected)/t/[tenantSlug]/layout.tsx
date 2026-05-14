@@ -32,6 +32,10 @@ const tenantNavigation = [
     href: `/t/${ctx.tenantSlug}/client-organizations`,
   },
   {
+    label: "Jednostki",
+    href: `/t/${ctx.tenantSlug}/client-units`,
+  },
+  {
     label: "Projekty badawcze",
     href: `/t/${ctx.tenantSlug}/assessment-projects`,
   },

@@ -26,7 +26,10 @@ export type Permission =
   | "report:read"
   | "report:download"
   | "questionnaire:manage"
-  | "scoring_model:manage";
+  | "scoring_model:manage"
+  | "client_unit:read"
+  | "client_unit:create"
+  | "client_unit:update";
 
 export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
   TENANT_OWNER: [
@@ -46,6 +49,9 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "report:download",
     "questionnaire:manage",
     "scoring_model:manage",
+    "client_unit:read",
+    "client_unit:create",
+    "client_unit:update",
   ],
 
   TENANT_ADMIN: [
@@ -62,6 +68,9 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "report:generate",
     "report:read",
     "report:download",
+    "client_unit:read",
+    "client_unit:create",
+    "client_unit:update",
   ],
 
   TENANT_MEMBER: [
@@ -70,6 +79,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "assessment_project:read",
     "respondent:read",
     "report:read",
+    "client_unit:read",
   ],
 
   CONSULTANT: [
@@ -85,6 +95,9 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "report:generate",
     "report:read",
     "report:download",
+    "client_unit:read",
+    "client_unit:create",
+    "client_unit:update",
   ],
 
   CLIENT_COMPANY_ADMIN: [
@@ -93,6 +106,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "assessment_project:read",
     "respondent:read",
     "report:read",
+    "client_unit:read",
   ],
 
   CLIENT_MANAGER: [
@@ -101,6 +115,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "assessment_project:read",
     "respondent:read",
     "report:read",
+    "client_unit:read",
   ],
 
   PSYCHOMETRIC_ADMIN: [
