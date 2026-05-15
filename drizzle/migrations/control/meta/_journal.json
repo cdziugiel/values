@@ -57,6 +57,13 @@
       "when": 1778775864055,
       "tag": "0007_dazzling_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778828446556,
+      "tag": "0008_superb_rogue",
+      "breakpoints": true
     }
   ]
 }

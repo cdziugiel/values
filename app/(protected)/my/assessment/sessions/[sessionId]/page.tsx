@@ -1,5 +1,8 @@
 // app/(protected)/my/assessment/sessions/[sessionId]/page.tsx
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -53,7 +56,13 @@ export default async function MyAssessmentSessionPage({
     );
   }
 
+if (result.data.sessionStatus === "completed") {
   redirect(
-    `/my/assessment/sessions/${sessionId}/questionnaire/${result.data.projectQuestionnaireId}?tenant=${result.data.tenantSlug}`,
+    `/my/assessment/sessions/${sessionId}/completed?tenant=${result.data.tenantSlug}`,
   );
+}
+
+redirect(
+  `/my/assessment/sessions/${sessionId}/questionnaire/${result.data.projectQuestionnaireId}?tenant=${result.data.tenantSlug}`,
+);
 }

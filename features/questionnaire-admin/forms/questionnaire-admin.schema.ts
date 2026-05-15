@@ -22,6 +22,23 @@ export const questionnaireItemTypeSchema = z.enum([
 ]);
 
 
+const stringBoolean = z
+    .union([z.literal("true"), z.literal("false"), z.boolean()])
+    .transform((value) => value === true || value === "true");
+
+const likertValueLabelsSchema = z
+    .record(z.string(), z.string())
+    .optional()
+    .default({});
+
+const optionalText = z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((value) => {
+        const normalized = value?.trim();
+        return normalized ? normalized : null;
+    });
 
 const jsonTextSchema = z
     .string()
@@ -96,30 +113,51 @@ export const updateQuestionnairePageSchema = z.object({
 
 export const createQuestionnaireDimensionSchema = z.object({
     versionId: z.string().uuid(),
-    code: z
-        .string()
-        .min(2)
-        .max(80)
-        .regex(/^[A-Z0-9_]+$/, {
-            message: "Kod wymiaru powinien zawierać wielkie litery, cyfry i podkreślenia.",
-        }),
-    name: z.string().min(2).max(180),
+    code: z.string().trim().min(1).max(80),
+    name: z.string().trim().min(1).max(180),
     description: z.string().max(2000).optional().or(z.literal("")),
-    orderIndex: z.coerce.number().int().min(0).default(0),
+    category: optionalText,
 });
 
 export const updateQuestionnaireDimensionSchema = z.object({
     dimensionId: z.string().uuid(),
     versionId: z.string().uuid(),
-    code: z
-        .string()
-        .min(2)
-        .max(80)
-        .regex(/^[A-Z0-9_]+$/),
-    name: z.string().min(2).max(180),
+    code: z.string().trim().min(1).max(80),
+    name: z.string().trim().min(1).max(180),
     description: z.string().max(2000).optional().or(z.literal("")),
-    orderIndex: z.coerce.number().int().min(0),
+    category: optionalText,
 });
+
+export const reorderQuestionnaireDimensionSchema = z.object({
+    versionId: z.string().uuid(),
+    dimensionId: z.string().uuid(),
+    direction: z.enum(["up", "down"]),
+});
+
+export type ReorderQuestionnaireDimensionInput = z.infer<
+    typeof reorderQuestionnaireDimensionSchema
+>;
+
+export const likertPresetSchema = z.enum([
+    "custom",
+    "agreement_7_short",
+    "agreement_7_full",
+    "frequency_5",
+]);
+
+const checkboxBoolean = z
+    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
+    .optional()
+    .transform((value) => value === true || value === "on" || value === "true");
+
+
+const optionalString = z
+    .string()
+    .optional()
+    .transform((value) => {
+        const normalized = value?.trim();
+        return normalized || undefined;
+    });
 
 export const createQuestionnaireItemSchema = z.object({
     versionId: z.string().uuid(),
@@ -146,6 +184,10 @@ export const createQuestionnaireItemSchema = z.object({
     numberMin: z.coerce.number().optional().or(z.literal("")),
     numberMax: z.coerce.number().optional().or(z.literal("")),
     numberStep: z.coerce.number().optional().or(z.literal("")),
+
+    likertPreset: likertPresetSchema.optional().default("custom"),
+    showValueLabels: checkboxBoolean.default(false),
+    likertValueLabelsText: optionalString,
 });
 
 export const updateQuestionnaireItemSchema = z.object({
@@ -175,6 +217,9 @@ export const updateQuestionnaireItemSchema = z.object({
     numberMax: z.coerce.number().optional().or(z.literal("")),
     numberStep: z.coerce.number().optional().or(z.literal("")),
 
+    likertPreset: likertPresetSchema.optional().default("custom"),
+    showValueLabels: checkboxBoolean.default(false),
+    likertValueLabelsText: optionalString,
 });
 
 export const assignItemDimensionSchema = z.object({
@@ -303,4 +348,12 @@ export const cloneQuestionnaireVersionSchema = z.object({
 
 export type CloneQuestionnaireVersionInput = z.infer<
     typeof cloneQuestionnaireVersionSchema
+>;
+
+export const unpublishQuestionnaireVersionSchema = z.object({
+    versionId: z.string().uuid(),
+});
+
+export type UnpublishQuestionnaireVersionInput = z.infer<
+    typeof unpublishQuestionnaireVersionSchema
 >;

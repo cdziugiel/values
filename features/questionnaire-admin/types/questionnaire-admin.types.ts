@@ -35,6 +35,7 @@ export type QuestionnaireDimensionEditorItem = {
   code: string;
   name: string;
   description: string | null;
+  category: string | null;
   orderIndex: number;
 };
 

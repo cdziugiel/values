@@ -1,3 +1,7 @@
+// app/(protected)/my/assessment/sessions/[sessionId]/questionnaire/[projectQuestionnaireId]/page.tsx
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import Link from "next/link";
 
 import { AssessmentResponseForm } from "@/features/public-assessment";

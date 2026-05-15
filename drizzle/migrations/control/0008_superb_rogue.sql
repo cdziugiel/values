@@ -1,0 +1,1 @@
+ALTER TABLE "questionnaire_dimensions" ADD COLUMN "category" text;

@@ -28,6 +28,7 @@ export const questionnaireDimensions = pgTable(
     code: text("code").notNull(),
     name: text("name").notNull(),
     description: text("description"),
+    category: text("category"),
 
     orderIndex: integer("order_index").default(0).notNull(),
 

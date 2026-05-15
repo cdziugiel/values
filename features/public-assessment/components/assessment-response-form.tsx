@@ -65,6 +65,50 @@ const initialState: SaveAssessmentResponsesState = {
   message: "",
 };
 
+
+
+
+function getLikertValueLabels(config: Record<string, unknown>) {
+  const valueLabels = config.valueLabels;
+
+  if (
+    typeof valueLabels === "object" &&
+    valueLabels !== null &&
+    !Array.isArray(valueLabels)
+  ) {
+    return valueLabels as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function getLikertStoredValueLabel({
+  config,
+  value,
+}: {
+  config: Record<string, unknown>;
+  value: number;
+}) {
+  const labels = getLikertValueLabels(config);
+  const label = labels[String(value)];
+
+  return typeof label === "string" && label.trim() ? label.trim() : null;
+}
+
+function getLikertVisibleValueLabel({
+  config,
+  value,
+}: {
+  config: Record<string, unknown>;
+  value: number;
+}) {
+  if (config.showValueLabels !== true) {
+    return null;
+  }
+
+  return getLikertStoredValueLabel({ config, value });
+}
+
 function getLikertDisplay(config: Record<string, unknown>) {
   const value = config.display;
 
@@ -73,6 +117,10 @@ function getLikertDisplay(config: Record<string, unknown>) {
   }
 
   return "buttons";
+}
+
+function shouldShowLikertValueLabels(config: Record<string, unknown>) {
+  return config.showValueLabels === true;
 }
 
 function normalizeOptions(value: unknown): AssessmentResponseFormOption[] {
@@ -217,6 +265,78 @@ function buildFieldName(item: AssessmentResponseFormItem) {
   ].join(":");
 }
 
+
+function LikertScaleChoice({
+  fieldName,
+  values,
+  existingNumber,
+  responseConfig,
+  htmlRequired,
+  showValueLabels,
+  onChange,
+}: {
+  fieldName: string;
+  values: number[];
+  existingNumber: number | null;
+  responseConfig: Record<string, unknown>;
+  htmlRequired: boolean;
+  showValueLabels: boolean;
+  onChange?: (value: number) => void;
+}) {
+  return (
+    <div className=" space-y-3">
+      <div className="w-full px-1 sm:px-2">
+        <div
+          className="grid w-full items-start gap-1.5 sm:gap-3"
+          style={{
+            gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))`,
+          }}
+        >
+          {values.map((value, index) => {
+            const storedValueLabel = getLikertStoredValueLabel({
+              config: responseConfig,
+              value,
+            });
+
+            const visibleValueLabel =
+              showValueLabels && storedValueLabel ? storedValueLabel : null;
+
+            const ariaLabel =
+              storedValueLabel ?? `Pozycja ${index + 1} z ${values.length}`;
+            return (
+              <label
+                key={value}
+                className="flex min-w-0 cursor-pointer flex-col items-center gap-1.5 sm:gap-2"
+              >
+                <input
+                  type="radio"
+                  name={fieldName}
+                  value={value}
+                  required={htmlRequired}
+                  defaultChecked={existingNumber === value}
+                  className="peer sr-only"
+                  aria-label={ariaLabel}
+                  onChange={() => onChange?.(value)}
+                />
+
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border bg-background transition hover:bg-muted peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary sm:h-10 sm:w-10">
+                  <span className="h-2.5 w-2.5 rounded-full bg-background sm:h-3 sm:w-3" />
+                </span>
+
+                {visibleValueLabel ? (
+                  <span className="max-w-[44px] text-center text-[10px] leading-tight text-muted-foreground sm:max-w-[72px] sm:text-xs">
+                    {visibleValueLabel}
+                  </span>
+                ) : null}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AssessmentItemInput({
   item,
   isCurrentPage,
@@ -230,106 +350,92 @@ function AssessmentItemInput({
   const responseConfig = normalizeResponseConfig(item.responseConfig);
   const htmlRequired = isCurrentPage && item.required;
 
-if (item.type === "likert") {
-  const values = createLikertValues(item);
-  const scaleMin = item.scaleMin ?? 1;
-  const scaleMax = item.scaleMax ?? 5;
-  const step = getNumberConfig(responseConfig, "step", 1);
-  const display = getLikertDisplay(responseConfig);
-  const existingNumber =
-    typeof existingValue === "number" ? existingValue : null;
+  if (item.type === "likert") {
+    const values = createLikertValues(item);
+    const scaleMin = item.scaleMin ?? 1;
+    const scaleMax = item.scaleMax ?? 5;
+    const step = getNumberConfig(responseConfig, "step", 1);
+    const display = getLikertDisplay(responseConfig);
+    const showValueLabels = shouldShowLikertValueLabels(responseConfig);
+    const existingNumber =
+      typeof existingValue === "number" ? existingValue : null;
+    const [selectedLikertValue, setSelectedLikertValue] = useState<number | null>(
+      existingNumber,
+    );
 
-  if (display === "slider") {
+    const selectedLikertLabel =
+      selectedLikertValue === null || showValueLabels
+        ? null
+        : getLikertStoredValueLabel({
+          config: responseConfig,
+          value: selectedLikertValue,
+        });
+    if (display === "slider") {
+      return (
+        <div className="w-full mt-4 space-y-3 ">
+          <input
+            type="range"
+            name={fieldName}
+            min={scaleMin}
+            max={scaleMax}
+            step={step}
+            required={htmlRequired}
+            defaultValue={existingNumber ?? Math.round((scaleMin + scaleMax) / 2)}
+            className="w-full"
+          />
+
+          <div className="flex justify-between gap-4 text-xs text-muted-foreground">
+            <span>{item.scaleMinLabel ?? ""}</span>
+            <span>{item.scaleMaxLabel ?? ""}</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="mt-4 space-y-3">
-        <input
-          type="range"
-          name={fieldName}
-          min={scaleMin}
-          max={scaleMax}
-          step={step}
-          required={htmlRequired}
-          defaultValue={existingNumber ?? Math.round((scaleMin + scaleMax) / 2)}
-          className="w-full"
+      <div className="mt-4 space-y-3 md:mt-0 md:ml-auto md:w-[360px] md:max-w-[55vw]">
+        <LikertScaleChoice
+          fieldName={fieldName}
+          values={values}
+          existingNumber={existingNumber}
+          responseConfig={responseConfig}
+          htmlRequired={htmlRequired}
+          showValueLabels={showValueLabels}
+          onChange={setSelectedLikertValue}
         />
 
-        <div className="flex justify-between gap-4 text-xs text-muted-foreground">
-          <span>{item.scaleMinLabel ?? scaleMin}</span>
-          <span>{item.scaleMaxLabel ?? scaleMax}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (display === "radio") {
-    return (
-      <div className="mt-4 space-y-3">
-        <div className="flex flex-wrap gap-3">
-          {values.map((value) => (
-            <label
-              key={value}
-              className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
-            >
-              <input
-                type="radio"
-                name={fieldName}
-                value={value}
-                required={htmlRequired}
-                defaultChecked={existingNumber === value}
-              />
-              <span>{value}</span>
-            </label>
-          ))}
-        </div>
-
-        <div className="flex justify-between gap-4 text-xs text-muted-foreground">
-          <span>{item.scaleMinLabel ?? scaleMin}</span>
-          <span>{item.scaleMaxLabel ?? scaleMax}</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {values.map((value) => (
-          <label
-            key={value}
-            className="cursor-pointer"
-          >
-            <input
-              type="radio"
-              name={fieldName}
-              value={value}
-              required={htmlRequired}
-              defaultChecked={existingNumber === value}
-              className="peer sr-only"
-            />
-
-            <span className="inline-flex min-w-10 items-center justify-center rounded-md border px-3 py-2 text-sm hover:bg-muted peer-checked:bg-primary peer-checked:text-primary-foreground">
-              {value}
+        <div className="min-h-6 text-center text-sm text-muted-foreground">
+          {selectedLikertLabel ? (
+            <span className="inline-flex rounded-full border bg-green-50 px-3 py-1 text-sm font-medium text-green-800">
+              {selectedLikertLabel}
             </span>
-          </label>
-        ))}
-      </div>
+          ) : showValueLabels ? null : (
+            <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_auto_1fr] md:grid-cols-2">
+              <div className="text-left leading-snug">
+                {item.scaleMinLabel ?? ""}
+              </div>
 
-      <div className="flex justify-between gap-4 text-xs text-muted-foreground">
-        <span>{item.scaleMinLabel ?? scaleMin}</span>
-        <span>{item.scaleMaxLabel ?? scaleMax}</span>
+              <div className="text-right leading-snug">
+                {item.scaleMaxLabel ?? ""}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+
+
+
+  }
 
   if (item.type === "true_false") {
     const trueFalseOptions =
       options.length > 0
         ? options
         : [
-            { value: true, label: "Prawda" },
-            { value: false, label: "Fałsz" },
-          ];
+          { value: true, label: "Prawda" },
+          { value: false, label: "Fałsz" },
+        ];
 
     return (
       <div className="mt-4 space-y-2">
@@ -339,7 +445,7 @@ if (item.type === "likert") {
           return (
             <label
               key={value}
-              className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              className="flex cursor-pointer items-center gap-2 rounded-md  px-2 py-2 text-sm hover:bg-muted"
             >
               <input
                 type="radio"
@@ -442,7 +548,7 @@ if (item.type === "likert") {
           required={htmlRequired}
           defaultValue={value}
           maxLength={maxLength}
-          className="mt-4 min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm"
+          className="mt-4 min-h-28 w-full rounded-md  bg-background px-2 py-2 text-sm"
           placeholder="Wpisz odpowiedź..."
         />
       );
@@ -782,15 +888,15 @@ export function AssessmentResponseForm({
                 {pageGroup.items.map((item, index) => (
                   <div
                     key={item.id}
-                    className="rounded-xl border bg-background p-4"
+                    className="rounded-xl border bg-background p-4 transition-colors has-[input:checked]:border-green-500 has-[input:checked]:bg-green-50/30 sm:p-5"
                   >
-                    <div className="flex gap-3">
+                    <div className="flex flex-col gap-3 md:grid md:grid-cols-[2rem_minmax(0,1fr)_auto] md:items-start md:gap-5">
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium">
                         {index + 1}
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium leading-relaxed">
+                      <div className="min-w-0">
+                        <div className="text-[1.05rem] font-medium leading-snug sm:text-lg">
                           {item.text}
                         </div>
 
@@ -799,7 +905,9 @@ export function AssessmentResponseForm({
                             {item.helpText}
                           </p>
                         ) : null}
+                      </div>
 
+                      <div className="w-full md:flex md:justify-end">
                         <AssessmentItemInput
                           item={item}
                           isCurrentPage={isCurrentPage}

@@ -451,6 +451,13 @@ export async function saveAssessmentResponsesAction(
     };
   }
 
+  if (!token) {
+  return {
+    status: "error",
+    message: "Brak tokena sesji.",
+  };
+}
+
   const tokenHash = hashAssessmentAccessToken(token);
 
   const activeTenantConnections = await controlDb

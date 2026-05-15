@@ -1,5 +1,4 @@
 import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
-import { max } from "drizzle-orm";
 import { validateQuestionnaireVersionForPublishing } from "./questionnaire-version-publishing.validation";
 import {
   questionnaireDimensions,
@@ -42,6 +41,10 @@ import {
   removePageDimensionSchema,
   publishQuestionnaireVersionSchema,
   cloneQuestionnaireVersionSchema,
+  reorderQuestionnaireDimensionSchema,
+  unpublishQuestionnaireVersionSchema,
+  type UnpublishQuestionnaireVersionInput,
+  type ReorderQuestionnaireDimensionInput,
   type CloneQuestionnaireVersionInput,
   type PublishQuestionnaireVersionInput,
   type ReorderQuestionnairePageInput,
@@ -93,6 +96,18 @@ function nullableInt(value: unknown) {
 
 function pad3(value: number) {
   return String(value).padStart(3, "0");
+}
+
+async function getNextDimensionOrderIndex(versionId: string) {
+  const lastDimension = await controlDb.query.questionnaireDimensions.findFirst({
+    where: and(
+      eq(questionnaireDimensions.questionnaireVersionId, versionId),
+      isNull(questionnaireDimensions.deletedAt),
+    ),
+    orderBy: desc(questionnaireDimensions.orderIndex),
+  });
+
+  return (lastDimension?.orderIndex ?? 0) + 1;
 }
 
 async function getNextPageOrderIndex(versionId: string) {
@@ -630,19 +645,94 @@ export async function createQuestionnaireDimensionAsSuperAdmin({
   input: CreateQuestionnaireDimensionInput;
 }) {
   const parsed = createQuestionnaireDimensionSchema.parse(input);
+
   await assertQuestionnaireVersionIsDraft(parsed.versionId);
+
+  const code = parsed.code.trim().toUpperCase();
+  const now = new Date();
+
+  const existingByCode =
+    await controlDb.query.questionnaireDimensions.findFirst({
+      where: and(
+        eq(questionnaireDimensions.questionnaireVersionId, parsed.versionId),
+        eq(questionnaireDimensions.code, code),
+      ),
+    });
+
+  const orderIndex = await getNextDimensionOrderIndex(parsed.versionId);
+
+  if (existingByCode && !existingByCode.deletedAt) {
+    throw new Error(
+      `Wymiar o kodzie "${code}" już istnieje w tej wersji kwestionariusza.`,
+    );
+  }
+
+  if (existingByCode && existingByCode.deletedAt) {
+    const [restored] = await controlDb
+      .update(questionnaireDimensions)
+      .set({
+        code,
+        name: parsed.name.trim(),
+        description: nullIfEmpty(parsed.description),
+        orderIndex,
+        category: parsed.category,
+        deletedAt: null,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireDimensions.id, existingByCode.id))
+      .returning();
+
+    await controlDb.insert(systemAuditLog).values({
+      actorUserId,
+      actorRole: "SUPER_ADMIN",
+      action: "questionnaire_dimension_restored",
+      entityType: "questionnaire_dimension",
+      entityId: restored.id,
+      before: {
+        code: existingByCode.code,
+        name: existingByCode.name,
+        deletedAt: existingByCode.deletedAt,
+      },
+      after: {
+        code: restored.code,
+        name: restored.name,
+        description: restored.description,
+        orderIndex: restored.orderIndex,
+        deletedAt: restored.deletedAt,
+      },
+    });
+
+    return restored;
+  }
+
   const [dimension] = await controlDb
     .insert(questionnaireDimensions)
     .values({
       questionnaireVersionId: parsed.versionId,
-      code: parsed.code.trim().toUpperCase(),
+      code,
       name: parsed.name.trim(),
       description: nullIfEmpty(parsed.description),
-      orderIndex: parsed.orderIndex,
+      category: parsed.category,
+      orderIndex,
       createdBy: actorUserId,
       updatedBy: actorUserId,
     })
     .returning();
+
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_dimension_created",
+    entityType: "questionnaire_dimension",
+    entityId: dimension.id,
+    after: {
+      code: dimension.code,
+      name: dimension.name,
+      description: dimension.description,
+      orderIndex: dimension.orderIndex,
+    },
+  });
 
   return dimension;
 }
@@ -655,14 +745,44 @@ export async function updateQuestionnaireDimensionAsSuperAdmin({
   input: UpdateQuestionnaireDimensionInput;
 }) {
   const parsed = updateQuestionnaireDimensionSchema.parse(input);
+
   await assertQuestionnaireDimensionVersionIsDraft(parsed.dimensionId);
+
+  const code = parsed.code.trim().toUpperCase();
+
+  const existing = await controlDb.query.questionnaireDimensions.findFirst({
+    where: and(
+      eq(questionnaireDimensions.id, parsed.dimensionId),
+      isNull(questionnaireDimensions.deletedAt),
+    ),
+  });
+
+  if (!existing) {
+    throw new Error("Questionnaire dimension not found.");
+  }
+
+  const existingByCode =
+    await controlDb.query.questionnaireDimensions.findFirst({
+      where: and(
+        eq(questionnaireDimensions.questionnaireVersionId, parsed.versionId),
+        eq(questionnaireDimensions.code, code),
+        isNull(questionnaireDimensions.deletedAt),
+      ),
+    });
+
+  if (existingByCode && existingByCode.id !== parsed.dimensionId) {
+    throw new Error(
+      `Wymiar o kodzie "${code}" już istnieje w tej wersji kwestionariusza.`,
+    );
+  }
+
   const [dimension] = await controlDb
     .update(questionnaireDimensions)
     .set({
-      code: parsed.code.trim().toUpperCase(),
+      code,
       name: parsed.name.trim(),
       description: nullIfEmpty(parsed.description),
-      orderIndex: parsed.orderIndex,
+      category: parsed.category,
       updatedBy: actorUserId,
       updatedAt: new Date(),
     })
@@ -672,7 +792,80 @@ export async function updateQuestionnaireDimensionAsSuperAdmin({
   return dimension;
 }
 
+export async function reorderQuestionnaireDimensionAsSuperAdmin({
+  actorUserId,
+  input,
+}: {
+  actorUserId: string;
+  input: ReorderQuestionnaireDimensionInput;
+}) {
+  const parsed = reorderQuestionnaireDimensionSchema.parse(input);
 
+  await assertQuestionnaireVersionIsDraft(parsed.versionId);
+
+  const current = await controlDb.query.questionnaireDimensions.findFirst({
+    where: and(
+      eq(questionnaireDimensions.id, parsed.dimensionId),
+      eq(questionnaireDimensions.questionnaireVersionId, parsed.versionId),
+      isNull(questionnaireDimensions.deletedAt),
+    ),
+  });
+
+  if (!current) {
+    throw new Error("Questionnaire dimension not found.");
+  }
+
+  const sibling = await controlDb.query.questionnaireDimensions.findFirst({
+    where: and(
+      eq(questionnaireDimensions.questionnaireVersionId, parsed.versionId),
+      isNull(questionnaireDimensions.deletedAt),
+      parsed.direction === "up"
+        ? lt(questionnaireDimensions.orderIndex, current.orderIndex)
+        : gt(questionnaireDimensions.orderIndex, current.orderIndex),
+    ),
+    orderBy:
+      parsed.direction === "up"
+        ? desc(questionnaireDimensions.orderIndex)
+        : asc(questionnaireDimensions.orderIndex),
+  });
+
+  if (!sibling) {
+    return current;
+  }
+
+  const now = new Date();
+
+  await controlDb.transaction(async (tx) => {
+    await tx
+      .update(questionnaireDimensions)
+      .set({
+        orderIndex: -1,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireDimensions.id, current.id));
+
+    await tx
+      .update(questionnaireDimensions)
+      .set({
+        orderIndex: current.orderIndex,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireDimensions.id, sibling.id));
+
+    await tx
+      .update(questionnaireDimensions)
+      .set({
+        orderIndex: sibling.orderIndex,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(questionnaireDimensions.id, current.id));
+  });
+
+  return current;
+}
 
 async function attachPageDimensionsToItem({
   tx,
@@ -834,7 +1027,7 @@ export async function updateQuestionnaireItemAsSuperAdmin({
   }
 
   const pageId = nullableUuid(parsed.pageId);
-  const answerConfig = buildItemAnswerConfig(parsed);
+  const answerConfig = buildItemAnswerConfig(parsed, existing.responseConfig);
   const [item] = await controlDb.transaction(async (tx) => {
     const [updatedItem] = await tx
       .update(questionnaireItems)
@@ -1366,41 +1559,203 @@ function parseChoiceOptionsText(value?: string | null) {
   });
 }
 
-function buildItemAnswerConfig(parsed: {
-  type: string;
+const LIKERT_PRESETS = {
+  custom: {
+    scaleMin: -3,
+    scaleMax: 3,
+    step: 1,
+    scaleMinLabel: "Zdecydowanie nie",
+    scaleMaxLabel: "Zdecydowanie tak",
+    valueLabels: {},
+  },
+  agreement_7_short: {
+    scaleMin: -3,
+    scaleMax: 3,
+    step: 1,
+    scaleMinLabel: "Zdecydowanie nie",
+    scaleMaxLabel: "Zdecydowanie tak",
+    valueLabels: {
+      "-3": "Zdecydowanie nie",
+      "-2": "Nie",
+      "-1": "Raczej nie",
+      "0": "Trudno powiedzieć",
+      "1": "Raczej tak",
+      "2": "Tak",
+      "3": "Zdecydowanie tak",
+    },
+  },
+  agreement_7_full: {
+    scaleMin: -3,
+    scaleMax: 3,
+    step: 1,
+    scaleMinLabel: "Zdecydowanie nie zgadzam się",
+    scaleMaxLabel: "Zdecydowanie się zgadzam",
+    valueLabels: {
+      "-3": "Zdecydowanie nie zgadzam się",
+      "-2": "Nie zgadzam się",
+      "-1": "Raczej się nie zgadzam",
+      "0": "Trudno powiedzieć",
+      "1": "Raczej się zgadzam",
+      "2": "Zgadzam się",
+      "3": "Zdecydowanie się zgadzam",
+    },
+  },
+  frequency_5: {
+    scaleMin: 1,
+    scaleMax: 5,
+    step: 1,
+    scaleMinLabel: "Prawie nigdy",
+    scaleMaxLabel: "Prawie zawsze",
+    valueLabels: {
+      "1": "Prawie nigdy",
+      "2": "Rzadko",
+      "3": "Trudno powiedzieć",
+      "4": "Czasami",
+      "5": "Prawie zawsze",
+    },
+  },
+} as const;
 
-  scaleMin?: number | "";
-  scaleMax?: number | "";
-  scaleMinLabel?: string;
-  scaleMaxLabel?: string;
-  likertStep?: number | "";
-  likertDisplay?: "buttons" | "radio" | "slider" | "";
+type LikertPresetKey = keyof typeof LIKERT_PRESETS;
 
-  trueLabel?: string;
-  falseLabel?: string;
-
-  choiceOptionsText?: string;
-
-  textMultiline?: boolean;
-  textMaxLength?: number | "";
-
-  numberMin?: number | "";
-  numberMax?: number | "";
-  numberStep?: number | "";
-}) {
-  if (parsed.type === "likert") {
-    return {
-      scaleMin: nullableInt(parsed.scaleMin),
-      scaleMax: nullableInt(parsed.scaleMax),
-      scaleMinLabel: nullIfEmpty(parsed.scaleMinLabel),
-      scaleMaxLabel: nullIfEmpty(parsed.scaleMaxLabel),
-      options: [],
-      responseConfig: {
-        display: parsed.likertDisplay || "buttons",
-        step: numberOrNull(parsed.likertStep) ?? 1,
-      },
-    };
+function getLikertPreset(value: unknown): LikertPresetKey | null {
+  if (
+    value === "agreement_7_short" ||
+    value === "agreement_7_full" ||
+    value === "frequency_5" ||
+    value === "custom"
+  ) {
+    return value;
   }
+
+  return null;
+}
+
+function parseLikertValueLabelsText(value?: string | null) {
+  const lines =
+    value
+      ?.split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean) ?? [];
+
+  const result: Record<string, string> = {};
+
+  for (const line of lines) {
+    const separatorIndex = line.indexOf("|");
+
+    if (separatorIndex < 0) {
+      continue;
+    }
+
+    const rawValue = line.slice(0, separatorIndex).trim();
+    const label = line.slice(separatorIndex + 1).trim();
+
+    if (!rawValue || !label) {
+      continue;
+    }
+
+    result[rawValue] = label;
+  }
+
+  return result;
+}
+
+
+function getExistingLikertPreset(responseConfig: unknown): LikertPresetKey | null {
+  if (
+    typeof responseConfig !== "object" ||
+    responseConfig === null ||
+    Array.isArray(responseConfig)
+  ) {
+    return null;
+  }
+
+  const preset = (responseConfig as Record<string, unknown>).preset;
+
+  if (
+    preset === "agreement_7_short" ||
+    preset === "agreement_7_full" ||
+    preset === "frequency_5" ||
+    preset === "custom"
+  ) {
+    return preset;
+  }
+
+  return null;
+}
+
+function buildItemAnswerConfig(
+  parsed: {
+    type: string;
+
+    scaleMin?: number | "";
+    scaleMax?: number | "";
+    scaleMinLabel?: string;
+    scaleMaxLabel?: string;
+    likertStep?: number | "";
+    likertDisplay?: "buttons" | "radio" | "slider" | "";
+
+    likertPreset?: string;
+    showValueLabels?: boolean;
+    likertValueLabelsText?: string;
+
+    trueLabel?: string;
+    falseLabel?: string;
+
+    choiceOptionsText?: string;
+
+    textMultiline?: boolean;
+    textMaxLength?: number | "";
+
+    numberMin?: number | "";
+    numberMax?: number | "";
+    numberStep?: number | "";
+  },
+  previousResponseConfig?: unknown,
+) {
+if (parsed.type === "likert") {
+const presetKey =
+  getLikertPreset(parsed.likertPreset) ??
+  getExistingLikertPreset(previousResponseConfig) ??
+  "custom";
+  const preset = LIKERT_PRESETS[presetKey];
+
+  const showValueLabels = Boolean(parsed.showValueLabels);
+
+  const customValueLabels = parseLikertValueLabelsText(
+    parsed.likertValueLabelsText,
+  );
+
+  const valueLabels =
+    Object.keys(customValueLabels).length > 0
+      ? customValueLabels
+      : preset.valueLabels;
+
+  const scaleMin = nullableInt(parsed.scaleMin) ?? preset.scaleMin;
+  const scaleMax = nullableInt(parsed.scaleMax) ?? preset.scaleMax;
+  const step = numberOrNull(parsed.likertStep) ?? preset.step;
+
+  return {
+    scaleMin,
+    scaleMax,
+    scaleMinLabel: nullIfEmpty(parsed.scaleMinLabel) ?? preset.scaleMinLabel,
+    scaleMaxLabel: nullIfEmpty(parsed.scaleMaxLabel) ?? preset.scaleMaxLabel,
+    options: [],
+    responseConfig: {
+      preset: presetKey,
+      display: parsed.likertDisplay || "buttons",
+      step,
+      showValueLabels,
+
+      /**
+       * Ważne:
+       * Etykiety zapisujemy zawsze.
+       * showValueLabels kontroluje tylko to, czy respondent widzi je przy każdej odpowiedzi.
+       */
+      valueLabels,
+    },
+  };
+}
 
   if (parsed.type === "true_false") {
     return {
@@ -1665,6 +2020,7 @@ export async function cloneQuestionnaireVersionAsSuperAdmin({
           code: sourceDimension.code,
           name: sourceDimension.name,
           description: sourceDimension.description,
+          category: sourceDimension.category,
           orderIndex: sourceDimension.orderIndex,
           createdBy: actorUserId,
           updatedBy: actorUserId,
@@ -1788,4 +2144,61 @@ export async function cloneQuestionnaireVersionAsSuperAdmin({
   });
 
   return clonedVersion;
+}
+
+export async function unpublishQuestionnaireVersionAsSuperAdmin({
+  actorUserId,
+  input,
+}: {
+  actorUserId: string;
+  input: UnpublishQuestionnaireVersionInput;
+}) {
+  const parsed = unpublishQuestionnaireVersionSchema.parse(input);
+
+  const existing = await controlDb.query.questionnaireVersions.findFirst({
+    where: and(
+      eq(questionnaireVersions.id, parsed.versionId),
+      isNull(questionnaireVersions.deletedAt),
+    ),
+  });
+
+  if (!existing) {
+    throw new Error("Nie znaleziono wersji kwestionariusza.");
+  }
+
+  if (existing.status !== "active") {
+    throw new Error("Cofnąć publikację można tylko dla wersji active.");
+  }
+
+  const now = new Date();
+
+  const [unpublished] = await controlDb
+    .update(questionnaireVersions)
+    .set({
+      status: "draft",
+      isPublic: false,
+      updatedBy: actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(questionnaireVersions.id, parsed.versionId))
+    .returning();
+
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_version_unpublished",
+    entityType: "questionnaire_version",
+    entityId: unpublished.id,
+    before: {
+      status: existing.status,
+      isPublic: existing.isPublic,
+    },
+    after: {
+      status: unpublished.status,
+      isPublic: unpublished.isPublic,
+      devMode: true,
+    },
+  });
+
+  return unpublished;
 }

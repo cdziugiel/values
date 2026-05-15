@@ -1,3 +1,4 @@
+
 import { MyAssessmentPage } from "@/features/my-assessment";
 
 export const dynamic = "force-dynamic";

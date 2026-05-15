@@ -6,7 +6,6 @@ import { PageHeader } from "@/shared/ui";
 
 import { getQuestionnaireVersionEditorData } from "../api/questionnaire-admin.queries";
 import { QuestionnaireDimensionsEditor } from "./questionnaire-dimensions-editor";
-import { QuestionnaireItemsEditor } from "./questionnaire-items-editor";
 import { QuestionnairePagesEditor } from "./questionnaire-pages-editor";
 import { QuestionnaireVersionPublishPanel } from "./questionnaire-version-publish-panel";
 
@@ -37,7 +36,7 @@ export async function QuestionnaireVersionEditorPage({
       </div>
     );
   }
-const isDraft = data.version.status === "draft";
+  const isDraft = data.version.status === "draft";
   return (
     <div className="space-y-8">
       <PageHeader
@@ -50,48 +49,43 @@ const isDraft = data.version.status === "draft";
         }
       />
 
-<QuestionnaireVersionPublishPanel
-  versionId={versionId}
-  status={data.version.status}
-/>
+      <QuestionnaireVersionPublishPanel
+        versionId={versionId}
+        status={data.version.status}
+      />
 
-{data.version.status !== "draft" ? (
-  <QuestionnaireVersionClonePanel
-    sourceVersionId={versionId}
-    sourceVersion={data.version.version}
-    sourceName={data.version.name}
-    sourceStatus={data.version.status}
-  />
-) : null}
+      {data.version.status !== "draft" ? (
+        <QuestionnaireVersionClonePanel
+          sourceVersionId={versionId}
+          sourceVersion={data.version.version}
+          sourceName={data.version.name}
+          sourceStatus={data.version.status}
+        />
+      ) : null}
       {isDraft ? (
-  <>
-    <QuestionnaireDimensionsEditor
-      versionId={versionId}
-      dimensions={data.dimensions}
-    />
+        <>
+          <QuestionnaireDimensionsEditor
+            versionId={versionId}
+            dimensions={data.dimensions}
+          />
 
-    <QuestionnairePagesEditor
-      versionId={versionId}
-      pages={data.pages}
-      dimensions={data.dimensions}
-    />
+          <QuestionnairePagesEditor
+            versionId={data.version.id}
+            pages={data.pages}
+            dimensions={data.dimensions}
+            items={data.items}
+          />
 
-    <QuestionnaireItemsEditor
-      versionId={versionId}
-      pages={data.pages}
-      dimensions={data.dimensions}
-      items={data.items}
-    />
-  </>
-) : (
-  <section className="rounded-2xl border bg-muted/30 p-5">
-    <h2 className="text-lg font-semibold">Wersja tylko do odczytu</h2>
-    <p className="mt-2 text-sm text-muted-foreground">
-      Ta wersja kwestionariusza jest opublikowana lub archiwalna. Aby wprowadzić
-      zmiany, utwórz nową wersję na podstawie tej wersji.
-    </p>
-  </section>
-)}
+        </>
+      ) : (
+        <section className="rounded-2xl border bg-muted/30 p-5">
+          <h2 className="text-lg font-semibold">Wersja tylko do odczytu</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Ta wersja kwestionariusza jest opublikowana lub archiwalna. Aby wprowadzić
+            zmiany, utwórz nową wersję na podstawie tej wersji.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

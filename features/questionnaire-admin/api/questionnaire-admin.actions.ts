@@ -26,6 +26,8 @@ import {
     removePageDimensionAsSuperAdmin,
     publishQuestionnaireVersionAsSuperAdmin,
     cloneQuestionnaireVersionAsSuperAdmin,
+    reorderQuestionnaireDimensionAsSuperAdmin,
+    unpublishQuestionnaireVersionAsSuperAdmin,
 } from "./questionnaire-admin.mutations";
 import {
     assignItemDimensionSchema,
@@ -49,6 +51,8 @@ import {
     removePageDimensionSchema,
     publishQuestionnaireVersionSchema,
     cloneQuestionnaireVersionSchema,
+    reorderQuestionnaireDimensionSchema,
+    unpublishQuestionnaireVersionSchema,
 } from "../forms/questionnaire-admin.schema";
 
 export type QuestionnaireAdminActionState = {
@@ -228,10 +232,8 @@ export async function createQuestionnairePageAction(
 
     const rawInput = {
         versionId: String(formData.get("versionId") ?? ""),
-        code: String(formData.get("code") ?? ""),
         title: String(formData.get("title") ?? ""),
         description: String(formData.get("description") ?? ""),
-        orderIndex: String(formData.get("orderIndex") ?? "0"),
     };
 
     const parsed = createQuestionnairePageSchema.safeParse(rawInput);
@@ -266,10 +268,8 @@ export async function updateQuestionnairePageAction(
     const rawInput = {
         pageId: String(formData.get("pageId") ?? ""),
         versionId: String(formData.get("versionId") ?? ""),
-        code: String(formData.get("code") ?? ""),
         title: String(formData.get("title") ?? ""),
         description: String(formData.get("description") ?? ""),
-        orderIndex: String(formData.get("orderIndex") ?? "0"),
     };
 
     const parsed = updateQuestionnairePageSchema.safeParse(rawInput);
@@ -306,7 +306,7 @@ export async function createQuestionnaireDimensionAction(
         code: String(formData.get("code") ?? ""),
         name: String(formData.get("name") ?? ""),
         description: String(formData.get("description") ?? ""),
-        orderIndex: String(formData.get("orderIndex") ?? "0"),
+        category: String(formData.get("category") ?? ""),
     };
 
     const parsed = createQuestionnaireDimensionSchema.safeParse(rawInput);
@@ -344,7 +344,7 @@ export async function updateQuestionnaireDimensionAction(
         code: String(formData.get("code") ?? ""),
         name: String(formData.get("name") ?? ""),
         description: String(formData.get("description") ?? ""),
-        orderIndex: String(formData.get("orderIndex") ?? "0"),
+        category: String(formData.get("category") ?? ""),
     };
 
     const parsed = updateQuestionnaireDimensionSchema.safeParse(rawInput);
@@ -402,6 +402,11 @@ export async function createQuestionnaireItemAction(
         numberMin: String(formData.get("numberMin") ?? ""),
         numberMax: String(formData.get("numberMax") ?? ""),
         numberStep: String(formData.get("numberStep") ?? ""),
+        likertPreset: String(formData.get("likertPreset") ?? "custom"),
+        showValueLabels:
+            formData.get("showValueLabels") === "on" ||
+            formData.get("showValueLabels") === "true",
+        likertValueLabelsText: String(formData.get("likertValueLabelsText") ?? ""),
     };
 
     const parsed = createQuestionnaireItemSchema.safeParse(rawInput);
@@ -460,6 +465,12 @@ export async function updateQuestionnaireItemAction(
         numberMin: String(formData.get("numberMin") ?? ""),
         numberMax: String(formData.get("numberMax") ?? ""),
         numberStep: String(formData.get("numberStep") ?? ""),
+
+        likertPreset: String(formData.get("likertPreset") ?? "custom"),
+        showValueLabels:
+            formData.get("showValueLabels") === "on" ||
+            formData.get("showValueLabels") === "true",
+        likertValueLabelsText: String(formData.get("likertValueLabelsText") ?? ""),
     };
 
     const parsed = updateQuestionnaireItemSchema.safeParse(rawInput);
@@ -882,4 +893,79 @@ export async function cloneQuestionnaireVersionAction(
     }
 
     redirect(`/dashboard/questionnaires/editor/${clonedVersionId}`);
+}
+
+export async function reorderQuestionnaireDimensionAction(
+    _previousState: QuestionnaireAdminActionState,
+    formData: FormData,
+): Promise<QuestionnaireAdminActionState> {
+    const actor = await requireSuperAdmin();
+
+    const rawInput = {
+        versionId: String(formData.get("versionId") ?? ""),
+        dimensionId: String(formData.get("dimensionId") ?? ""),
+        direction: String(formData.get("direction") ?? ""),
+    };
+
+    const parsed = reorderQuestionnaireDimensionSchema.safeParse(rawInput);
+
+    if (!parsed.success) {
+        return {
+            status: "error",
+            message: validationMessage(parsed.error.issues),
+        };
+    }
+
+    try {
+        await reorderQuestionnaireDimensionAsSuperAdmin({
+            actorUserId: actor.id,
+            input: parsed.data,
+        });
+
+        revalidatePath(`/dashboard/questionnaires/editor/${parsed.data.versionId}`);
+
+        return ok("Kolejność wymiaru została zmieniona.");
+    } catch (error) {
+        return fail(error);
+    }
+}
+
+export async function unpublishQuestionnaireVersionAction(
+    _previousState: QuestionnaireAdminActionState,
+    formData: FormData,
+): Promise<QuestionnaireAdminActionState> {
+    const actor = await requireSuperAdmin();
+
+    const rawInput = {
+        versionId: String(formData.get("versionId") ?? ""),
+    };
+
+    const parsed = unpublishQuestionnaireVersionSchema.safeParse(rawInput);
+
+    if (!parsed.success) {
+        return {
+            status: "error",
+            message: validationMessage(parsed.error.issues),
+        };
+    }
+
+    try {
+        await unpublishQuestionnaireVersionAsSuperAdmin({
+            actorUserId: actor.id,
+            input: parsed.data,
+        });
+
+        revalidatePath("/dashboard/questionnaires");
+        revalidatePath(`/dashboard/questionnaires/editor/${parsed.data.versionId}`);
+        revalidatePath(`/dashboard/questionnaires/preview/${parsed.data.versionId}`);
+        revalidatePath("/my/assessment");
+
+        return {
+            status: "success",
+            message:
+                "Publikacja wersji została cofnięta. Wersja wróciła do draft i została zdjęta z publicznego dostępu.",
+        };
+    } catch (error) {
+        return fail(error);
+    }
 }

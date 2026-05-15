@@ -116,6 +116,7 @@ export async function getQuestionnaireVersionEditorData(
             code: questionnaireDimensions.code,
             name: questionnaireDimensions.name,
             description: questionnaireDimensions.description,
+            category: questionnaireDimensions.category,
             orderIndex: questionnaireDimensions.orderIndex,
         })
         .from(questionnaireDimensions)
