@@ -71,6 +71,13 @@
       "when": 1778778001415,
       "tag": "0009_rapid_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778841356904,
+      "tag": "0010_lonely_old_lace",
+      "breakpoints": true
     }
   ]
 }

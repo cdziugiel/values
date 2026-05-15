@@ -24,6 +24,7 @@ import { controlDb } from "@/server/db/control-db";
 import { getTenantDbByConnection } from "@/server/db/tenant-db-by-connection";
 import { hashAssessmentAccessToken } from "@/server/security/assessment-token";
 import { decryptSecret } from "@/server/security/encryption";
+import { createAssessmentResultSnapshot } from "./assessment-result-snapshot.mutations";
 
 export type CompleteAssessmentSessionState = {
   status: "idle" | "success" | "error";
@@ -332,7 +333,12 @@ export async function completeAssessmentSessionAction(
       db,
       sessionId: session.sessionId,
     });
-
+    await createAssessmentResultSnapshot({
+      db,
+      tenantSlug,
+      sessionId: session.sessionId,
+      actorUserId,
+    });
     await db.insert(tenantAuditLog).values({
       actorUserId,
       actorRole: "RESPONDENT",
@@ -350,11 +356,11 @@ export async function completeAssessmentSessionAction(
   }
 
   if (!token) {
-  return {
-    status: "error",
-    message: "Brak tokena sesji.",
-  };
-}
+    return {
+      status: "error",
+      message: "Brak tokena sesji.",
+    };
+  }
 
   const tokenHash = hashAssessmentAccessToken(token);
 
@@ -525,7 +531,12 @@ export async function completeAssessmentSessionAction(
       db,
       sessionId: session.sessionId,
     });
-
+    await createAssessmentResultSnapshot({
+      db,
+      tenantSlug: connection.tenantSlug,
+      sessionId: session.sessionId,
+      actorUserId: null,
+    });
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
       actorRole: "PUBLIC_RESPONDENT",

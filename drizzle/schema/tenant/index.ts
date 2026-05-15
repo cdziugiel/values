@@ -11,3 +11,4 @@ export * from "./assessment-sessions";
 export * from "./assessment-project-questionnaires";
 export * from "./assessment-responses";
 export * from "./assessment-dimension-scores";
+export * from "./assessment-result-snapshots";

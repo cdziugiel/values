@@ -1,6 +1,5 @@
 // features/my-assessment/api/my-assessment.queries.ts
 
-// features/my-assessment/api/my-assessment.queries.ts
 
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 

@@ -289,6 +289,8 @@ export async function calculateAssessmentSessionScores({
       questionnaireVersionId: questionnaireDimensions.questionnaireVersionId,
       code: questionnaireDimensions.code,
       name: questionnaireDimensions.name,
+      category: questionnaireDimensions.category,
+      orderIndex: questionnaireDimensions.orderIndex,
     })
     .from(questionnaireDimensions)
     .where(

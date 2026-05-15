@@ -1,12 +1,12 @@
 // app/(protected)/my/assessment/sessions/[sessionId]/page.tsx
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { resolveMyAssessmentSessionEntry } from "@/features/my-assessment/api/resolve-my-assessment-session-entry";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type PageProps = {
   params: Promise<{
@@ -18,10 +18,7 @@ type PageProps = {
   }>;
 };
 
-export default async function MyAssessmentSessionPage({
-  params,
-  searchParams,
-}: PageProps) {
+export default async function Page({ params, searchParams }: PageProps) {
   const { sessionId } = await params;
   const { tenant, questionnaireVersionId } = await searchParams;
 
@@ -56,13 +53,31 @@ export default async function MyAssessmentSessionPage({
     );
   }
 
-if (result.data.sessionStatus === "completed") {
-  redirect(
-    `/my/assessment/sessions/${sessionId}/completed?tenant=${result.data.tenantSlug}`,
+  const completedUrl = new URL(
+    `/my/assessment/sessions/${sessionId}/completed`,
+    "http://localhost",
   );
-}
 
-redirect(
-  `/my/assessment/sessions/${sessionId}/questionnaire/${result.data.projectQuestionnaireId}?tenant=${result.data.tenantSlug}`,
-);
+  completedUrl.searchParams.set("tenant", result.data.tenantSlug);
+
+  if (questionnaireVersionId) {
+    completedUrl.searchParams.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  if (result.data.sessionStatus === "completed") {
+    redirect(`${completedUrl.pathname}${completedUrl.search}`);
+  }
+
+  const questionnaireUrl = new URL(
+    `/my/assessment/sessions/${sessionId}/questionnaire/${result.data.projectQuestionnaireId}`,
+    "http://localhost",
+  );
+
+  questionnaireUrl.searchParams.set("tenant", result.data.tenantSlug);
+
+  if (questionnaireVersionId) {
+    questionnaireUrl.searchParams.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  redirect(`${questionnaireUrl.pathname}${questionnaireUrl.search}`);
 }

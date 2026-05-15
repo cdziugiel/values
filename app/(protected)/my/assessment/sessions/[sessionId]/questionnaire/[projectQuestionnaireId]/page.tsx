@@ -1,11 +1,12 @@
 // app/(protected)/my/assessment/sessions/[sessionId]/questionnaire/[projectQuestionnaireId]/page.tsx
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 import Link from "next/link";
 
 import { AssessmentResponseForm } from "@/features/public-assessment";
 import { resolveMyAssessmentSessionQuestionnaireForm } from "@/features/my-assessment/api/resolve-my-assessment-session-questionnaire-form";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type PageProps = {
   params: Promise<{
@@ -17,10 +18,7 @@ type PageProps = {
   }>;
 };
 
-export default async function MyAssessmentQuestionnairePage({
-  params,
-  searchParams,
-}: PageProps) {
+export default async function Page({ params, searchParams }: PageProps) {
   const { sessionId, projectQuestionnaireId } = await params;
   const { tenant } = await searchParams;
 
