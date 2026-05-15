@@ -11,6 +11,10 @@ import { QuestionnaireVersionPublishPanel } from "./questionnaire-version-publis
 
 import { QuestionnaireVersionClonePanel } from "./questionnaire-version-clone-panel";
 
+
+import { getQuestionnaireReportTemplateAdminData } from "../api/questionnaire-report-template.queries";
+import { QuestionnaireReportTemplateSection } from "../components/questionnaire-report-template-section";
+
 type QuestionnaireVersionEditorPageProps = {
   versionId: string;
 };
@@ -36,7 +40,13 @@ export async function QuestionnaireVersionEditorPage({
       </div>
     );
   }
+
   const isDraft = data.version.status === "draft";
+
+  const reportTemplateData = await getQuestionnaireReportTemplateAdminData({
+    questionnaireVersionId: versionId,
+  });
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -62,6 +72,14 @@ export async function QuestionnaireVersionEditorPage({
           sourceStatus={data.version.status}
         />
       ) : null}
+
+      <QuestionnaireReportTemplateSection
+        questionnaireVersionId={versionId}
+        activeBinding={reportTemplateData.activeBinding}
+        availableTemplateVersions={reportTemplateData.availableTemplateVersions}
+        canEdit={isDraft}
+      />
+
       {isDraft ? (
         <>
           <QuestionnaireDimensionsEditor
@@ -75,14 +93,13 @@ export async function QuestionnaireVersionEditorPage({
             dimensions={data.dimensions}
             items={data.items}
           />
-
         </>
       ) : (
         <section className="rounded-2xl border bg-muted/30 p-5">
           <h2 className="text-lg font-semibold">Wersja tylko do odczytu</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Ta wersja kwestionariusza jest opublikowana lub archiwalna. Aby wprowadzić
-            zmiany, utwórz nową wersję na podstawie tej wersji.
+            Ta wersja kwestionariusza jest opublikowana lub archiwalna. Aby
+            wprowadzić zmiany, utwórz nową wersję na podstawie tej wersji.
           </p>
         </section>
       )}

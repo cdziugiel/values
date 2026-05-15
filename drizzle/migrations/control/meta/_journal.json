@@ -64,6 +64,20 @@
       "when": 1778828446556,
       "tag": "0008_superb_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778844346597,
+      "tag": "0009_easy_wendell_vaughn",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778845639603,
+      "tag": "0010_known_red_skull",
+      "breakpoints": true
     }
   ]
 }

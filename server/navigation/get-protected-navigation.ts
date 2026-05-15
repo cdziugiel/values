@@ -52,6 +52,10 @@ export async function getProtectedNavigation(
         label: "Kwestionariusze",
         href: "/dashboard/questionnaires",
       },
+      {
+        label: "Szablony raportów",
+        href: "/dashboard/report-templates",
+      },
       ...baseUserNavigation,
     ];
   }

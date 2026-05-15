@@ -5,3 +5,5 @@ export * from "./questionnaire-pages";
 export * from "./questionnaire-dimensions";
 export * from "./questionnaire-item-dimension-scores";
 export * from "./questionnaire-page-dimension-scores";
+export * from "./report-builder";
+export * from "./report-template-bindings";
