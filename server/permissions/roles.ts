@@ -122,6 +122,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "client_unit:read",
     "respondent:read",
     "assessment_project_respondent:read",
+    "assessment_result:read",
   ],
 
 
@@ -134,6 +135,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "client_unit:read",
     "respondent:read",
     "assessment_project_respondent:read",
+    "assessment_result:read",
   ],
 
   CLIENT_MANAGER: [
@@ -145,6 +147,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "client_unit:read",
     "respondent:read",
     "assessment_project_respondent:read",
+    "assessment_result:read",
   ],
 
   PSYCHOMETRIC_ADMIN: [

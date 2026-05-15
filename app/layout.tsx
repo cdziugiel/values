@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Humanet Values",
-  description: "Badanie wartości",
+  description: "Badanie",
 };
 
 export default function RootLayout({

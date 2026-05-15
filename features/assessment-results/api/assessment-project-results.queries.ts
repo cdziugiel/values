@@ -1,5 +1,8 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+// features/assessment-results/api/assessment-project-results.queries.ts
 
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { requirePermission } from "@/server/permissions/require-permission";
+import { getAssessmentSessionReportHref } from "./assessment-session-report.queries";
 import {
   questionnaireItems,
   questionnairePages,
@@ -84,6 +87,7 @@ export type AssessmentProjectRespondentResult = {
   respondentName: string;
   respondentEmail: string | null;
   respondentExternalCode: string | null;
+  reportHref: string | null;
   scores: AssessmentProjectRespondentDimensionScore[];
 };
 export type AssessmentProjectResultsData = {
@@ -241,7 +245,7 @@ export async function getAssessmentProjectResults({
 
   const tenantContext = await requireTenantContext({ tenantSlug });
   const db = await getTenantDb(tenantContext);
-
+  requirePermission(tenantContext, "assessment_result:read");
   const project = await db.query.assessmentProjects.findFirst({
     where: and(
       eq(assessmentProjects.id, assessmentProjectId),
@@ -254,39 +258,39 @@ export async function getAssessmentProjectResults({
   }
 
   const sessions = await db
-  .select({
-    sessionId: assessmentSessions.id,
-    sessionStatus: assessmentSessions.status,
-    sessionCompletedAt: assessmentSessions.completedAt,
+    .select({
+      sessionId: assessmentSessions.id,
+      sessionStatus: assessmentSessions.status,
+      sessionCompletedAt: assessmentSessions.completedAt,
 
-    respondentId: respondents.id,
-    respondentExternalCode: respondents.externalCode,
-    respondentEmail: respondentIdentities.email,
-    respondentFirstName: respondentIdentities.firstName,
-    respondentLastName: respondentIdentities.lastName,
-  })
-  .from(assessmentSessions)
-  .innerJoin(respondents, eq(respondents.id, assessmentSessions.respondentId))
-  .leftJoin(
-    respondentIdentities,
-    and(
-      eq(respondentIdentities.respondentId, respondents.id),
-      isNull(respondentIdentities.deletedAt),
-    ),
-  )
-  .where(
-    and(
-      eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
-      isNull(assessmentSessions.deletedAt),
-      isNull(respondents.deletedAt),
-    ),
-  );
+      respondentId: respondents.id,
+      respondentExternalCode: respondents.externalCode,
+      respondentEmail: respondentIdentities.email,
+      respondentFirstName: respondentIdentities.firstName,
+      respondentLastName: respondentIdentities.lastName,
+    })
+    .from(assessmentSessions)
+    .innerJoin(respondents, eq(respondents.id, assessmentSessions.respondentId))
+    .leftJoin(
+      respondentIdentities,
+      and(
+        eq(respondentIdentities.respondentId, respondents.id),
+        isNull(respondentIdentities.deletedAt),
+      ),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+        isNull(assessmentSessions.deletedAt),
+        isNull(respondents.deletedAt),
+      ),
+    );
 
-const sessionIds = sessions.map((session) => session.sessionId);
+  const sessionIds = sessions.map((session) => session.sessionId);
 
-const completedSessionIds = sessions
-  .filter((session) => session.sessionStatus === "completed")
-  .map((session) => session.sessionId);
+  const completedSessionIds = sessions
+    .filter((session) => session.sessionStatus === "completed")
+    .map((session) => session.sessionId);
 
   const projectQuestionnaires = await db
     .select({
@@ -316,83 +320,83 @@ const completedSessionIds = sessions
   let categoricalAggregates: AssessmentProjectCategoricalAggregate[] = [];
 
 
-let scoreRows: {
-  questionnaireId: string;
-  questionnaireVersionId: string;
-  questionnaireDimensionId: string;
-  dimensionCode: string;
-  dimensionName: string;
-  rawScore: number;
-  weightedScore: number;
-  meanScore: number;
-  weightedMeanScore: number;
-  completeness: number;
-  assessmentSessionId: string;
-}[] = [];
+  let scoreRows: {
+    questionnaireId: string;
+    questionnaireVersionId: string;
+    questionnaireDimensionId: string;
+    dimensionCode: string;
+    dimensionName: string;
+    rawScore: number;
+    weightedScore: number;
+    meanScore: number;
+    weightedMeanScore: number;
+    completeness: number;
+    assessmentSessionId: string;
+  }[] = [];
 
-let versionMetaRows: {
-  questionnaireId: string;
-  questionnaireName: string;
-  questionnaireVersionId: string;
-  questionnaireVersionName: string;
-}[] = [];
+  let versionMetaRows: {
+    questionnaireId: string;
+    questionnaireName: string;
+    questionnaireVersionId: string;
+    questionnaireVersionName: string;
+  }[] = [];
 
-if (completedSessionIds.length > 0) {
-  scoreRows = await db
-    .select({
-      questionnaireId: assessmentDimensionScores.questionnaireId,
-      questionnaireVersionId: assessmentDimensionScores.questionnaireVersionId,
-      questionnaireDimensionId:
-        assessmentDimensionScores.questionnaireDimensionId,
-      dimensionCode: assessmentDimensionScores.dimensionCode,
-      dimensionName: assessmentDimensionScores.dimensionName,
-      rawScore: assessmentDimensionScores.rawScore,
-      weightedScore: assessmentDimensionScores.weightedScore,
-      meanScore: assessmentDimensionScores.meanScore,
-      weightedMeanScore: assessmentDimensionScores.weightedMeanScore,
-      completeness: assessmentDimensionScores.completeness,
-      assessmentSessionId: assessmentDimensionScores.assessmentSessionId,
-    })
-    .from(assessmentDimensionScores)
-    .where(
-      and(
-        inArray(
-          assessmentDimensionScores.assessmentSessionId,
-          completedSessionIds,
-        ),
-        isNull(assessmentDimensionScores.deletedAt),
-      ),
-    );
-}
-
-if (questionnaireVersionIds.length > 0) {
-  versionMetaRows = await controlDb
-    .select({
-      questionnaireId: questionnaires.id,
-      questionnaireName: questionnaires.name,
-      questionnaireVersionId: questionnaireVersions.id,
-      questionnaireVersionName: questionnaireVersions.name,
-    })
-    .from(questionnaireVersions)
-    .innerJoin(
-      questionnaires,
-      eq(questionnaires.id, questionnaireVersions.questionnaireId),
-    )
-    .where(
-      and(
-        inArray(questionnaireVersions.id, questionnaireVersionIds),
-        isNull(questionnaireVersions.deletedAt),
-        isNull(questionnaires.deletedAt),
-      ),
-    );
-}
-
-const versionMetaById = new Map(
-  versionMetaRows.map((row) => [row.questionnaireVersionId, row]),
-);
-  
   if (completedSessionIds.length > 0) {
-    
+    scoreRows = await db
+      .select({
+        questionnaireId: assessmentDimensionScores.questionnaireId,
+        questionnaireVersionId: assessmentDimensionScores.questionnaireVersionId,
+        questionnaireDimensionId:
+          assessmentDimensionScores.questionnaireDimensionId,
+        dimensionCode: assessmentDimensionScores.dimensionCode,
+        dimensionName: assessmentDimensionScores.dimensionName,
+        rawScore: assessmentDimensionScores.rawScore,
+        weightedScore: assessmentDimensionScores.weightedScore,
+        meanScore: assessmentDimensionScores.meanScore,
+        weightedMeanScore: assessmentDimensionScores.weightedMeanScore,
+        completeness: assessmentDimensionScores.completeness,
+        assessmentSessionId: assessmentDimensionScores.assessmentSessionId,
+      })
+      .from(assessmentDimensionScores)
+      .where(
+        and(
+          inArray(
+            assessmentDimensionScores.assessmentSessionId,
+            completedSessionIds,
+          ),
+          isNull(assessmentDimensionScores.deletedAt),
+        ),
+      );
+  }
+
+  if (questionnaireVersionIds.length > 0) {
+    versionMetaRows = await controlDb
+      .select({
+        questionnaireId: questionnaires.id,
+        questionnaireName: questionnaires.name,
+        questionnaireVersionId: questionnaireVersions.id,
+        questionnaireVersionName: questionnaireVersions.name,
+      })
+      .from(questionnaireVersions)
+      .innerJoin(
+        questionnaires,
+        eq(questionnaires.id, questionnaireVersions.questionnaireId),
+      )
+      .where(
+        and(
+          inArray(questionnaireVersions.id, questionnaireVersionIds),
+          isNull(questionnaireVersions.deletedAt),
+          isNull(questionnaires.deletedAt),
+        ),
+      );
+  }
+
+  const versionMetaById = new Map(
+    versionMetaRows.map((row) => [row.questionnaireVersionId, row]),
+  );
+
+  if (completedSessionIds.length > 0) {
+
     const dimensionMap = new Map<
       string,
       {
@@ -627,61 +631,72 @@ const versionMetaById = new Map(
 
 
   const scoresBySessionId = new Map<
-  string,
-  AssessmentProjectRespondentDimensionScore[]
->();
+    string,
+    AssessmentProjectRespondentDimensionScore[]
+  >();
 
-for (const score of scoreRows) {
-  const versionMeta = versionMetaById.get(score.questionnaireVersionId);
+  for (const score of scoreRows) {
+    const versionMeta = versionMetaById.get(score.questionnaireVersionId);
 
-  const existing = scoresBySessionId.get(score.assessmentSessionId) ?? [];
+    const existing = scoresBySessionId.get(score.assessmentSessionId) ?? [];
 
-  existing.push({
-    questionnaireId: score.questionnaireId,
-    questionnaireVersionId: score.questionnaireVersionId,
-    questionnaireName: versionMeta?.questionnaireName ?? "—",
-    questionnaireVersionName: versionMeta?.questionnaireVersionName ?? "—",
-    dimensionId: score.questionnaireDimensionId,
-    dimensionCode: score.dimensionCode,
-    dimensionName: score.dimensionName,
-    rawScore: Number(score.rawScore),
-    weightedScore: Number(score.weightedScore),
-    meanScore: Number(score.meanScore),
-    weightedMeanScore: Number(score.weightedMeanScore),
-    completeness: Number(score.completeness),
-  });
+    existing.push({
+      questionnaireId: score.questionnaireId,
+      questionnaireVersionId: score.questionnaireVersionId,
+      questionnaireName: versionMeta?.questionnaireName ?? "—",
+      questionnaireVersionName: versionMeta?.questionnaireVersionName ?? "—",
+      dimensionId: score.questionnaireDimensionId,
+      dimensionCode: score.dimensionCode,
+      dimensionName: score.dimensionName,
+      rawScore: Number(score.rawScore),
+      weightedScore: Number(score.weightedScore),
+      meanScore: Number(score.meanScore),
+      weightedMeanScore: Number(score.weightedMeanScore),
+      completeness: Number(score.completeness),
+    });
 
-  scoresBySessionId.set(score.assessmentSessionId, existing);
-}
+    scoresBySessionId.set(score.assessmentSessionId, existing);
+  }
 
-const respondentResults: AssessmentProjectRespondentResult[] = sessions.map(
-  (session) => ({
-    sessionId: session.sessionId,
-    sessionStatus: session.sessionStatus,
-    completedAt: session.sessionCompletedAt,
-    respondentId: session.respondentId,
-    respondentName: getRespondentDisplayName({
-      firstName: session.respondentFirstName,
-      lastName: session.respondentLastName,
-      email: session.respondentEmail,
-      externalCode: session.respondentExternalCode,
+  const respondentResults: AssessmentProjectRespondentResult[] = await Promise.all(
+    sessions.map(async (session) => {
+      const reportHref =
+        session.sessionStatus === "completed"
+          ? await getAssessmentSessionReportHref({
+            tenantSlug,
+            sessionId: session.sessionId,
+          })
+          : null;
+
+      return {
+        sessionId: session.sessionId,
+        sessionStatus: session.sessionStatus,
+        completedAt: session.sessionCompletedAt,
+        respondentId: session.respondentId,
+        respondentName: getRespondentDisplayName({
+          firstName: session.respondentFirstName,
+          lastName: session.respondentLastName,
+          email: session.respondentEmail,
+          externalCode: session.respondentExternalCode,
+        }),
+        respondentEmail: session.respondentEmail,
+        respondentExternalCode: session.respondentExternalCode,
+        reportHref,
+        scores: (scoresBySessionId.get(session.sessionId) ?? []).sort((a, b) => {
+          const questionnaireCompare = a.questionnaireName.localeCompare(
+            b.questionnaireName,
+            "pl",
+          );
+
+          if (questionnaireCompare !== 0) {
+            return questionnaireCompare;
+          }
+
+          return a.dimensionCode.localeCompare(b.dimensionCode, "pl");
+        }),
+      };
     }),
-    respondentEmail: session.respondentEmail,
-    respondentExternalCode: session.respondentExternalCode,
-    scores: (scoresBySessionId.get(session.sessionId) ?? []).sort((a, b) => {
-      const questionnaireCompare = a.questionnaireName.localeCompare(
-        b.questionnaireName,
-        "pl",
-      );
-
-      if (questionnaireCompare !== 0) {
-        return questionnaireCompare;
-      }
-
-      return a.dimensionCode.localeCompare(b.dimensionCode, "pl");
-    }),
-  }),
-);
+  );
 
   return {
     tenant: {

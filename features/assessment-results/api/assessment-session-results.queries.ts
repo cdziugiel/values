@@ -1,5 +1,8 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
+import { requirePermission } from "@/server/permissions/require-permission";
+import { getAssessmentSessionReportHref } from "./assessment-session-report.queries";
+
 import {
   questionnaireDimensions,
   questionnaireItemDimensionScores,
@@ -116,6 +119,7 @@ export type AssessmentSessionResultsData = {
   };
   scores: AssessmentSessionResultScore[];
   responseDiagnostics: AssessmentSessionResponseDiagnosticItem[];
+  reportHref: string | null;
 };
 
 function getDisplayName(input: {
@@ -394,7 +398,7 @@ export async function getAssessmentSessionResults({
 
   const tenantContext = await requireTenantContext({ tenantSlug });
   const db = await getTenantDb(tenantContext);
-
+  requirePermission(tenantContext, "assessment_result:read");
   const rows = await db
     .select({
       sessionId: assessmentSessions.id,
@@ -555,22 +559,22 @@ export async function getAssessmentSessionResults({
     const responseRows =
       itemIds.length > 0
         ? await db
-            .select({
-              questionnaireItemId: assessmentResponses.questionnaireItemId,
-              valueType: assessmentResponses.valueType,
-              numberValue: assessmentResponses.numberValue,
-              textValue: assessmentResponses.textValue,
-              booleanValue: assessmentResponses.booleanValue,
-              jsonValue: assessmentResponses.jsonValue,
-            })
-            .from(assessmentResponses)
-            .where(
-              and(
-                eq(assessmentResponses.assessmentSessionId, sessionId),
-                inArray(assessmentResponses.questionnaireItemId, itemIds),
-                isNull(assessmentResponses.deletedAt),
-              ),
-            )
+          .select({
+            questionnaireItemId: assessmentResponses.questionnaireItemId,
+            valueType: assessmentResponses.valueType,
+            numberValue: assessmentResponses.numberValue,
+            textValue: assessmentResponses.textValue,
+            booleanValue: assessmentResponses.booleanValue,
+            jsonValue: assessmentResponses.jsonValue,
+          })
+          .from(assessmentResponses)
+          .where(
+            and(
+              eq(assessmentResponses.assessmentSessionId, sessionId),
+              inArray(assessmentResponses.questionnaireItemId, itemIds),
+              isNull(assessmentResponses.deletedAt),
+            ),
+          )
         : [];
 
     const responseByItemId = new Map<string, ResponseValue>();
@@ -588,31 +592,31 @@ export async function getAssessmentSessionResults({
     const dimensionRows =
       itemIds.length > 0
         ? await controlDb
-            .select({
-              scoreConfigId: questionnaireItemDimensionScores.id,
-              itemId: questionnaireItemDimensionScores.questionnaireItemId,
-              dimensionId:
-                questionnaireItemDimensionScores.questionnaireDimensionId,
-              weight: questionnaireItemDimensionScores.weight,
-              reverseScored: questionnaireItemDimensionScores.reverseScored,
-              dimensionCode: questionnaireDimensions.code,
-              dimensionName: questionnaireDimensions.name,
-            })
-            .from(questionnaireItemDimensionScores)
-            .innerJoin(
-              questionnaireDimensions,
-              eq(
-                questionnaireDimensions.id,
-                questionnaireItemDimensionScores.questionnaireDimensionId,
-              ),
-            )
-            .where(
-              and(
-                inArray(questionnaireItemDimensionScores.questionnaireItemId, itemIds),
-                isNull(questionnaireItemDimensionScores.deletedAt),
-                isNull(questionnaireDimensions.deletedAt),
-              ),
-            )
+          .select({
+            scoreConfigId: questionnaireItemDimensionScores.id,
+            itemId: questionnaireItemDimensionScores.questionnaireItemId,
+            dimensionId:
+              questionnaireItemDimensionScores.questionnaireDimensionId,
+            weight: questionnaireItemDimensionScores.weight,
+            reverseScored: questionnaireItemDimensionScores.reverseScored,
+            dimensionCode: questionnaireDimensions.code,
+            dimensionName: questionnaireDimensions.name,
+          })
+          .from(questionnaireItemDimensionScores)
+          .innerJoin(
+            questionnaireDimensions,
+            eq(
+              questionnaireDimensions.id,
+              questionnaireItemDimensionScores.questionnaireDimensionId,
+            ),
+          )
+          .where(
+            and(
+              inArray(questionnaireItemDimensionScores.questionnaireItemId, itemIds),
+              isNull(questionnaireItemDimensionScores.deletedAt),
+              isNull(questionnaireDimensions.deletedAt),
+            ),
+          )
         : [];
 
     const dimensionsByItemId = new Map<
@@ -644,13 +648,13 @@ export async function getAssessmentSessionResults({
               ? null
               : dimension.reverseScored
                 ? reverseScore({
-                    score: numericScore,
-                    item: {
-                      type: item.itemType,
-                      scaleMin: item.scaleMin,
-                      scaleMax: item.scaleMax,
-                    },
-                  })
+                  score: numericScore,
+                  item: {
+                    type: item.itemType,
+                    scaleMin: item.scaleMin,
+                    scaleMax: item.scaleMax,
+                  },
+                })
                 : numericScore;
 
           const weight = Number(dimension.weight ?? 1);
@@ -707,7 +711,13 @@ export async function getAssessmentSessionResults({
       };
     });
   }
-
+  const reportHref =
+    row.sessionStatus === "completed"
+      ? await getAssessmentSessionReportHref({
+        tenantSlug,
+        sessionId,
+      })
+      : null;
   return {
     tenant: {
       id: tenantContext.tenantId,
@@ -741,5 +751,6 @@ export async function getAssessmentSessionResults({
     },
     scores,
     responseDiagnostics,
+    reportHref,
   };
 }

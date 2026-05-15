@@ -1,3 +1,4 @@
+// features/assessment-results/components/assessment-project-results-page.tsx
 import Link from "next/link";
 
 import { getAssessmentProjectResults } from "../api/assessment-project-results.queries";
@@ -105,44 +106,44 @@ export async function AssessmentProjectResultsPage({
 
 
   const respondentMatrixGroups = dimensionGroups.map((group) => {
-  const dimensions = group.aggregates.map((aggregate) => ({
-    dimensionId: aggregate.dimensionId,
-    dimensionCode: aggregate.dimensionCode,
-    dimensionName: aggregate.dimensionName,
-  }));
+    const dimensions = group.aggregates.map((aggregate) => ({
+      dimensionId: aggregate.dimensionId,
+      dimensionCode: aggregate.dimensionCode,
+      dimensionName: aggregate.dimensionName,
+    }));
 
-  return {
-    questionnaireVersionId: group.questionnaireVersionId,
-    questionnaireName: group.questionnaireName,
-    questionnaireVersionName: group.questionnaireVersionName,
-    dimensions,
-    respondents: data.respondentResults.map((respondent) => {
-      const scoresForQuestionnaire = respondent.scores.filter(
-        (score) => score.questionnaireVersionId === group.questionnaireVersionId,
-      );
+    return {
+      questionnaireVersionId: group.questionnaireVersionId,
+      questionnaireName: group.questionnaireName,
+      questionnaireVersionName: group.questionnaireVersionName,
+      dimensions,
+      respondents: data.respondentResults.map((respondent) => {
+        const scoresForQuestionnaire = respondent.scores.filter(
+          (score) => score.questionnaireVersionId === group.questionnaireVersionId,
+        );
 
-      const scoreByDimensionId = new Map(
-        scoresForQuestionnaire.map((score) => [score.dimensionId, score]),
-      );
+        const scoreByDimensionId = new Map(
+          scoresForQuestionnaire.map((score) => [score.dimensionId, score]),
+        );
 
-      const completenessValues = scoresForQuestionnaire.map(
-        (score) => score.completeness,
-      );
+        const completenessValues = scoresForQuestionnaire.map(
+          (score) => score.completeness,
+        );
 
-      const averageCompleteness =
-        completenessValues.length > 0
-          ? completenessValues.reduce((acc, value) => acc + value, 0) /
+        const averageCompleteness =
+          completenessValues.length > 0
+            ? completenessValues.reduce((acc, value) => acc + value, 0) /
             completenessValues.length
-          : null;
+            : null;
 
-      return {
-        ...respondent,
-        scoreByDimensionId,
-        averageCompleteness,
-      };
-    }),
-  };
-});
+        return {
+          ...respondent,
+          scoreByDimensionId,
+          averageCompleteness,
+        };
+      }),
+    };
+  });
 
   const categoricalGroups = Object.entries(
     groupBy(
@@ -179,42 +180,42 @@ export async function AssessmentProjectResultsPage({
           ) : null}
         </div>
 
-<div className="flex flex-wrap gap-2">
-  <Link
-    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=xlsx`}
-    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-  >
-    Eksport XLSX
-  </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=xlsx`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+          >
+            Eksport XLSX
+          </Link>
 
-  <Link
-    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=dimensions`}
-    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-  >
-    CSV wymiary
-  </Link>
+          <Link
+            href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=dimensions`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+          >
+            CSV wymiary
+          </Link>
 
-  <Link
-    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=respondents`}
-    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-  >
-    CSV respondenci
-  </Link>
+          <Link
+            href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=respondents`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+          >
+            CSV respondenci
+          </Link>
 
-  <Link
-    href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=categorical`}
-    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-  >
-    CSV kategorie
-  </Link>
+          <Link
+            href={`/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/results/export?format=csv&dataset=categorical`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+          >
+            CSV kategorie
+          </Link>
 
-  <Link
-    href={`/t/${tenantSlug}/assessment-projects`}
-    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-  >
-    Wróć do projektów
-  </Link>
-</div>
+          <Link
+            href={`/t/${tenantSlug}/assessment-projects`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+          >
+            Wróć do projektów
+          </Link>
+        </div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-4">
@@ -309,6 +310,7 @@ export async function AssessmentProjectResultsPage({
                         <th className="px-3 py-3 text-right font-medium">
                           Kompletność
                         </th>
+
                       </tr>
                     </thead>
 
@@ -360,128 +362,154 @@ export async function AssessmentProjectResultsPage({
         )}
       </section>
 
-<section className="rounded-2xl border bg-card p-5">
-  <div>
-    <h2 className="text-xl font-semibold">Macierz wyników respondentów</h2>
-    <p className="mt-1 text-sm text-muted-foreground">
-      Wyniki wymiarów dla poszczególnych respondentów. Wartości w komórkach
-      pokazują średnią ważoną itemów dla danego wymiaru.
-    </p>
-  </div>
+      <section className="rounded-2xl border bg-card p-5">
+        <div>
+          <h2 className="text-xl font-semibold">Macierz wyników respondentów</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Wyniki wymiarów dla poszczególnych respondentów. Wartości w komórkach
+            pokazują średnią ważoną itemów dla danego wymiaru.
+          </p>
+        </div>
 
-  {respondentMatrixGroups.length === 0 ? (
-    <div className="mt-5 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-      Brak danych do macierzy respondentów. Upewnij się, że sesje są ukończone i
-      przeliczone.
-    </div>
-  ) : (
-    <div className="mt-5 space-y-6">
-      {respondentMatrixGroups.map((group) => (
-        <div
-          key={group.questionnaireVersionId}
-          className="rounded-2xl border bg-muted/20 p-4"
-        >
-          <div>
-            <h3 className="text-lg font-semibold">
-              {group.questionnaireName}
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {group.questionnaireVersionName}
-            </p>
+        {respondentMatrixGroups.length === 0 ? (
+          <div className="mt-5 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+            Brak danych do macierzy respondentów. Upewnij się, że sesje są ukończone i
+            przeliczone.
           </div>
+        ) : (
+          <div className="mt-5 space-y-6">
+            {respondentMatrixGroups.map((group) => (
+              <div
+                key={group.questionnaireVersionId}
+                className="rounded-2xl border bg-muted/20 p-4"
+              >
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {group.questionnaireName}
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {group.questionnaireVersionName}
+                  </p>
+                </div>
 
-          <div className="mt-4 overflow-x-auto rounded-xl border bg-background">
-            <table className="w-full min-w-[1100px] border-collapse text-sm">
-              <thead className="bg-muted/50 text-left">
-                <tr>
-                  <th className="sticky left-0 z-10 bg-muted/50 px-3 py-3 font-medium">
-                    Respondent
-                  </th>
-                  <th className="px-3 py-3 font-medium">Status</th>
+                <div className="mt-4 overflow-x-auto rounded-xl border bg-background">
+                  <table className="w-full min-w-[1100px] border-collapse text-sm">
+                    <thead className="bg-muted/50 text-left">
+                      <tr>
+                        <th className="sticky left-0 z-10 bg-muted/50 px-3 py-3 font-medium">
+                          Respondent
+                        </th>
+                        <th className="px-3 py-3 font-medium">Status</th>
 
-                  {group.dimensions.map((dimension) => (
-                    <th
-                      key={dimension.dimensionId}
-                      className="px-3 py-3 text-right font-medium"
-                      title={dimension.dimensionName}
-                    >
-                      {dimension.dimensionCode}
-                    </th>
-                  ))}
+                        {group.dimensions.map((dimension) => (
+                          <th
+                            key={dimension.dimensionId}
+                            className="px-3 py-3 text-right font-medium"
+                            title={dimension.dimensionName}
+                          >
+                            {dimension.dimensionCode}
+                          </th>
+                        ))}
 
-                  <th className="px-3 py-3 text-right font-medium">
-                    Kompletność
-                  </th>
-                </tr>
-              </thead>
+                        <th className="px-3 py-3 text-right font-medium">
+                          Kompletność
+                        </th>
+                        <th className="px-3 py-3 text-right font-medium">
+                          Akcje
+                        </th>
+                      </tr>
+                    </thead>
 
-              <tbody>
-                {group.respondents.map((respondent) => (
-                  <tr
-                    key={`${group.questionnaireVersionId}:${respondent.sessionId}`}
-                    className="border-t"
-                  >
-                    <td className="sticky left-0 z-10 bg-background px-3 py-3">
-                      <div className="font-medium">
-                        {respondent.respondentName}
-                      </div>
-
-                      {respondent.respondentEmail ? (
-                        <div className="text-xs text-muted-foreground">
-                          {respondent.respondentEmail}
-                        </div>
-                      ) : respondent.respondentExternalCode ? (
-                        <div className="text-xs text-muted-foreground">
-                          {respondent.respondentExternalCode}
-                        </div>
-                      ) : null}
-                    </td>
-
-                    <td className="px-3 py-3">
-                      {sessionStatusLabel(respondent.sessionStatus)}
-                    </td>
-
-                    {group.dimensions.map((dimension) => {
-                      const score = respondent.scoreByDimensionId.get(
-                        dimension.dimensionId,
-                      );
-
-                      return (
-                        <td
-                          key={dimension.dimensionId}
-                          className="px-3 py-3 text-right"
-                          title={dimension.dimensionName}
+                    <tbody>
+                      {group.respondents.map((respondent) => (
+                        <tr
+                          key={`${group.questionnaireVersionId}:${respondent.sessionId}`}
+                          className="border-t"
                         >
-                          {score
-                            ? formatNumber(score.weightedMeanScore)
-                            : "—"}
-                        </td>
-                      );
-                    })}
+                          <td className="sticky left-0 z-10 bg-background px-3 py-3">
+                            <div className="font-medium">
+                              {respondent.respondentName}
+                            </div>
 
-                    <td className="px-3 py-3 text-right">
-                      {formatPercent(respondent.averageCompleteness)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                            {respondent.respondentEmail ? (
+                              <div className="text-xs text-muted-foreground">
+                                {respondent.respondentEmail}
+                              </div>
+                            ) : respondent.respondentExternalCode ? (
+                              <div className="text-xs text-muted-foreground">
+                                {respondent.respondentExternalCode}
+                              </div>
+                            ) : null}
+                          </td>
 
-          <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-            {group.dimensions.map((dimension) => (
-              <div key={dimension.dimensionId}>
-                <span className="font-mono">{dimension.dimensionCode}</span>
-                {" — "}
-                {dimension.dimensionName}
+                          <td className="px-3 py-3">
+                            {sessionStatusLabel(respondent.sessionStatus)}
+                          </td>
+
+                          {group.dimensions.map((dimension) => {
+                            const score = respondent.scoreByDimensionId.get(
+                              dimension.dimensionId,
+                            );
+
+                            return (
+                              <td
+                                key={dimension.dimensionId}
+                                className="px-3 py-3 text-right"
+                                title={dimension.dimensionName}
+                              >
+                                {score
+                                  ? formatNumber(score.weightedMeanScore)
+                                  : "—"}
+                              </td>
+                            );
+                          })}
+
+                          <td className="px-3 py-3 text-right">
+                            {formatPercent(respondent.averageCompleteness)}
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Link
+                                href={`/t/${tenantSlug}/assessment-sessions/${respondent.sessionId}/results`}
+                                className="inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium"
+                              >
+                                Wynik
+                              </Link>
+
+                              {respondent.reportHref ? (
+                                <Link
+                                  href={respondent.reportHref}
+                                  className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"
+                                >
+                                  Raport
+                                </Link>
+                              ) : (
+                                <span className="inline-flex h-8 items-center justify-center rounded-md border bg-muted/40 px-3 text-xs text-muted-foreground">
+                                  Brak raportu
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                  {group.dimensions.map((dimension) => (
+                    <div key={dimension.dimensionId}>
+                      <span className="font-mono">{dimension.dimensionCode}</span>
+                      {" — "}
+                      {dimension.dimensionName}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      ))}
-    </div>
-  )}
-</section>
+        )}
+      </section>
 
       <section className="rounded-2xl border bg-card p-5">
         <div>

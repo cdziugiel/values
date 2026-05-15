@@ -96,13 +96,23 @@ export async function AssessmentSessionResultsPage({
             Projekt: {data.project.name}
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {data.reportHref ? (
+            <Link
+              href={data.reportHref}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+            >
+              Zobacz raport
+            </Link>
+          ) : null}
 
-        <Link
-          href={`/t/${tenantSlug}/assessment-projects/${data.project.id}/respondents`}
-          className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-        >
-          Wróć do respondentów
-        </Link>
+          <Link
+            href={`/t/${tenantSlug}/assessment-projects/${data.project.id}/respondents`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+          >
+            Wróć do respondentów
+          </Link>
+        </div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-4">
@@ -146,18 +156,18 @@ export async function AssessmentSessionResultsPage({
 
       <section className="rounded-2xl border bg-card p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-<div>
-  <h2 className="text-xl font-semibold">Wyniki wymiarów</h2>
-  <p className="mt-1 text-sm text-muted-foreground">
-    Wyniki przeliczone na podstawie odpowiedzi respondenta i
-    przypisań scoringowych itemów.
-  </p>
-</div>
+          <div>
+            <h2 className="text-xl font-semibold">Wyniki wymiarów</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Wyniki przeliczone na podstawie odpowiedzi respondenta i
+              przypisań scoringowych itemów.
+            </p>
+          </div>
 
-<RecalculateAssessmentSessionScoresForm
-  tenantSlug={tenantSlug}
-  sessionId={sessionId}
-/>
+          <RecalculateAssessmentSessionScoresForm
+            tenantSlug={tenantSlug}
+            sessionId={sessionId}
+          />
         </div>
 
         {data.scores.length === 0 ? (
@@ -232,198 +242,198 @@ export async function AssessmentSessionResultsPage({
           </div>
         )}
       </section>
-<section className="rounded-2xl border bg-card p-5">
-  <div>
-    <h2 className="text-xl font-semibold">Odpowiedzi i scoring itemów</h2>
-    <p className="mt-1 text-sm text-muted-foreground">
-      Widok techniczny pokazujący, jak odpowiedzi respondenta zostały
-      przeliczone na wartości scoringowe.
-    </p>
-  </div>
+      <section className="rounded-2xl border bg-card p-5">
+        <div>
+          <h2 className="text-xl font-semibold">Odpowiedzi i scoring itemów</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Widok techniczny pokazujący, jak odpowiedzi respondenta zostały
+            przeliczone na wartości scoringowe.
+          </p>
+        </div>
 
-  {data.responseDiagnostics.length === 0 ? (
-    <div className="mt-5 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-      Brak itemów diagnostycznych dla tej sesji.
-    </div>
-  ) : (
-    <div className="mt-5 overflow-x-auto rounded-xl border">
-      <table className="w-full min-w-[1400px] border-collapse text-sm">
-        <thead className="bg-muted/50 text-left">
-          <tr>
-            <th className="px-3 py-3 font-medium">Kwestionariusz</th>
-            <th className="px-3 py-3 font-medium">Strona</th>
-            <th className="px-3 py-3 font-medium">Item</th>
-            <th className="px-3 py-3 font-medium">Typ</th>
-            <th className="px-3 py-3 font-medium">Odpowiedź</th>
-            <th className="px-3 py-3 text-right font-medium">
-              Wynik bazowy
-            </th>
-            <th className="px-3 py-3 font-medium">Wymiary</th>
-            <th className="px-3 py-3 font-medium">Reverse</th>
-            <th className="px-3 py-3 font-medium">Waga</th>
-            <th className="px-3 py-3 text-right font-medium">
-              Wynik po reverse
-            </th>
-            <th className="px-3 py-3 text-right font-medium">
-              Wynik ważony
-            </th>
-            <th className="px-3 py-3 font-medium">Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {data.responseDiagnostics.map((item) => {
-            if (item.dimensions.length === 0) {
-              return (
-                <tr key={item.itemId} className="border-t">
-                  <td className="px-3 py-3">
-                    <div className="font-medium">{item.questionnaireName}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.questionnaireVersionName}
-                    </div>
-                  </td>
-
-                  <td className="px-3 py-3">
-                    {item.pageTitle ?? "—"}
-                  </td>
-
-                  <td className="px-3 py-3">
-                    <div className="font-medium">{item.itemText}</div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {item.itemCode}
-                    </div>
-                  </td>
-
-                  <td className="px-3 py-3">{item.itemType}</td>
-
-                  <td className="px-3 py-3">
-                    {item.responseDisplayValue}
-                  </td>
-
-                  <td className="px-3 py-3 text-right">
-                    {formatNumber(item.numericScore)}
-                  </td>
-
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3 text-right">—</td>
-                  <td className="px-3 py-3 text-right">—</td>
-
-                  <td className="px-3 py-3">
-                    <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
-                      Brak wymiaru
-                    </span>
-                  </td>
+        {data.responseDiagnostics.length === 0 ? (
+          <div className="mt-5 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+            Brak itemów diagnostycznych dla tej sesji.
+          </div>
+        ) : (
+          <div className="mt-5 overflow-x-auto rounded-xl border">
+            <table className="w-full min-w-[1400px] border-collapse text-sm">
+              <thead className="bg-muted/50 text-left">
+                <tr>
+                  <th className="px-3 py-3 font-medium">Kwestionariusz</th>
+                  <th className="px-3 py-3 font-medium">Strona</th>
+                  <th className="px-3 py-3 font-medium">Item</th>
+                  <th className="px-3 py-3 font-medium">Typ</th>
+                  <th className="px-3 py-3 font-medium">Odpowiedź</th>
+                  <th className="px-3 py-3 text-right font-medium">
+                    Wynik bazowy
+                  </th>
+                  <th className="px-3 py-3 font-medium">Wymiary</th>
+                  <th className="px-3 py-3 font-medium">Reverse</th>
+                  <th className="px-3 py-3 font-medium">Waga</th>
+                  <th className="px-3 py-3 text-right font-medium">
+                    Wynik po reverse
+                  </th>
+                  <th className="px-3 py-3 text-right font-medium">
+                    Wynik ważony
+                  </th>
+                  <th className="px-3 py-3 font-medium">Status</th>
                 </tr>
-              );
-            }
+              </thead>
 
-            return item.dimensions.map((dimension, dimensionIndex) => (
-              <tr
-                key={`${item.itemId}:${dimension.scoreConfigId}`}
-                className="border-t"
-              >
-                {dimensionIndex === 0 ? (
-                  <>
-                    <td
-                      rowSpan={item.dimensions.length}
-                      className="px-3 py-3 align-top"
+              <tbody>
+                {data.responseDiagnostics.map((item) => {
+                  if (item.dimensions.length === 0) {
+                    return (
+                      <tr key={item.itemId} className="border-t">
+                        <td className="px-3 py-3">
+                          <div className="font-medium">{item.questionnaireName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.questionnaireVersionName}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-3">
+                          {item.pageTitle ?? "—"}
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <div className="font-medium">{item.itemText}</div>
+                          <div className="font-mono text-xs text-muted-foreground">
+                            {item.itemCode}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-3">{item.itemType}</td>
+
+                        <td className="px-3 py-3">
+                          {item.responseDisplayValue}
+                        </td>
+
+                        <td className="px-3 py-3 text-right">
+                          {formatNumber(item.numericScore)}
+                        </td>
+
+                        <td className="px-3 py-3">—</td>
+                        <td className="px-3 py-3">—</td>
+                        <td className="px-3 py-3">—</td>
+                        <td className="px-3 py-3 text-right">—</td>
+                        <td className="px-3 py-3 text-right">—</td>
+
+                        <td className="px-3 py-3">
+                          <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
+                            Brak wymiaru
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return item.dimensions.map((dimension, dimensionIndex) => (
+                    <tr
+                      key={`${item.itemId}:${dimension.scoreConfigId}`}
+                      className="border-t"
                     >
-                      <div className="font-medium">
-                        {item.questionnaireName}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.questionnaireVersionName}
-                      </div>
-                    </td>
+                      {dimensionIndex === 0 ? (
+                        <>
+                          <td
+                            rowSpan={item.dimensions.length}
+                            className="px-3 py-3 align-top"
+                          >
+                            <div className="font-medium">
+                              {item.questionnaireName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.questionnaireVersionName}
+                            </div>
+                          </td>
 
-                    <td
-                      rowSpan={item.dimensions.length}
-                      className="px-3 py-3 align-top"
-                    >
-                      {item.pageTitle ?? "—"}
-                    </td>
+                          <td
+                            rowSpan={item.dimensions.length}
+                            className="px-3 py-3 align-top"
+                          >
+                            {item.pageTitle ?? "—"}
+                          </td>
 
-                    <td
-                      rowSpan={item.dimensions.length}
-                      className="px-3 py-3 align-top"
-                    >
-                      <div className="font-medium">{item.itemText}</div>
-                      <div className="font-mono text-xs text-muted-foreground">
-                        {item.itemCode}
-                      </div>
-                    </td>
+                          <td
+                            rowSpan={item.dimensions.length}
+                            className="px-3 py-3 align-top"
+                          >
+                            <div className="font-medium">{item.itemText}</div>
+                            <div className="font-mono text-xs text-muted-foreground">
+                              {item.itemCode}
+                            </div>
+                          </td>
 
-                    <td
-                      rowSpan={item.dimensions.length}
-                      className="px-3 py-3 align-top"
-                    >
-                      {item.itemType}
-                    </td>
+                          <td
+                            rowSpan={item.dimensions.length}
+                            className="px-3 py-3 align-top"
+                          >
+                            {item.itemType}
+                          </td>
 
-                    <td
-                      rowSpan={item.dimensions.length}
-                      className="px-3 py-3 align-top"
-                    >
-                      {item.responseDisplayValue}
-                    </td>
+                          <td
+                            rowSpan={item.dimensions.length}
+                            className="px-3 py-3 align-top"
+                          >
+                            {item.responseDisplayValue}
+                          </td>
 
-                    <td
-                      rowSpan={item.dimensions.length}
-                      className="px-3 py-3 text-right align-top"
-                    >
-                      {formatNumber(item.numericScore)}
-                    </td>
-                  </>
-                ) : null}
+                          <td
+                            rowSpan={item.dimensions.length}
+                            className="px-3 py-3 text-right align-top"
+                          >
+                            {formatNumber(item.numericScore)}
+                          </td>
+                        </>
+                      ) : null}
 
-                <td className="px-3 py-3">
-                  <div className="font-medium">{dimension.dimensionName}</div>
-                  <div className="font-mono text-xs text-muted-foreground">
-                    {dimension.dimensionCode}
-                  </div>
-                </td>
+                      <td className="px-3 py-3">
+                        <div className="font-medium">{dimension.dimensionName}</div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          {dimension.dimensionCode}
+                        </div>
+                      </td>
 
-                <td className="px-3 py-3">
-                  {dimension.reverseScored ? "tak" : "nie"}
-                </td>
+                      <td className="px-3 py-3">
+                        {dimension.reverseScored ? "tak" : "nie"}
+                      </td>
 
-                <td className="px-3 py-3">
-                  {dimension.weight ?? "—"}
-                </td>
+                      <td className="px-3 py-3">
+                        {dimension.weight ?? "—"}
+                      </td>
 
-                <td className="px-3 py-3 text-right">
-                  {formatNumber(dimension.numericScoreAfterReverse)}
-                </td>
+                      <td className="px-3 py-3 text-right">
+                        {formatNumber(dimension.numericScoreAfterReverse)}
+                      </td>
 
-                <td className="px-3 py-3 text-right">
-                  {formatNumber(dimension.weightedScore)}
-                </td>
+                      <td className="px-3 py-3 text-right">
+                        {formatNumber(dimension.weightedScore)}
+                      </td>
 
-                <td className="px-3 py-3">
-                  {!item.responseExists ? (
-                    <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
-                      Brak odpowiedzi
-                    </span>
-                  ) : item.numericScore === null ? (
-                    <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
-                      Bez wyniku liczbowego
-                    </span>
-                  ) : (
-                    <span className="rounded-full border px-2 py-1 text-xs">
-                      Liczony
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ));
-          })}
-        </tbody>
-      </table>
-    </div>
-  )}
-</section>
+                      <td className="px-3 py-3">
+                        {!item.responseExists ? (
+                          <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
+                            Brak odpowiedzi
+                          </span>
+                        ) : item.numericScore === null ? (
+                          <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
+                            Bez wyniku liczbowego
+                          </span>
+                        ) : (
+                          <span className="rounded-full border px-2 py-1 text-xs">
+                            Liczony
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ));
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <section className="rounded-2xl border bg-muted/30 p-5">
         <h2 className="text-lg font-semibold">Uwagi diagnostyczne</h2>
         <p className="mt-2 text-sm text-muted-foreground">

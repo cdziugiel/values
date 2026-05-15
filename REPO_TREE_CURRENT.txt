@@ -1,35 +1,53 @@
-[1.5M]  .
+[1.9M]  .
 ├── [1.1K]  .env.local
 ├── [ 512]  .gitignore
 ├── [ 327]  AGENTS.md
 ├── [  11]  CLAUDE.md
 ├── [1.4K]  README.md
 ├── [   0]  REPO_TREE_CURRENT.txt
-├── [110K]  app
-│   ├── [ 52K]  (protected)
-│   │   ├── [ 23K]  dashboard
+├── [124K]  app
+│   ├── [ 66K]  (protected)
+│   │   ├── [ 30K]  dashboard
 │   │   │   ├── [ 21K]  page.tsx
-│   │   │   ├── [1.0K]  questionnaires
+│   │   │   ├── [1.8K]  questionnaires
 │   │   │   │   ├── [ 666]  editor
 │   │   │   │   │   └── [ 570]  [versionId]
 │   │   │   │   │       └── [ 474]  page.tsx
-│   │   │   │   └── [ 232]  page.tsx
+│   │   │   │   ├── [ 445]  page.tsx
+│   │   │   │   └── [ 539]  preview
+│   │   │   │       └── [ 443]  [versionId]
+│   │   │   │           └── [ 347]  page.tsx
+│   │   │   ├── [2.8K]  report-builder
+│   │   │   │   └── [2.7K]  [reportTemplateVersionId]
+│   │   │   │       └── [2.6K]  page.tsx
+│   │   │   ├── [3.5K]  report-templates
+│   │   │   │   ├── [1.6K]  [templateId]
+│   │   │   │   │   ├── [ 609]  page.tsx
+│   │   │   │   │   └── [ 948]  versions
+│   │   │   │   │       └── [ 852]  [versionId]
+│   │   │   │   │           └── [ 756]  page.tsx
+│   │   │   │   ├── [1.2K]  new
+│   │   │   │   │   └── [1.1K]  page.tsx
+│   │   │   │   └── [ 440]  page.tsx
 │   │   │   ├── [ 345]  tenant-migrations
 │   │   │   │   └── [ 249]  page.tsx
 │   │   │   └── [ 329]  tenants
 │   │   │       └── [ 233]  page.tsx
-│   │   ├── [ 629]  layout.tsx
-│   │   ├── [6.4K]  my
-│   │   │   └── [6.3K]  assessment
-│   │   │       ├── [ 230]  page.tsx
-│   │   │       └── [6.0K]  sessions
-│   │   │           └── [5.9K]  [sessionId]
-│   │   │               ├── [1.3K]  completed
-│   │   │               │   └── [1.3K]  page.tsx
-│   │   │               ├── [1.6K]  page.tsx
-│   │   │               └── [2.7K]  questionnaire
-│   │   │                   └── [2.6K]  [projectQuestionnaireId]
-│   │   │                       └── [2.5K]  page.tsx
+│   │   ├── [ 630]  layout.tsx
+│   │   ├── [ 13K]  my
+│   │   │   └── [ 13K]  assessment
+│   │   │       ├── [ 231]  page.tsx
+│   │   │       └── [ 12K]  sessions
+│   │   │           └── [ 12K]  [sessionId]
+│   │   │               ├── [3.6K]  completed
+│   │   │               │   └── [3.5K]  page.tsx
+│   │   │               ├── [2.4K]  page.tsx
+│   │   │               ├── [2.9K]  questionnaire
+│   │   │               │   └── [2.8K]  [projectQuestionnaireId]
+│   │   │               │       └── [2.7K]  page.tsx
+│   │   │               └── [3.3K]  report
+│   │   │                   └── [3.2K]  [reportTemplateVersionId]
+│   │   │                       └── [3.1K]  page.tsx
 │   │   ├── [ 469]  post-login
 │   │   │   └── [ 373]  page.tsx
 │   │   └── [ 22K]  t
@@ -96,7 +114,7 @@
 │   ├── [ 25K]  favicon.ico
 │   ├── [2.6K]  global-error.tsx
 │   ├── [4.2K]  globals.css
-│   └── [ 846]  layout.tsx
+│   └── [ 836]  layout.tsx
 ├── [2.5K]  auth.ts
 ├── [ 31K]  components
 │   └── [ 31K]  ui
@@ -130,8 +148,8 @@
 │   ├── [3.3K]  11-quality-checklists.md
 │   ├── [4.1K]  12-agent-operating-rules.md
 │   └── [7.4K]  13-post-login-routing.md
-├── [ 51K]  drizzle
-│   ├── [ 42K]  schema
+├── [ 59K]  drizzle
+│   ├── [ 50K]  schema
 │   │   ├── [ 11K]  control
 │   │   │   ├── [1.1K]  auth-accounts.ts
 │   │   │   ├── [ 864]  auth-authenticators.ts
@@ -147,27 +165,30 @@
 │   │   │   ├── [ 627]  tenants.ts
 │   │   │   └── [ 922]  users.ts
 │   │   ├── [  52]  index.ts
-│   │   ├── [ 12K]  shared
+│   │   ├── [ 18K]  shared
 │   │   │   ├── [ 521]  common-columns.ts
 │   │   │   ├── [1.2K]  enums.ts
-│   │   │   ├── [ 252]  index.ts
+│   │   │   ├── [ 330]  index.ts
 │   │   │   ├── [1.2K]  questionnaire-dimensions.ts
 │   │   │   ├── [1.5K]  questionnaire-item-dimension-scores.ts
 │   │   │   ├── [1.5K]  questionnaire-page-dimension-scores.ts
 │   │   │   ├── [1.4K]  questionnaire-pages.ts
-│   │   │   └── [3.7K]  questionnaires.ts
-│   │   ├── [ 19K]  tenant
+│   │   │   ├── [3.7K]  questionnaires.ts
+│   │   │   ├── [5.0K]  report-builder.ts
+│   │   │   └── [1.7K]  report-template-bindings.ts
+│   │   ├── [ 21K]  tenant
 │   │   │   ├── [2.0K]  assessment-access-links.ts
 │   │   │   ├── [2.4K]  assessment-dimension-scores.ts
 │   │   │   ├── [1.6K]  assessment-project-questionnaires.ts
 │   │   │   ├── [1.6K]  assessment-project-respondents.ts
 │   │   │   ├── [1.3K]  assessment-projects.ts
 │   │   │   ├── [1.7K]  assessment-responses.ts
-│   │   │   ├── [2.0K]  assessment-sessions.ts
+│   │   │   ├── [1.1K]  assessment-result-snapshots.ts
+│   │   │   ├── [2.2K]  assessment-sessions.ts
 │   │   │   ├── [ 756]  client-organizations.ts
 │   │   │   ├── [ 981]  client-units.ts
 │   │   │   ├── [1.2K]  enums.ts
-│   │   │   ├── [ 516]  index.ts
+│   │   │   ├── [ 563]  index.ts
 │   │   │   ├── [ 868]  respondent-identities.ts
 │   │   │   ├── [1.1K]  respondents.ts
 │   │   │   └── [ 921]  tenant-audit-log.ts
@@ -178,7 +199,7 @@
 ├── [ 456]  drizzle.config.ts
 ├── [1.2K]  drizzle.tenant.config.ts
 ├── [ 465]  eslint.config.mjs
-├── [664K]  features
+├── [1.0M]  features
 │   ├── [ 13K]  assessment-access-links
 │   │   ├── [8.8K]  api
 │   │   │   ├── [3.4K]  assessment-access-link.actions.ts
@@ -282,60 +303,108 @@
 │   ├── [5.1K]  dashboard
 │   │   └── [5.0K]  api
 │   │       └── [4.9K]  dashboard-tenant-activity.queries.ts
-│   ├── [ 38K]  my-assessment
-│   │   ├── [ 31K]  api
-│   │   │   ├── [8.9K]  my-assessment.queries.ts
+│   ├── [ 91K]  my-assessment
+│   │   ├── [ 56K]  api
+│   │   │   ├── [5.2K]  my-assessment-report-link.queries.ts
+│   │   │   ├── [3.7K]  my-assessment-result.queries.ts
+│   │   │   ├── [6.9K]  my-assessment-session.actions.ts
+│   │   │   ├── [ 18K]  my-assessment.queries.ts
 │   │   │   ├── [3.8K]  resolve-my-assessment-session-entry.ts
 │   │   │   ├── [6.7K]  resolve-my-assessment-session-questionnaire-form.ts
-│   │   │   └── [ 11K]  start-or-continue-public-assessment-session.ts
-│   │   ├── [6.2K]  components
-│   │   │   ├── [2.4K]  my-assessment-page.tsx
-│   │   │   └── [3.7K]  questionnaire-selection-card.tsx
+│   │   │   └── [ 12K]  start-or-continue-public-assessment-session.ts
+│   │   ├── [ 33K]  components
+│   │   │   ├── [3.7K]  my-assessment-card-session-actions.tsx
+│   │   │   ├── [ 18K]  my-assessment-completed-result-view.tsx
+│   │   │   ├── [6.3K]  my-assessment-page.tsx
+│   │   │   └── [5.4K]  questionnaire-selection-card.tsx
 │   │   ├── [  67]  index.ts
-│   │   └── [1.0K]  types
-│   │       └── [ 966]  my-assessment.types.ts
-│   ├── [ 64K]  public-assessment
-│   │   ├── [ 31K]  api
+│   │   └── [1.2K]  types
+│   │       └── [1.1K]  my-assessment.types.ts
+│   ├── [ 90K]  public-assessment
+│   │   ├── [ 53K]  api
 │   │   │   ├── [ 15K]  assessment-response.actions.ts
+│   │   │   ├── [ 22K]  assessment-result-snapshot.mutations.ts
 │   │   │   ├── [ 15K]  complete-assessment-session.actions.ts
 │   │   │   └── [ 684]  public-assessment.actions.ts
-│   │   ├── [ 31K]  components
-│   │   │   ├── [ 23K]  assessment-response-form.tsx
+│   │   ├── [ 35K]  components
+│   │   │   ├── [ 27K]  assessment-response-form.tsx
 │   │   │   ├── [1.6K]  complete-assessment-session-form.tsx
 │   │   │   ├── [5.0K]  public-assessment-session-overview.tsx
 │   │   │   └── [1.1K]  start-public-assessment-form.tsx
 │   │   ├── [ 261]  index.ts
 │   │   └── [1.0K]  types
 │   │       └── [ 967]  public-assessment.types.ts
-│   ├── [190K]  questionnaire-admin
-│   │   ├── [ 93K]  api
-│   │   │   ├── [ 26K]  questionnaire-admin.actions.ts
-│   │   │   ├── [ 46K]  questionnaire-admin.mutations.ts
-│   │   │   ├── [9.6K]  questionnaire-admin.queries.ts
+│   ├── [284K]  questionnaire-admin
+│   │   ├── [119K]  api
+│   │   │   ├── [ 29K]  questionnaire-admin.actions.ts
+│   │   │   ├── [ 56K]  questionnaire-admin.mutations.ts
+│   │   │   ├── [9.7K]  questionnaire-admin.queries.ts
+│   │   │   ├── [5.3K]  questionnaire-preview.queries.ts
+│   │   │   ├── [2.6K]  questionnaire-report-template.actions.ts
+│   │   │   ├── [2.7K]  questionnaire-report-template.mutations.ts
+│   │   │   ├── [2.6K]  questionnaire-report-template.queries.ts
 │   │   │   ├── [2.4K]  questionnaire-version-guards.ts
 │   │   │   └── [7.8K]  questionnaire-version-publishing.validation.ts
-│   │   ├── [ 85K]  components
+│   │   ├── [151K]  components
 │   │   │   ├── [2.2K]  create-questionnaire-form.tsx
 │   │   │   ├── [2.0K]  create-questionnaire-version-form.tsx
-│   │   │   ├── [7.2K]  questionnaire-dimensions-editor.tsx
-│   │   │   ├── [ 31K]  questionnaire-items-editor.tsx
-│   │   │   ├── [ 19K]  questionnaire-pages-editor.tsx
+│   │   │   ├── [ 15K]  questionnaire-dimensions-editor.tsx
+│   │   │   ├── [ 82K]  questionnaire-pages-editor.tsx
+│   │   │   ├── [ 14K]  questionnaire-preview-page.tsx
+│   │   │   ├── [7.3K]  questionnaire-report-template-section.tsx
 │   │   │   ├── [3.2K]  questionnaire-row-actions.tsx
 │   │   │   ├── [4.0K]  questionnaire-version-clone-panel.tsx
-│   │   │   ├── [2.8K]  questionnaire-version-editor-page.tsx
-│   │   │   ├── [2.8K]  questionnaire-version-publish-panel.tsx
+│   │   │   ├── [3.4K]  questionnaire-version-editor-page.tsx
+│   │   │   ├── [4.8K]  questionnaire-version-publish-panel.tsx
 │   │   │   ├── [3.4K]  questionnaire-version-row-actions.tsx
-│   │   │   └── [6.9K]  questionnaires-admin-page.tsx
-│   │   ├── [9.7K]  forms
-│   │   │   └── [9.6K]  questionnaire-admin.schema.ts
+│   │   │   └── [ 10K]  questionnaires-admin-page.tsx
+│   │   ├── [ 11K]  forms
+│   │   │   └── [ 11K]  questionnaire-admin.schema.ts
 │   │   ├── [ 178]  index.ts
-│   │   └── [2.0K]  types
+│   │   └── [2.1K]  types
 │   │       └── [2.0K]  questionnaire-admin.types.ts
 │   ├── [1.6K]  questionnaires
 │   │   ├── [1.2K]  api
 │   │   │   └── [1.1K]  questionnaire.queries.ts
 │   │   └── [ 308]  types
 │   │       └── [ 212]  questionnaire.types.ts
+│   ├── [194K]  report-builder
+│   │   ├── [ 52K]  api
+│   │   │   ├── [7.1K]  report-builder.actions.ts
+│   │   │   ├── [9.3K]  report-builder.mutations.ts
+│   │   │   ├── [4.4K]  report-builder.queries.ts
+│   │   │   ├── [ 913]  report-render.queries.ts
+│   │   │   ├── [8.8K]  report-template-admin.actions.ts
+│   │   │   ├── [ 11K]  report-template-admin.mutations.ts
+│   │   │   ├── [7.6K]  report-template-admin.queries.ts
+│   │   │   └── [2.0K]  resolve-report-template-for-result.ts
+│   │   ├── [ 84K]  components
+│   │   │   ├── [4.6K]  report-a4-preview-frame.tsx
+│   │   │   ├── [ 14K]  report-condition-help-dialog.tsx
+│   │   │   ├── [4.7K]  report-data-reference-panel.tsx
+│   │   │   ├── [ 491]  report-document-preview-frame.tsx
+│   │   │   ├── [4.3K]  report-template-admin-list-page.tsx
+│   │   │   ├── [1.4K]  report-template-archive-button.tsx
+│   │   │   ├── [2.6K]  report-template-create-form.tsx
+│   │   │   ├── [6.8K]  report-template-details-page.tsx
+│   │   │   ├── [2.5K]  report-template-edit-form.tsx
+│   │   │   ├── [3.0K]  report-template-version-create-form.tsx
+│   │   │   ├── [8.6K]  report-template-version-edit-form.tsx
+│   │   │   ├── [3.5K]  report-template-version-editor-page.tsx
+│   │   │   └── [ 26K]  report-template-version-editor.tsx
+│   │   ├── [8.6K]  forms
+│   │   │   ├── [3.9K]  report-template-admin.schema.ts
+│   │   │   └── [4.6K]  report-template.schema.ts
+│   │   ├── [2.6K]  index.ts
+│   │   ├── [ 40K]  lib
+│   │   │   ├── [4.5K]  report-condition-evaluator.ts
+│   │   │   ├── [2.7K]  report-condition.ts
+│   │   │   ├── [ 13K]  report-context.ts
+│   │   │   ├── [ 14K]  report-snapshot-helpers.ts
+│   │   │   └── [5.0K]  report-template-renderer.ts
+│   │   └── [7.0K]  types
+│   │       ├── [5.3K]  report-builder.types.ts
+│   │       └── [1.6K]  report-template.types.ts
 │   ├── [ 34K]  respondents
 │   │   ├── [ 16K]  api
 │   │   │   ├── [4.7K]  respondent.actions.ts
@@ -394,7 +463,7 @@
 ├── [100K]  server
 │   ├── [ 75K]  assessment
 │   │   ├── [ 713]  assessment-access.types.ts
-│   │   ├── [ 13K]  calculate-assessment-session-scores.ts
+│   │   ├── [ 14K]  calculate-assessment-session-scores.ts
 │   │   ├── [8.5K]  resolve-assessment-access-token.ts
 │   │   ├── [ 12K]  resolve-assessment-session-form.ts
 │   │   ├── [ 12K]  resolve-assessment-session-overview.ts
@@ -418,8 +487,8 @@
 │   │   ├── [ 630]  tenant-database-url.ts
 │   │   ├── [1.3K]  tenant-db-by-connection.ts
 │   │   └── [2.1K]  tenant-db.ts
-│   ├── [2.2K]  navigation
-│   │   └── [2.1K]  get-protected-navigation.ts
+│   ├── [2.3K]  navigation
+│   │   └── [2.2K]  get-protected-navigation.ts
 │   ├── [4.5K]  permissions
 │   │   ├── [ 305]  require-permission.ts
 │   │   └── [4.1K]  roles.ts
@@ -444,6 +513,6 @@
 └── [ 336]  types
     └── [ 240]  next-auth.d.ts
 
- 1.5M used in 147 directories, 298 files
+ 1.9M used in 164 directories, 350 files
 
 TOTAL = rozmiar katalogu głównego pokazany w pierwszej linii tree przy --du

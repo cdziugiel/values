@@ -1,3 +1,4 @@
+
 import type { ReactNode } from "react";
 
 import { getProtectedNavigation } from "@/server/navigation/get-protected-navigation";
