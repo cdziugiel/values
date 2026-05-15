@@ -48,7 +48,10 @@ export const assessmentSessions = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
-
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    respondentArchivedAt: timestamp("respondent_archived_at", {
+      withTimezone: true,
+    }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
     expiredAt: timestamp("expired_at", { withTimezone: true }),

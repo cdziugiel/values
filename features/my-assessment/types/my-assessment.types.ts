@@ -30,6 +30,9 @@ export type MyAssessmentQuestionnaire = {
   sessionStatus?: string | null;
   secondaryActionHref?: string | null;
   secondaryActionLabel?: string | null;
+  completedAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
 };
 
 export type MyAssessment = {

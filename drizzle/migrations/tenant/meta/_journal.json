@@ -78,6 +78,20 @@
       "when": 1778841356904,
       "tag": "0010_lonely_old_lace",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778857287331,
+      "tag": "0011_right_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778857775564,
+      "tag": "0012_outstanding_venus",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,139 @@
+// features/my-assessment/components/my-assessment-card-session-actions.tsx
+"use client";
+
+import { useActionState } from "react";
+import { Archive, XCircle } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import type { MyAssessmentQuestionnaire } from "../types/my-assessment.types";
+
+import {
+  archiveMyCompletedAssessmentSessionAction,
+  cancelMyAssessmentSessionAction,
+  type MyAssessmentSessionActionState,
+} from "../api/my-assessment-session.actions";
+
+type MyAssessmentCardSessionActionsProps = {
+  questionnaire: MyAssessmentQuestionnaire;
+};
+
+const initialState: MyAssessmentSessionActionState = {
+  status: "idle",
+  message: "",
+};
+
+export function MyAssessmentCardSessionActions({
+  questionnaire,
+}: MyAssessmentCardSessionActionsProps) {
+  const [cancelState, cancelAction, isCancelPending] = useActionState(
+    cancelMyAssessmentSessionAction,
+    initialState,
+  );
+
+  const [archiveState, archiveAction, isArchivePending] = useActionState(
+    archiveMyCompletedAssessmentSessionAction,
+    initialState,
+  );
+
+  const canCancel =
+    questionnaire.status === "in_progress" &&
+    Boolean(questionnaire.sessionId) &&
+    Boolean(questionnaire.tenantSlug);
+
+  const canArchive =
+    questionnaire.status === "completed" &&
+    Boolean(questionnaire.sessionId) &&
+    Boolean(questionnaire.tenantSlug);
+
+  if (!canCancel && !canArchive) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2 border-t pt-2">
+      {canCancel ? (
+        <form
+          action={cancelAction}
+          onSubmit={(event) => {
+            const confirmed = window.confirm(
+              "Anulować rozpoczęte badanie? Zniknie z listy rozpoczętych badań. Tej operacji nie traktujemy jako ukończenia badania.",
+            );
+
+            if (!confirmed) {
+              event.preventDefault();
+            }
+          }}
+        >
+          <input
+            type="hidden"
+            name="tenantSlug"
+            value={questionnaire.tenantSlug ?? ""}
+          />
+          <input
+            type="hidden"
+            name="sessionId"
+            value={questionnaire.sessionId ?? ""}
+          />
+
+          <Button
+            type="submit"
+            variant="outline"
+            className="w-full gap-2"
+            disabled={isCancelPending}
+          >
+            <XCircle size={15} />
+            {isCancelPending ? "Anulowanie..." : "Anuluj badanie"}
+          </Button>
+
+          {cancelState.status === "error" ? (
+            <p className="mt-1 text-xs text-destructive">
+              {cancelState.message}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+
+      {canArchive ? (
+        <form
+          action={archiveAction}
+          onSubmit={(event) => {
+            const confirmed = window.confirm(
+              "Przenieść zakończone badanie do archiwum? Zniknie z tej listy, ale zapisany wynik i raport pozostaną w systemie.",
+            );
+
+            if (!confirmed) {
+              event.preventDefault();
+            }
+          }}
+        >
+          <input
+            type="hidden"
+            name="tenantSlug"
+            value={questionnaire.tenantSlug ?? ""}
+          />
+          <input
+            type="hidden"
+            name="sessionId"
+            value={questionnaire.sessionId ?? ""}
+          />
+
+          <Button
+            type="submit"
+            variant="outline"
+            className="w-full gap-2"
+            disabled={isArchivePending}
+          >
+            <Archive size={15} />
+            {isArchivePending ? "Archiwizowanie..." : "Archiwizuj"}
+          </Button>
+
+          {archiveState.status === "error" ? (
+            <p className="mt-1 text-xs text-destructive">
+              {archiveState.message}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+    </div>
+  );
+}

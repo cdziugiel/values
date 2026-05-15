@@ -134,15 +134,6 @@ export async function getMyAssessments(): Promise<MyAssessment> {
     (row) => row.questionnaireVersionId,
   );
 
-  const publicSessionByVersionId = new Map<
-    string,
-    {
-      tenantSlug: string;
-      sessionId: string;
-      sessionStatus: string;
-    }
-  >();
-
   const invitedQuestionnaires: MyAssessmentQuestionnaire[] = [];
 
   const activeTenantConnections = email ? await getActiveTenantConnections() : [];
@@ -153,6 +144,8 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       tenantSlug: string;
       sessionId: string;
       sessionStatus: string;
+      updatedAt: Date | null;
+      completedAt: Date | null;
     }
   >();
 
@@ -193,6 +186,7 @@ export async function getMyAssessments(): Promise<MyAssessment> {
             questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
             questionnaireVersionId:
               assessmentProjectQuestionnaires.questionnaireVersionId,
+              
           })
           .from(respondentIdentities)
           .innerJoin(
@@ -227,6 +221,7 @@ export async function getMyAssessments(): Promise<MyAssessment> {
               isNull(assessmentSessions.deletedAt),
               isNull(assessmentProjects.deletedAt),
               isNull(assessmentProjectQuestionnaires.deletedAt),
+              isNull(assessmentSessions.respondentArchivedAt),
             ),
           )
           .orderBy(desc(assessmentSessions.updatedAt));
@@ -273,6 +268,8 @@ export async function getMyAssessments(): Promise<MyAssessment> {
                 tenantSlug: connection.tenantSlug,
                 sessionId: row.sessionId,
                 sessionStatus: row.sessionStatus,
+                updatedAt: row.updatedAt,
+                completedAt: row.completedAt,
               });
             }
 
@@ -287,31 +284,34 @@ export async function getMyAssessments(): Promise<MyAssessment> {
             }
 
             completedPublicSessionCards.push({
-              id: `public-completed:${connection.tenantSlug}:${row.sessionId}:${row.questionnaireVersionId}`,
-              source: "public",
-              code: version.questionnaireCode,
-              name: version.questionnaireName,
-              description:
-                version.questionnaireDescription ??
-                "Zakończona sesja publicznego kwestionariusza.",
-              status: "completed",
-              estimatedMinutes: null,
+  id: `public-completed:${connection.tenantSlug}:${row.sessionId}:${row.questionnaireVersionId}`,
+  source: "public",
+  code: version.questionnaireCode,
+  name: version.questionnaireName,
+  description:
+    version.questionnaireDescription ??
+    "Zakończona sesja publicznego kwestionariusza.",
+  status: "completed",
+  estimatedMinutes: null,
 
-              questionnaireId: version.questionnaireId,
-              questionnaireVersionId: row.questionnaireVersionId,
-              questionnaireVersionName: version.questionnaireVersionName,
+  questionnaireId: version.questionnaireId,
+  questionnaireVersionId: row.questionnaireVersionId,
+  questionnaireVersionName: version.questionnaireVersionName,
 
-              tenantSlug: connection.tenantSlug,
-              projectId: row.projectId,
-              projectName: row.projectName,
-              sessionId: row.sessionId,
-              sessionStatus: row.sessionStatus,
+  tenantSlug: connection.tenantSlug,
+  projectId: row.projectId,
+  projectName: row.projectName,
+  sessionId: row.sessionId,
+  sessionStatus: row.sessionStatus,
 
-              actionHref: `/my/assessment/sessions/${row.sessionId}/completed?tenant=${connection.tenantSlug}&questionnaireVersionId=${row.questionnaireVersionId}`,
+  updatedAt: row.updatedAt,
+  completedAt: row.completedAt,
 
-              secondaryActionHref: `/my/assessment/public/${row.questionnaireVersionId}?mode=new`,
-              secondaryActionLabel: "Wypełnij ponownie",
-            });
+  actionHref: `/my/assessment/sessions/${row.sessionId}/completed?tenant=${connection.tenantSlug}&questionnaireVersionId=${row.questionnaireVersionId}`,
+
+  secondaryActionHref: `/my/assessment/public/${row.questionnaireVersionId}?mode=new`,
+  secondaryActionLabel: "Wypełnij ponownie",
+});
           }
         }
       }
@@ -327,6 +327,9 @@ export async function getMyAssessments(): Promise<MyAssessment> {
 
           sessionId: assessmentSessions.id,
           sessionStatus: assessmentSessions.status,
+          sessionCreatedAt: assessmentSessions.createdAt,
+          sessionUpdatedAt: assessmentSessions.updatedAt,
+          sessionCompletedAt: assessmentSessions.completedAt,
 
           questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
           questionnaireVersionId:
@@ -373,6 +376,7 @@ export async function getMyAssessments(): Promise<MyAssessment> {
             isNull(respondentIdentities.deletedAt),
             isNull(respondents.deletedAt),
             isNull(assessmentSessions.deletedAt),
+            isNull(assessmentSessions.respondentArchivedAt),
             isNull(assessmentProjects.deletedAt),
             isNull(assessmentProjectQuestionnaires.deletedAt),
           ),
@@ -431,6 +435,10 @@ export async function getMyAssessments(): Promise<MyAssessment> {
           continue;
         }
 
+        if (row.sessionStatus === "cancelled") {
+          continue;
+        }
+
         invitedQuestionnaires.push({
           id: `invited:${connection.tenantSlug}:${row.sessionId}:${row.questionnaireVersionId}`,
           source: "invited",
@@ -453,6 +461,10 @@ export async function getMyAssessments(): Promise<MyAssessment> {
           sessionId: row.sessionId,
           sessionStatus: row.sessionStatus,
 
+          createdAt: row.sessionCreatedAt,
+          updatedAt: row.sessionUpdatedAt,
+          completedAt: row.sessionCompletedAt,
+
           actionHref: buildMySessionHref({
             tenantSlug: connection.tenantSlug,
             sessionId: row.sessionId,
@@ -470,29 +482,32 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       );
 
       if (activeSession) {
-        return {
-          id: `public-active:${row.questionnaireVersionId}`,
-          source: "public",
-          code: row.questionnaireCode,
-          name: row.questionnaireName,
-          description: row.questionnaireDescription,
-          status: mapSessionStatusToCardStatus(activeSession.sessionStatus),
-          estimatedMinutes: null,
+      return {
+        id: `public-active:${row.questionnaireVersionId}`,
+        source: "public",
+        code: row.questionnaireCode,
+        name: row.questionnaireName,
+        description: row.questionnaireDescription,
+        status: mapSessionStatusToCardStatus(activeSession.sessionStatus),
+        estimatedMinutes: null,
 
-          questionnaireId: row.questionnaireId,
-          questionnaireVersionId: row.questionnaireVersionId,
-          questionnaireVersionName: row.questionnaireVersionName,
+        questionnaireId: row.questionnaireId,
+        questionnaireVersionId: row.questionnaireVersionId,
+        questionnaireVersionName: row.questionnaireVersionName,
 
+        tenantSlug: activeSession.tenantSlug,
+        sessionId: activeSession.sessionId,
+        sessionStatus: activeSession.sessionStatus,
+
+        updatedAt: activeSession.updatedAt,
+        completedAt: activeSession.completedAt,
+
+        actionHref: buildMySessionHref({
           tenantSlug: activeSession.tenantSlug,
           sessionId: activeSession.sessionId,
-          sessionStatus: activeSession.sessionStatus,
-
-          actionHref: buildMySessionHref({
-            tenantSlug: activeSession.tenantSlug,
-            sessionId: activeSession.sessionId,
-            questionnaireVersionId: row.questionnaireVersionId,
-          }),
-        };
+          questionnaireVersionId: row.questionnaireVersionId,
+        }),
+      };
       }
 
       return {

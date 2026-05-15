@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MyAssessmentCardSessionActions } from "./my-assessment-card-session-actions";
 import type {
   MyAssessmentQuestionnaire,
   MyAssessmentQuestionnaireStatus,
@@ -11,6 +12,42 @@ import type {
 type QuestionnaireSelectionCardProps = {
   questionnaire: MyAssessmentQuestionnaire;
 };
+
+function formatAssessmentDate(value: Date | string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("pl-PL", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getDateLabel(questionnaire: MyAssessmentQuestionnaire) {
+  if (questionnaire.status === "completed") {
+    const completedAt = formatAssessmentDate(questionnaire.completedAt);
+
+    return completedAt ? `Wypełniono: ${completedAt}` : null;
+  }
+
+  if (questionnaire.status === "in_progress") {
+    const updatedAt = formatAssessmentDate(questionnaire.updatedAt);
+
+    return updatedAt ? `Ostatnia aktywność: ${updatedAt}` : null;
+  }
+
+  return null;
+}
 
 function getStatusLabel(status: MyAssessmentQuestionnaireStatus) {
   switch (status) {
@@ -79,6 +116,7 @@ export function QuestionnaireSelectionCard({
   questionnaire,
 }: QuestionnaireSelectionCardProps) {
   const disabled = isActionDisabled(questionnaire);
+  const dateLabel = getDateLabel(questionnaire);
 
   return (
     <Card className="flex h-full flex-col">
@@ -106,7 +144,11 @@ export function QuestionnaireSelectionCard({
             Projekt: {questionnaire.projectName}
           </div>
         ) : null}
-
+        {dateLabel ? (
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            {dateLabel}
+          </div>
+        ) : null}
         {questionnaire.questionnaireVersionName ? (
           <div className="text-xs text-muted-foreground">
             Wersja: {questionnaire.questionnaireVersionName}
@@ -140,6 +182,7 @@ export function QuestionnaireSelectionCard({
               </Link>
             </Button>
           ) : null}
+          <MyAssessmentCardSessionActions questionnaire={questionnaire} />
         </div>
       </CardContent>
     </Card>

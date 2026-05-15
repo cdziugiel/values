@@ -30,7 +30,7 @@ export const assessmentAccessLinkStatusEnum = pgEnum(
 
 export const assessmentSessionStatusEnum = pgEnum(
   "assessment_session_status",
-  ["in_progress", "completed", "abandoned", "expired", "not_started"],
+  ["in_progress", "completed", "abandoned", "expired", "not_started", "cancelled"],
 );
 
 export const assessmentProjectQuestionnaireStatusEnum = pgEnum(

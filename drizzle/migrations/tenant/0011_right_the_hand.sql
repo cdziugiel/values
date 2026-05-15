@@ -1,0 +1,2 @@
+ALTER TABLE "assessment_sessions" ADD COLUMN "cancelled_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "assessment_sessions" ADD COLUMN "respondent_archived_at" timestamp with time zone;
