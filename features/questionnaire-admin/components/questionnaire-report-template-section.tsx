@@ -115,7 +115,7 @@ export function QuestionnaireReportTemplateSection({
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm" variant="outline" className="gap-2">
                 <Link
-                  href={`/dashboard/report-builder/templates/${activeBinding.reportTemplateId}/versions/${activeBinding.reportTemplateVersionId}`}
+                  href={`/dashboard/report-builder/${activeBinding.reportTemplateVersionId}`}
                 >
                   <Pencil size={14} />
                   Edytuj template

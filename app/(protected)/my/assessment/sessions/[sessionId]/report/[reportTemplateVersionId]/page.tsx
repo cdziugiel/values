@@ -48,7 +48,21 @@ export default async function MyAssessmentReportPage({
   if (!reportTemplateVersion) {
     notFound();
   }
+const allowedQuestionnaireVersionIds = Array.isArray(
+  result.payload?.questionnaires,
+)
+  ? result.payload.questionnaires
+      .map((questionnaire: any) => questionnaire.questionnaireVersionId)
+      .filter(Boolean)
+  : [];
 
+if (
+  !allowedQuestionnaireVersionIds.includes(
+    reportTemplateVersion.questionnaireVersionId,
+  )
+) {
+  notFound();
+}
   const rendered = renderReportDocument({
     reportTemplateVersion,
     payload: result.payload,
@@ -79,7 +93,7 @@ export default async function MyAssessmentReportPage({
             Wróć do wyniku
           </Link>
 
-          <button
+{/*           <button
             type="button"
             onClick={() => {
               // Ten przycisk działa tylko po stronie klienta, więc poniżej dodamy mały client wrapper w następnym kroku.
@@ -87,7 +101,7 @@ export default async function MyAssessmentReportPage({
             className="hidden h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
           >
             Drukuj / PDF
-          </button>
+          </button> */}
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+// features/report-builder/api/report-template-admin.actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -166,9 +167,7 @@ export async function createReportTemplateVersionAction(
 
   const rawInput = {
     reportTemplateId: String(formData.get("reportTemplateId") ?? ""),
-    questionnaireVersionId: String(
-      formData.get("questionnaireVersionId") ?? "",
-    ),
+    questionnaireVersionId: String(formData.get("questionnaireVersionId") ?? ""),
     version: String(formData.get("version") ?? ""),
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
@@ -183,7 +182,7 @@ export async function createReportTemplateVersionAction(
     };
   }
 
-  let versionId: string;
+  let createdVersionId: string;
 
   try {
     const version = await createReportTemplateVersionAsSuperAdmin({
@@ -191,16 +190,15 @@ export async function createReportTemplateVersionAction(
       input: parsed.data,
     });
 
-    versionId = version.id;
+    createdVersionId = version.id;
 
     revalidatePath(`/dashboard/report-templates/${parsed.data.reportTemplateId}`);
+    revalidatePath("/dashboard/report-templates");
   } catch (error) {
     return fail(error);
   }
 
-  redirect(
-    `/dashboard/report-templates/${parsed.data.reportTemplateId}/versions/${versionId}`,
-  );
+  redirect(`/dashboard/report-builder/${createdVersionId}`);
 }
 
 export async function updateReportTemplateVersionAction(
@@ -222,7 +220,7 @@ export async function updateReportTemplateVersionAction(
       formData.get("isDefault") === "true",
     globalCss: String(formData.get("globalCss") ?? ""),
     globalJs: String(formData.get("globalJs") ?? ""),
-    pageSize: String(formData.get("pageSize") ?? "A4"),
+    pageSize: "A4",
     orientation: String(formData.get("orientation") ?? "portrait"),
     configText: String(formData.get("configText") ?? "{}"),
     dataBindingsText: String(formData.get("dataBindingsText") ?? "{}"),
@@ -243,13 +241,11 @@ export async function updateReportTemplateVersionAction(
       input: parsed.data,
     });
 
-    revalidatePath("/dashboard/report-templates");
+    revalidatePath(`/dashboard/report-builder/${version.id}`);
     revalidatePath(`/dashboard/report-templates/${version.reportTemplateId}`);
-    revalidatePath(
-      `/dashboard/report-templates/${version.reportTemplateId}/versions/${version.id}`,
-    );
+    revalidatePath("/dashboard/report-templates");
 
-    return ok("Wersja template’u została zaktualizowana.");
+    return ok("Wersja template’u raportu została zaktualizowana.");
   } catch (error) {
     return fail(error);
   }
@@ -282,13 +278,11 @@ export async function publishReportTemplateVersionAction(
       input: parsed.data,
     });
 
-    revalidatePath("/dashboard/report-templates");
+    revalidatePath(`/dashboard/report-builder/${version.id}`);
     revalidatePath(`/dashboard/report-templates/${version.reportTemplateId}`);
-    revalidatePath(
-      `/dashboard/report-templates/${version.reportTemplateId}/versions/${version.id}`,
-    );
+    revalidatePath("/dashboard/report-templates");
 
-    return ok("Wersja template’u została opublikowana.");
+    return ok("Wersja template’u raportu została opublikowana.");
   } catch (error) {
     return fail(error);
   }
@@ -315,21 +309,17 @@ export async function archiveReportTemplateVersionAction(
     };
   }
 
-  let reportTemplateId: string;
-
   try {
     const version = await archiveReportTemplateVersionAsSuperAdmin({
       actorUserId: actor.id,
       input: parsed.data,
     });
 
-    reportTemplateId = version.reportTemplateId;
-
-    revalidatePath("/dashboard/report-templates");
     revalidatePath(`/dashboard/report-templates/${version.reportTemplateId}`);
+    revalidatePath("/dashboard/report-templates");
+
+    return ok("Wersja template’u raportu została zarchiwizowana.");
   } catch (error) {
     return fail(error);
   }
-
-  redirect(`/dashboard/report-templates/${reportTemplateId}`);
 }

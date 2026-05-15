@@ -1,3 +1,5 @@
+// features/report-builder/api/report-template-admin.mutations.ts
+
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
@@ -212,39 +214,35 @@ export async function archiveReportTemplateAsSuperAdmin({
         ),
       );
 
-    const versionIds = versions.map((version) => version.id);
-
-    if (versionIds.length > 0) {
-      for (const versionId of versionIds) {
-        await tx
-          .update(questionnaireReportTemplateBindings)
-          .set({
-            status: "inactive",
-            deletedAt: now,
-            updatedBy: actorUserId,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(
-                questionnaireReportTemplateBindings.reportTemplateVersionId,
-                versionId,
-              ),
-              isNull(questionnaireReportTemplateBindings.deletedAt),
-            ),
-          );
-      }
-
+    for (const version of versions) {
       await tx
-        .update(reportTemplateVersions)
+        .update(questionnaireReportTemplateBindings)
         .set({
-          status: "archived",
+          status: "inactive",
           deletedAt: now,
           updatedBy: actorUserId,
           updatedAt: now,
         })
-        .where(eq(reportTemplateVersions.reportTemplateId, parsed.reportTemplateId));
+        .where(
+          and(
+            eq(
+              questionnaireReportTemplateBindings.reportTemplateVersionId,
+              version.id,
+            ),
+            isNull(questionnaireReportTemplateBindings.deletedAt),
+          ),
+        );
     }
+
+    await tx
+      .update(reportTemplateVersions)
+      .set({
+        status: "archived",
+        deletedAt: now,
+        updatedBy: actorUserId,
+        updatedAt: now,
+      })
+      .where(eq(reportTemplateVersions.reportTemplateId, parsed.reportTemplateId));
 
     await tx
       .update(reportTemplates)

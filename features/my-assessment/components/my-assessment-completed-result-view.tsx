@@ -1,6 +1,8 @@
 // features/my-assessment/components/my-assessment-completed-result-view.tsx
 
 import Link from "next/link";
+import { getMyAssessmentReportHref } from "../api/my-assessment-report-link.queries";
+
 
 type CompletedAssessmentScore = {
   id?: string | null;
@@ -363,11 +365,14 @@ function getResponseKey(response: CompletedAssessmentResponse, index: number) {
   return response.itemId ?? `response-${index}`;
 }
 
-export function MyAssessmentCompletedResultView({
+export async function MyAssessmentCompletedResultView({
   result,
 }: MyAssessmentCompletedResultViewProps) {
   const payload = result.payload;
-
+const reportHref = await getMyAssessmentReportHref({
+  tenantSlug: result.tenantSlug,
+  sessionId: result.sessionId,
+});
   const scores = Array.isArray(payload?.scores) ? payload.scores : [];
   const scoreGroups = groupScoresByCategory(scores);
   const responses = Array.isArray(payload?.responses) ? payload.responses : [];
@@ -395,13 +400,24 @@ export function MyAssessmentCompletedResultView({
               zapisane w momencie zakończenia sesji.
             </p>
           </div>
+<div className="flex flex-wrap gap-2">
+  {reportHref ? (
+    <Link
+      href={reportHref}
+      className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+    >
+      Zobacz raport
+    </Link>
+  ) : null}
 
-          <Link
-            href="/my/assessment"
-            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-          >
-            Wróć do moich badań
-          </Link>
+  <Link
+    href="/my/assessment"
+    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+  >
+    Wróć do moich badań
+  </Link>
+</div>
+          
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
