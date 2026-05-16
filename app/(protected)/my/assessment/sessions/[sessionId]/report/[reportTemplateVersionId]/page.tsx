@@ -1,12 +1,13 @@
-// app/(protected)/my/assessment/sessions/[sessionId]/report/[reportTemplateVersionId]/page.tsx
-
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { getMyAssessmentCompletedResult } from "@/features/my-assessment/api/my-assessment-result.queries";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
+import { getActiveReportAccessGrantForSession } from "@/features/report-access/api/report-access.queries";
+import { requireSession } from "@/server/auth/require-session";
+import { assertCanViewMyAssessmentReport } from "@/features/report-access/api/report-access-guard.queries";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -32,6 +33,24 @@ export default async function MyAssessmentReportPage({
     notFound();
   }
 
+  
+
+  const authSession = await requireSession();
+
+
+  const access = await assertCanViewMyAssessmentReport({
+    tenantSlug: tenant,
+    sessionId,
+    reportTemplateVersionId,
+  });
+
+  if (!access.ok) {
+    redirect(
+      `/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenant}`,
+    );
+  }
+
+
   const result = await getMyAssessmentCompletedResult({
     tenantSlug: tenant,
     sessionId,
@@ -41,6 +60,17 @@ export default async function MyAssessmentReportPage({
     notFound();
   }
 
+  const grant = await getActiveReportAccessGrantForSession({
+    tenantSlug: tenant,
+    sessionId,
+    reportTemplateVersionId,
+    userId: authSession.user.id,
+  });
+
+  if (!grant) {
+    redirect(`/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenant}`);
+  }
+
   const reportTemplateVersion = await getReportTemplateVersionForRender({
     reportTemplateVersionId,
   });
@@ -48,21 +78,7 @@ export default async function MyAssessmentReportPage({
   if (!reportTemplateVersion) {
     notFound();
   }
-const allowedQuestionnaireVersionIds = Array.isArray(
-  result.payload?.questionnaires,
-)
-  ? result.payload.questionnaires
-      .map((questionnaire: any) => questionnaire.questionnaireVersionId)
-      .filter(Boolean)
-  : [];
 
-if (
-  !allowedQuestionnaireVersionIds.includes(
-    reportTemplateVersion.questionnaireVersionId,
-  )
-) {
-  notFound();
-}
   const rendered = renderReportDocument({
     reportTemplateVersion,
     payload: result.payload,
@@ -92,16 +108,6 @@ if (
           >
             Wróć do wyniku
           </Link>
-
-{/*           <button
-            type="button"
-            onClick={() => {
-              // Ten przycisk działa tylko po stronie klienta, więc poniżej dodamy mały client wrapper w następnym kroku.
-            }}
-            className="hidden h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-          >
-            Drukuj / PDF
-          </button> */}
         </div>
       </div>
 

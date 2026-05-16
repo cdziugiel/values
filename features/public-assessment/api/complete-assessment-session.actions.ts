@@ -4,6 +4,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { calculateAssessmentSessionScores } from "@/server/assessment/calculate-assessment-session-scores";
+import { markAssessmentInvitationIndexSession } from "@/features/my-assessment/api/assessment-invitation-index.mutations";
 import {
   questionnaireItems,
   tenantDatabaseConnections,
@@ -25,6 +26,7 @@ import { getTenantDbByConnection } from "@/server/db/tenant-db-by-connection";
 import { hashAssessmentAccessToken } from "@/server/security/assessment-token";
 import { decryptSecret } from "@/server/security/encryption";
 import { createAssessmentResultSnapshot } from "./assessment-result-snapshot.mutations";
+import { autoGrantReportAccessForCompletedSession } from "@/features/report-access/api/report-access-auto-grant.mutations";
 
 export type CompleteAssessmentSessionState = {
   status: "idle" | "success" | "error";
@@ -103,6 +105,7 @@ async function getTenantDbBySlug(tenantSlug: string) {
 
   return {
     db,
+    tenantId: connection.tenantId,
     tenantSlug: connection.tenantSlug,
   };
 }
@@ -176,8 +179,10 @@ async function resolveMyAssessmentSessionForCompletion({
   return {
     ok: true as const,
     db: tenant.db,
+    tenantId: tenant.tenantId,
     tenantSlug: tenant.tenantSlug,
     actorUserId: authSession.user.id,
+    actorEmail: authSession.user.email ?? null,
     session,
   };
 }
@@ -218,8 +223,7 @@ export async function completeAssessmentSessionAction(
         message: resolved.message,
       };
     }
-
-    const { db, session, actorUserId } = resolved;
+    const { db, session, actorUserId, actorEmail } = resolved;
 
     if (session.sessionStatus === "completed") {
       redirect(`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`);
@@ -234,6 +238,7 @@ export async function completeAssessmentSessionAction(
 
     const projectQuestionnaires = await db
       .select({
+        projectQuestionnaireId: assessmentProjectQuestionnaires.id,
         questionnaireVersionId:
           assessmentProjectQuestionnaires.questionnaireVersionId,
       })
@@ -328,7 +333,16 @@ export async function completeAssessmentSessionAction(
         updatedBy: actorUserId,
       })
       .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
-
+    for (const projectQuestionnaire of projectQuestionnaires) {
+      await markAssessmentInvitationIndexSession({
+        tenantId: resolved.tenantId,
+        tenantProjectRespondentId: session.projectRespondentId,
+        tenantProjectQuestionnaireId: projectQuestionnaire.projectQuestionnaireId,
+        tenantSessionId: session.sessionId,
+        status: "completed",
+        userId: actorUserId,
+      });
+    }
     const scoringResult = await calculateAssessmentSessionScores({
       db,
       sessionId: session.sessionId,
@@ -339,6 +353,16 @@ export async function completeAssessmentSessionAction(
       sessionId: session.sessionId,
       actorUserId,
     });
+
+    const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
+      db,
+      tenantSlug,
+      sessionId: session.sessionId,
+      actorUserId,
+      actorEmail,
+    });
+
+
     await db.insert(tenantAuditLog).values({
       actorUserId,
       actorRole: "RESPONDENT",
@@ -348,6 +372,7 @@ export async function completeAssessmentSessionAction(
       after: {
         completedAt: now.toISOString(),
         scoring: scoringResult,
+        autoGrant: autoGrantResult,
         mode: "my-assessment",
       },
     });
@@ -407,11 +432,20 @@ export async function completeAssessmentSessionAction(
         sessionStatus: assessmentSessions.status,
         assessmentProjectId: assessmentSessions.assessmentProjectId,
         accessLinkId: assessmentAccessLinks.id,
+        respondentEmail: respondentIdentities.email,
       })
       .from(assessmentSessions)
       .innerJoin(
         assessmentAccessLinks,
         eq(assessmentAccessLinks.id, assessmentSessions.accessLinkId),
+      )
+      .innerJoin(
+        respondents,
+        eq(respondents.id, assessmentSessions.respondentId),
+      )
+      .innerJoin(
+        respondentIdentities,
+        eq(respondentIdentities.respondentId, respondents.id),
       )
       .where(
         and(
@@ -420,6 +454,8 @@ export async function completeAssessmentSessionAction(
           eq(assessmentAccessLinks.status, "active"),
           isNull(assessmentSessions.deletedAt),
           isNull(assessmentAccessLinks.deletedAt),
+          isNull(respondents.deletedAt),
+          isNull(respondentIdentities.deletedAt),
         ),
       )
       .limit(1);
@@ -537,6 +573,14 @@ export async function completeAssessmentSessionAction(
       sessionId: session.sessionId,
       actorUserId: null,
     });
+
+    const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
+      db,
+      tenantSlug: connection.tenantSlug,
+      sessionId: session.sessionId,
+      actorUserId: null,
+      actorEmail: session.respondentEmail ?? null,
+    });
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
       actorRole: "PUBLIC_RESPONDENT",
@@ -546,6 +590,7 @@ export async function completeAssessmentSessionAction(
       after: {
         completedAt: now.toISOString(),
         scoring: scoringResult,
+        autoGrant: autoGrantResult,
       },
     });
 
@@ -556,4 +601,28 @@ export async function completeAssessmentSessionAction(
     status: "error",
     message: "Nie znaleziono aktywnej sesji badania.",
   };
+}
+
+
+async function safeAutoGrantReportAccessForCompletedSession(input: {
+  db: any;
+  tenantSlug: string;
+  sessionId: string;
+  actorUserId: string | null;
+  actorEmail?: string | null;
+}) {
+  try {
+    return await autoGrantReportAccessForCompletedSession(input);
+  } catch (error) {
+    console.error("AUTO_GRANT_REPORT_ACCESS_ERROR", error);
+
+    return {
+      ok: false as const,
+      granted: false as const,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nie udało się automatycznie nadać dostępu do raportu.",
+    };
+  }
 }

@@ -1,14 +1,16 @@
+// features/assessment-project-respondents/api/assessment-project-respondent.mutations.ts
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
   assessmentProjectRespondents,
   assessmentProjects,
   respondents,
+  assessmentSessions,
 } from "@/drizzle/schema/tenant-schema";
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantDb } from "@/server/db/tenant-db";
 import type { TenantContext } from "@/server/tenant/tenant-context.types";
-
+import { syncAssessmentInvitationIndexForProjectRespondent } from "@/features/my-assessment/api/assessment-invitation-index.mutations";
 import {
   addAssessmentProjectRespondentSchema,
   archiveAssessmentProjectRespondentSchema,
@@ -89,12 +91,56 @@ export async function addAssessmentProjectRespondent({
         parsed.data.assessmentProjectId,
       ),
       eq(assessmentProjectRespondents.respondentId, parsed.data.respondentId),
-      isNull(assessmentProjectRespondents.deletedAt),
     ),
   });
 
-  if (existing) {
-    throw new Error("Respondent is already assigned to this project.");
+  const now = new Date();
+
+  if (existing && !existing.deletedAt) {
+    throw new Error("Respondent jest już przypisany do tego projektu.");
+  }
+
+  if (existing && existing.deletedAt) {
+    const [restored] = await db
+      .update(assessmentProjectRespondents)
+      .set({
+        status: "invited",
+        invitedAt: now,
+        startedAt: null,
+        completedAt: null,
+        deletedAt: null,
+        updatedBy: ctx.userId,
+        updatedAt: now,
+      })
+      .where(eq(assessmentProjectRespondents.id, existing.id))
+      .returning();
+
+
+    await writeTenantAuditLog({
+      db,
+      ctx,
+      action: "assessment_project_respondent_restored",
+      entityType: "assessment_project_respondent",
+      entityId: restored.id,
+      before: {
+        status: existing.status,
+        deletedAt: existing.deletedAt,
+      },
+      after: {
+        assessmentProjectId: restored.assessmentProjectId,
+        respondentId: restored.respondentId,
+        status: restored.status,
+        deletedAt: restored.deletedAt,
+      },
+    });
+
+    await syncAssessmentInvitationIndexForProjectRespondent({
+      db,
+      ctx,
+      projectRespondentId: restored.id,
+    });
+
+    return restored;
   }
 
   const [projectRespondent] = await db
@@ -103,7 +149,7 @@ export async function addAssessmentProjectRespondent({
       assessmentProjectId: parsed.data.assessmentProjectId,
       respondentId: parsed.data.respondentId,
       status: "invited",
-      invitedAt: new Date(),
+      invitedAt: now,
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
     })
@@ -120,6 +166,12 @@ export async function addAssessmentProjectRespondent({
       respondentId: projectRespondent.respondentId,
       status: projectRespondent.status,
     },
+  });
+
+  await syncAssessmentInvitationIndexForProjectRespondent({
+    db,
+    ctx,
+    projectRespondentId: projectRespondent.id,
   });
 
   return projectRespondent;
@@ -192,7 +244,11 @@ export async function updateAssessmentProjectRespondent({
       completedAt: updated.completedAt,
     },
   });
-
+  await syncAssessmentInvitationIndexForProjectRespondent({
+    db,
+    ctx,
+    projectRespondentId: updated.id,
+  });
   return updated;
 }
 
@@ -226,16 +282,32 @@ export async function archiveAssessmentProjectRespondent({
     throw new Error("Project respondent not found.");
   }
 
+  const now = new Date();
+
   const [archived] = await db
     .update(assessmentProjectRespondents)
     .set({
       status: "archived",
-      deletedAt: new Date(),
+      deletedAt: now,
       updatedBy: ctx.userId,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(eq(assessmentProjectRespondents.id, parsed.data.projectRespondentId))
     .returning();
+
+  await db
+    .update(assessmentSessions)
+    .set({
+      respondentArchivedAt: now,
+      updatedBy: ctx.userId,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(assessmentSessions.projectRespondentId, archived.id),
+        isNull(assessmentSessions.deletedAt),
+      ),
+    );
 
   await writeTenantAuditLog({
     db,
@@ -250,6 +322,12 @@ export async function archiveAssessmentProjectRespondent({
       status: archived.status,
       deletedAt: archived.deletedAt,
     },
+  });
+
+  await syncAssessmentInvitationIndexForProjectRespondent({
+    db,
+    ctx,
+    projectRespondentId: archived.id,
   });
 
   return archived;

@@ -21,6 +21,7 @@ type PageProps = {
 export default async function Page({ params, searchParams }: PageProps) {
   const { sessionId, projectQuestionnaireId } = await params;
   const { tenant } = await searchParams;
+  
 
   const result = await resolveMyAssessmentSessionQuestionnaireForm({
     tenantSlug: tenant ?? "",

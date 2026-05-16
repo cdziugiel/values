@@ -20,7 +20,7 @@ import {
 } from "../forms/respondent.schema";
 
 function normalizeOptional(value: string | undefined | null) {
-  const normalized = value?.trim();
+  const normalized = value?.trim().toLowerCase();;
   return normalized ? normalized : null;
 }
 

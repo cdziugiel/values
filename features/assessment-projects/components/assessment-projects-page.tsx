@@ -172,6 +172,13 @@ const projectQuestionnairesByProjectId =
                               Wyniki
                             </Link>
                           </Button>
+                          <Button asChild size="sm" variant="outline">
+                            <Link
+                              href={`/dashboard/partner-assessment/${ctx.tenantSlug}/projects/${project.id}`}
+                            >
+                              Raporty
+                            </Link>
+                          </Button>
                           <AssessmentProjectRowActions
                             tenantSlug={ctx.tenantSlug}
                             project={project}

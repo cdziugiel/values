@@ -56,6 +56,10 @@ export async function getProtectedNavigation(
         label: "Szablony raportów",
         href: "/dashboard/report-templates",
       },
+      {
+        label: "Produkty",
+        href: "/dashboard/report-access",
+      },
       ...baseUserNavigation,
     ];
   }
@@ -84,10 +88,6 @@ export async function getProtectedNavigation(
   }
 
   return [
-    {
-      label: "Dashboard",
-      href: "/dashboard",
-    },
     ...baseUserNavigation,
     {
       label: "Panel tenanta",

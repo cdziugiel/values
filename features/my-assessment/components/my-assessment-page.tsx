@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState, PageHeader } from "@/shared/ui";
 import { getMyAssessments } from "../api/my-assessment.queries";
 import { QuestionnaireSelectionCard } from "./questionnaire-selection-card";
+import { MyReportAccessList } from "@/features/report-access/components/my-report-access-list";
 
 export async function MyAssessmentPage() {
   const assessment = await getMyAssessments();
@@ -76,7 +77,7 @@ export async function MyAssessmentPage() {
             </p>
           </div>
         </section>
-
+        <MyReportAccessList />
         <section className="space-y-4">
           <div>
             <h2 className="text-xl font-semibold">Moje rozpoczęte badania</h2>

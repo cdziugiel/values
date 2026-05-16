@@ -1,22 +1,23 @@
 // features/my-assessment/api/my-assessment.queries.ts
 
 
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
+  assessmentInvitationIndex,
   questionnaireVersions,
   questionnaires,
   tenantDatabaseConnections,
   tenants,
 } from "@/drizzle/schema";
+
 import {
-  assessmentAccessLinks,
   assessmentProjectQuestionnaires,
-  assessmentProjects,
   assessmentSessions,
   respondentIdentities,
   respondents,
 } from "@/drizzle/schema/tenant-schema";
+
 import { requireSession } from "@/server/auth/require-session";
 import { controlDb } from "@/server/db/control-db";
 import { getTenantDbByConnection } from "@/server/db/tenant-db-by-connection";
@@ -45,20 +46,37 @@ function mapSessionStatusToCardStatus(
   return "available";
 }
 
-function buildMySessionHref({
+
+
+function buildMyQuestionnaireHref({
   tenantSlug,
   sessionId,
-  questionnaireVersionId,
+  projectQuestionnaireId,
 }: {
   tenantSlug: string;
   sessionId: string;
-  questionnaireVersionId: string;
+  projectQuestionnaireId: string;
 }) {
-  return `/my/assessment/sessions/${sessionId}?tenant=${tenantSlug}&questionnaireVersionId=${questionnaireVersionId}`;
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  return (
+    `/my/assessment/sessions/${encodeURIComponent(sessionId)}` +
+    `/questionnaire/${encodeURIComponent(projectQuestionnaireId)}` +
+    `?${params.toString()}`
+  );
 }
 
-async function getActiveTenantConnections() {
-  return controlDb
+function buildInvitationStartHref({
+  invitationId,
+}: {
+  invitationId: string;
+}) {
+  return `/my/assessment/invitations/${encodeURIComponent(invitationId)}`;
+}
+async function getPublicTenantConnection() {
+  const rows = await controlDb
     .select({
       tenantId: tenants.id,
       tenantSlug: tenants.slug,
@@ -74,18 +92,22 @@ async function getActiveTenantConnections() {
     )
     .where(
       and(
+        eq(tenants.slug, DEFAULT_PUBLIC_TENANT_SLUG),
         eq(tenants.status, "active"),
         isNull(tenants.deletedAt),
         eq(tenantDatabaseConnections.migrationStatus, "success"),
       ),
-    );
+    )
+    .limit(1);
+
+  return rows[0] ?? null;
 }
 
 function getTenantDbFromConnection(connection: {
   tenantId: string;
   databaseName: string;
   databaseUrlEncrypted: string;
-  schemaVersion: unknown;
+  schemaVersion: number | string | null;
 }) {
   const databaseUrl = decryptSecret(connection.databaseUrlEncrypted);
 
@@ -96,6 +118,7 @@ function getTenantDbFromConnection(connection: {
     databaseUrl,
   });
 }
+
 
 export async function getMyAssessments(): Promise<MyAssessment> {
   const session = await requireSession();
@@ -136,13 +159,13 @@ export async function getMyAssessments(): Promise<MyAssessment> {
 
   const invitedQuestionnaires: MyAssessmentQuestionnaire[] = [];
 
-  const activeTenantConnections = email ? await getActiveTenantConnections() : [];
 
   const activePublicSessionByVersionId = new Map<
     string,
     {
       tenantSlug: string;
       sessionId: string;
+      projectQuestionnaireId: string;
       sessionStatus: string;
       updatedAt: Date | null;
       completedAt: Date | null;
@@ -150,327 +173,111 @@ export async function getMyAssessments(): Promise<MyAssessment> {
   >();
 
   const completedPublicSessionCards: MyAssessmentQuestionnaire[] = [];
+  if (email && publicVersionIds.length > 0) {
+    const publicTenantConnection = await getPublicTenantConnection();
 
-  if (email) {
-    for (const connection of activeTenantConnections) {
-      let db: ReturnType<typeof getTenantDbByConnection>;
+    if (publicTenantConnection) {
+      const db = getTenantDbFromConnection(publicTenantConnection);
 
-      try {
-        db = getTenantDbFromConnection(connection);
-      } catch {
-        continue;
-      }
-
-      /**
-       * 1. Sesje publiczne w domyślnym tenancie humanet.
-       * Dzięki temu publiczny kwestionariusz może mieć status:
-       * - available
-       * - in_progress
-       * - completed
-       */
-      if (
-        connection.tenantSlug === DEFAULT_PUBLIC_TENANT_SLUG &&
-        publicVersionIds.length > 0
-      ) {
-        const publicSessionRows = await db
-          .select({
-            projectId: assessmentProjects.id,
-            projectName: assessmentProjects.name,
-            projectDescription: assessmentProjects.description,
-
-            sessionId: assessmentSessions.id,
-            sessionStatus: assessmentSessions.status,
-            updatedAt: assessmentSessions.updatedAt,
-            completedAt: assessmentSessions.completedAt,
-
-            questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
-            questionnaireVersionId:
-              assessmentProjectQuestionnaires.questionnaireVersionId,
-
-          })
-          .from(respondentIdentities)
-          .innerJoin(
-            respondents,
-            eq(respondents.id, respondentIdentities.respondentId),
-          )
-          .innerJoin(
-            assessmentSessions,
-            eq(assessmentSessions.respondentId, respondents.id),
-          )
-          .innerJoin(
-            assessmentProjects,
-            eq(assessmentProjects.id, assessmentSessions.assessmentProjectId),
-          )
-          .innerJoin(
-            assessmentProjectQuestionnaires,
-            eq(
-              assessmentProjectQuestionnaires.assessmentProjectId,
-              assessmentSessions.assessmentProjectId,
-            ),
-          )
-          .where(
-            and(
-              eq(respondentIdentities.email, email),
-              inArray(
-                assessmentProjectQuestionnaires.questionnaireVersionId,
-                publicVersionIds,
-              ),
-              eq(assessmentProjectQuestionnaires.status, "active"),
-              isNull(respondentIdentities.deletedAt),
-              isNull(respondents.deletedAt),
-              isNull(assessmentSessions.deletedAt),
-              isNull(assessmentProjects.deletedAt),
-              isNull(assessmentProjectQuestionnaires.deletedAt),
-              isNull(assessmentSessions.respondentArchivedAt),
-            ),
-          )
-          .orderBy(desc(assessmentSessions.updatedAt));
-
-        const versionMetaRows =
-          publicVersionIds.length > 0
-            ? await controlDb
-              .select({
-                questionnaireId: questionnaires.id,
-                questionnaireCode: questionnaires.code,
-                questionnaireName: questionnaires.name,
-                questionnaireDescription: questionnaires.description,
-                questionnaireVersionId: questionnaireVersions.id,
-                questionnaireVersionName: questionnaireVersions.name,
-              })
-              .from(questionnaireVersions)
-              .innerJoin(
-                questionnaires,
-                eq(questionnaires.id, questionnaireVersions.questionnaireId),
-              )
-              .where(
-                and(
-                  inArray(questionnaireVersions.id, publicVersionIds),
-                  isNull(questionnaireVersions.deletedAt),
-                  isNull(questionnaires.deletedAt),
-                ),
-              )
-            : [];
-
-        const versionMetaById = new Map(
-          versionMetaRows.map((version) => [
-            version.questionnaireVersionId,
-            version,
-          ]),
-        );
-
-        for (const row of publicSessionRows) {
-          if (
-            row.sessionStatus === "not_started" ||
-            row.sessionStatus === "in_progress"
-          ) {
-            if (!activePublicSessionByVersionId.has(row.questionnaireVersionId)) {
-              activePublicSessionByVersionId.set(row.questionnaireVersionId, {
-                tenantSlug: connection.tenantSlug,
-                sessionId: row.sessionId,
-                sessionStatus: row.sessionStatus,
-                updatedAt: row.updatedAt,
-                completedAt: row.completedAt,
-              });
-            }
-
-            continue;
-          }
-
-          if (row.sessionStatus === "completed") {
-            const version = versionMetaById.get(row.questionnaireVersionId);
-
-            if (!version) {
-              continue;
-            }
-
-            completedPublicSessionCards.push({
-              id: `public-completed:${connection.tenantSlug}:${row.sessionId}:${row.questionnaireVersionId}`,
-              source: "public",
-              code: version.questionnaireCode,
-              name: version.questionnaireName,
-              description:
-                version.questionnaireDescription ??
-                "Zakończona sesja publicznego kwestionariusza.",
-              status: "completed",
-              estimatedMinutes: null,
-
-              questionnaireId: version.questionnaireId,
-              questionnaireVersionId: row.questionnaireVersionId,
-              questionnaireVersionName: version.questionnaireVersionName,
-
-              tenantSlug: connection.tenantSlug,
-              projectId: row.projectId,
-              projectName: row.projectName,
-              sessionId: row.sessionId,
-              sessionStatus: row.sessionStatus,
-
-              updatedAt: row.updatedAt,
-              completedAt: row.completedAt,
-
-              actionHref: `/my/assessment/sessions/${row.sessionId}/completed?tenant=${connection.tenantSlug}&questionnaireVersionId=${row.questionnaireVersionId}`,
-
-              secondaryActionHref: `/my/assessment/public/${row.questionnaireVersionId}?mode=new`,
-              secondaryActionLabel: "Wypełnij ponownie",
-            });
-          }
-        }
-      }
-
-      /**
-       * 2. Badania z zaproszeń / przypisań respondentów.
-       */
-      const rows = await db
+      const publicSessionRows = await db
         .select({
-          projectId: assessmentProjects.id,
-          projectName: assessmentProjects.name,
-          projectDescription: assessmentProjects.description,
-
           sessionId: assessmentSessions.id,
           sessionStatus: assessmentSessions.status,
-          sessionCreatedAt: assessmentSessions.createdAt,
-          sessionUpdatedAt: assessmentSessions.updatedAt,
-          sessionCompletedAt: assessmentSessions.completedAt,
+          startedAt: assessmentSessions.startedAt,
+          completedAt: assessmentSessions.completedAt,
+          updatedAt: assessmentSessions.updatedAt,
 
-          questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
+          projectQuestionnaireId: assessmentProjectQuestionnaires.id,
           questionnaireVersionId:
             assessmentProjectQuestionnaires.questionnaireVersionId,
-
-          accessLinkId: assessmentAccessLinks.id,
-          accessLinkStatus: assessmentAccessLinks.status,
-          accessLinkExpiresAt: assessmentAccessLinks.expiresAt,
-
-          respondentId: respondents.id,
-          respondentEmail: respondentIdentities.email,
         })
-        .from(respondentIdentities)
+        .from(assessmentSessions)
         .innerJoin(
           respondents,
-          eq(respondents.id, respondentIdentities.respondentId),
+          eq(respondents.id, assessmentSessions.respondentId),
         )
         .innerJoin(
-          assessmentSessions,
-          eq(assessmentSessions.respondentId, respondents.id),
-        )
-        .innerJoin(
-          assessmentProjects,
-          eq(assessmentProjects.id, assessmentSessions.assessmentProjectId),
+          respondentIdentities,
+          eq(respondentIdentities.respondentId, respondents.id),
         )
         .innerJoin(
           assessmentProjectQuestionnaires,
           eq(
             assessmentProjectQuestionnaires.assessmentProjectId,
-            assessmentProjects.id,
-          ),
-        )
-        .leftJoin(
-          assessmentAccessLinks,
-          and(
-            eq(assessmentAccessLinks.id, assessmentSessions.accessLinkId),
-            isNull(assessmentAccessLinks.deletedAt),
+            assessmentSessions.assessmentProjectId,
           ),
         )
         .where(
           and(
-            eq(respondentIdentities.email, email),
-            eq(assessmentProjectQuestionnaires.status, "active"),
-            isNull(respondentIdentities.deletedAt),
-            isNull(respondents.deletedAt),
+            sql`lower(trim(${respondentIdentities.email})) = ${email}`,
+            inArray(
+              assessmentProjectQuestionnaires.questionnaireVersionId,
+              publicVersionIds,
+            ),
             isNull(assessmentSessions.deletedAt),
             isNull(assessmentSessions.respondentArchivedAt),
-            isNull(assessmentProjects.deletedAt),
+            isNull(respondents.deletedAt),
+            isNull(respondentIdentities.deletedAt),
             isNull(assessmentProjectQuestionnaires.deletedAt),
           ),
-        );
+        )
+        .orderBy(desc(assessmentSessions.updatedAt));
 
-      const questionnaireVersionIds = Array.from(
-        new Set(rows.map((row) => row.questionnaireVersionId)),
-      );
-
-      const versionRows =
-        questionnaireVersionIds.length > 0
-          ? await controlDb
-            .select({
-              questionnaireId: questionnaires.id,
-              questionnaireCode: questionnaires.code,
-              questionnaireName: questionnaires.name,
-              questionnaireDescription: questionnaires.description,
-              questionnaireVersionId: questionnaireVersions.id,
-              questionnaireVersionName: questionnaireVersions.name,
-            })
-            .from(questionnaireVersions)
-            .innerJoin(
-              questionnaires,
-              eq(questionnaires.id, questionnaireVersions.questionnaireId),
-            )
-            .where(
-              and(
-                inArray(questionnaireVersions.id, questionnaireVersionIds),
-                isNull(questionnaireVersions.deletedAt),
-                isNull(questionnaires.deletedAt),
-              ),
-            )
-          : [];
-
-      const versionById = new Map(
-        versionRows.map((version) => [version.questionnaireVersionId, version]),
-      );
-
-      for (const row of rows) {
-        const version = versionById.get(row.questionnaireVersionId);
-
-        if (!version) {
-          continue;
-        }
-
-        /**
-         * Jeżeli to publiczna sesja z domyślnego tenanta,
-         * nie pokazujemy jej drugi raz jako zaproszenia.
-         */
-        const isDefaultPublicSession =
-          connection.tenantSlug === DEFAULT_PUBLIC_TENANT_SLUG &&
-          publicVersionIds.includes(row.questionnaireVersionId) &&
-          !row.accessLinkId;
-
-        if (isDefaultPublicSession) {
-          continue;
-        }
-
-        if (row.sessionStatus === "cancelled") {
-          continue;
-        }
-
-        invitedQuestionnaires.push({
-          id: `invited:${connection.tenantSlug}:${row.sessionId}:${row.questionnaireVersionId}`,
-          source: "invited",
-          code: version.questionnaireCode,
-          name: version.questionnaireName,
-          description:
-            row.projectDescription ??
-            version.questionnaireDescription ??
-            "Kwestionariusz przypisany do projektu badawczego.",
-          status: mapSessionStatusToCardStatus(row.sessionStatus),
-          estimatedMinutes: null,
-
-          questionnaireId: row.questionnaireId,
-          questionnaireVersionId: row.questionnaireVersionId,
-          questionnaireVersionName: version.questionnaireVersionName,
-
-          tenantSlug: connection.tenantSlug,
-          projectId: row.projectId,
-          projectName: row.projectName,
-          sessionId: row.sessionId,
-          sessionStatus: row.sessionStatus,
-
-          createdAt: row.sessionCreatedAt,
-          updatedAt: row.sessionUpdatedAt,
-          completedAt: row.sessionCompletedAt,
-
-          actionHref: buildMySessionHref({
-            tenantSlug: connection.tenantSlug,
+      for (const row of publicSessionRows) {
+        if (
+          row.sessionStatus === "in_progress" &&
+          !row.completedAt &&
+          !activePublicSessionByVersionId.has(row.questionnaireVersionId)
+        ) {
+          activePublicSessionByVersionId.set(row.questionnaireVersionId, {
+            tenantSlug: publicTenantConnection.tenantSlug,
             sessionId: row.sessionId,
-            questionnaireVersionId: row.questionnaireVersionId,
-          }),
-        });
+            projectQuestionnaireId: row.projectQuestionnaireId,
+            sessionStatus: row.sessionStatus,
+            updatedAt: row.updatedAt,
+            completedAt: row.completedAt,
+          });
+
+          continue;
+        }
+
+        if (row.sessionStatus === "completed" && row.completedAt) {
+          const version = publicVersionRows.find(
+            (item) =>
+              item.questionnaireVersionId === row.questionnaireVersionId,
+          );
+
+          if (!version) {
+            continue;
+          }
+
+          completedPublicSessionCards.push({
+            id: `public-completed:${row.sessionId}`,
+            source: "public",
+            code: version.questionnaireCode,
+            name: version.questionnaireName,
+            description: version.questionnaireDescription,
+            status: "completed",
+            estimatedMinutes: null,
+
+            questionnaireId: version.questionnaireId,
+            questionnaireVersionId: version.questionnaireVersionId,
+            questionnaireVersionName: version.questionnaireVersionName,
+
+            tenantSlug: publicTenantConnection.tenantSlug,
+            sessionId: row.sessionId,
+            sessionStatus: "completed",
+
+            updatedAt: row.updatedAt,
+            completedAt: row.completedAt,
+
+            actionHref:
+              `/my/assessment/sessions/${encodeURIComponent(row.sessionId)}` +
+              `/completed?tenant=${encodeURIComponent(
+                publicTenantConnection.tenantSlug,
+              )}`,
+          });
+        }
       }
     }
   }
@@ -502,10 +309,10 @@ export async function getMyAssessments(): Promise<MyAssessment> {
           updatedAt: activeSession.updatedAt,
           completedAt: activeSession.completedAt,
 
-          actionHref: buildMySessionHref({
+          actionHref: buildMyQuestionnaireHref({
             tenantSlug: activeSession.tenantSlug,
             sessionId: activeSession.sessionId,
-            questionnaireVersionId: row.questionnaireVersionId,
+            projectQuestionnaireId: activeSession.projectQuestionnaireId,
           }),
         };
       }
@@ -531,10 +338,128 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       };
     });
 
+
+
+
   const publicQuestionnaires: MyAssessmentQuestionnaire[] = [
     ...publicBaseQuestionnaires,
     ...completedPublicSessionCards,
   ];
+  const invitationRows = email
+    ? await controlDb
+      .select({
+        id: assessmentInvitationIndex.id,
+
+        tenantSlug: assessmentInvitationIndex.tenantSlug,
+        tenantName: assessmentInvitationIndex.tenantName,
+
+        tenantProjectId: assessmentInvitationIndex.tenantProjectId,
+        tenantProjectRespondentId:
+          assessmentInvitationIndex.tenantProjectRespondentId,
+        tenantProjectQuestionnaireId:
+          assessmentInvitationIndex.tenantProjectQuestionnaireId,
+        tenantSessionId: assessmentInvitationIndex.tenantSessionId,
+
+        questionnaireId: assessmentInvitationIndex.questionnaireId,
+        questionnaireVersionId:
+          assessmentInvitationIndex.questionnaireVersionId,
+
+        projectNameSnapshot: assessmentInvitationIndex.projectNameSnapshot,
+        questionnaireNameSnapshot:
+          assessmentInvitationIndex.questionnaireNameSnapshot,
+        questionnaireVersionNameSnapshot:
+          assessmentInvitationIndex.questionnaireVersionNameSnapshot,
+
+        status: assessmentInvitationIndex.status,
+
+        invitedAt: assessmentInvitationIndex.invitedAt,
+        startedAt: assessmentInvitationIndex.startedAt,
+        completedAt: assessmentInvitationIndex.completedAt,
+        updatedAt: assessmentInvitationIndex.updatedAt,
+      })
+      .from(assessmentInvitationIndex)
+      .where(
+        and(
+          eq(assessmentInvitationIndex.respondentEmailNormalized, email),
+          isNull(assessmentInvitationIndex.deletedAt),
+          inArray(assessmentInvitationIndex.status, [
+            "invited",
+            "opened",
+            "in_progress",
+            "completed",
+          ]),
+        ),
+      )
+      .orderBy(desc(assessmentInvitationIndex.updatedAt))
+    : [];
+
+  for (const row of invitationRows) {
+    const status: MyAssessmentQuestionnaireStatus =
+      row.status === "completed"
+        ? "completed"
+        : row.status === "in_progress"
+          ? "in_progress"
+          : "available";
+
+    const actionHref =
+      row.status === "completed" && row.tenantSessionId
+        ? `/my/assessment/sessions/${encodeURIComponent(row.tenantSessionId)}` +
+        `/completed?tenant=${encodeURIComponent(row.tenantSlug)}`
+        : row.status === "in_progress" && row.tenantSessionId
+          ? buildMyQuestionnaireHref({
+            tenantSlug: row.tenantSlug,
+            sessionId: row.tenantSessionId,
+            projectQuestionnaireId: row.tenantProjectQuestionnaireId,
+          })
+          : buildInvitationStartHref({
+            invitationId: row.id,
+          });
+
+    invitedQuestionnaires.push({
+      id: `invitation:${row.id}`,
+      source: "invited",
+      code: "INVITED",
+
+      name:
+        row.questionnaireNameSnapshot ??
+        row.projectNameSnapshot ??
+        "Zaproszenie do badania",
+
+      description: row.projectNameSnapshot
+        ? `Badanie: ${row.projectNameSnapshot}. Zapraszający: ${row.tenantName}.`
+        : `Zaproszenie od: ${row.tenantName}.`,
+
+      status,
+      estimatedMinutes: null,
+
+      questionnaireId: row.questionnaireId,
+      questionnaireVersionId: row.questionnaireVersionId,
+      questionnaireVersionName:
+        row.questionnaireVersionNameSnapshot ?? "Wersja badania",
+
+      tenantSlug: row.tenantSlug,
+      projectId: row.tenantProjectId,
+      projectName: row.projectNameSnapshot,
+
+      sessionId:
+        row.status === "in_progress" || row.status === "completed"
+          ? row.tenantSessionId
+          : null,
+
+      sessionStatus:
+        row.status === "completed"
+          ? "completed"
+          : row.status === "in_progress"
+            ? "in_progress"
+            : null,
+
+      createdAt: row.invitedAt,
+      updatedAt: row.updatedAt,
+      completedAt: row.completedAt,
+
+      actionHref,
+    });
+  }
 
   return {
     id: "my-assessments",

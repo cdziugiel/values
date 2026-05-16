@@ -1,3 +1,4 @@
+// features/assessment-projects/api/assessment-project.mutations.ts
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
@@ -7,7 +8,7 @@ import {
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantDb } from "@/server/db/tenant-db";
 import type { TenantContext } from "@/server/tenant/tenant-context.types";
-
+import { syncAssessmentInvitationIndexForProject } from "@/features/my-assessment/api/assessment-invitation-index.mutations";
 import {
   archiveAssessmentProjectSchema,
   createAssessmentProjectSchema,
@@ -201,7 +202,11 @@ export async function updateAssessmentProject({
       endsAt: updatedProject.endsAt,
     },
   });
-
+  await syncAssessmentInvitationIndexForProject({
+    db,
+    ctx,
+    assessmentProjectId: updatedProject.id,
+  });
   return updatedProject;
 }
 
@@ -258,6 +263,10 @@ export async function archiveAssessmentProject({
       deletedAt: archivedProject.deletedAt,
     },
   });
-
+  await syncAssessmentInvitationIndexForProject({
+    db,
+    ctx,
+    assessmentProjectId: archivedProject.id,
+  });
   return archivedProject;
 }

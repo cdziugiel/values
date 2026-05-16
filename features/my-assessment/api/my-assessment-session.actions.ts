@@ -8,8 +8,11 @@ import {
   tenantDatabaseConnections,
   tenants,
 } from "@/drizzle/schema";
+import { resetAssessmentInvitationIndexAfterCancel } from "./assessment-invitation-index.mutations";
+import { archiveAssessmentInvitationIndexBySession } from "./assessment-invitation-index.mutations";
 
 import {
+  assessmentProjectRespondents,
   assessmentSessions,
   respondentIdentities,
   respondents,
@@ -118,6 +121,7 @@ async function resolveOwnedSession({
       assessmentProjectId: assessmentSessions.assessmentProjectId,
       respondentId: assessmentSessions.respondentId,
       respondentEmail: respondentIdentities.email,
+      projectRespondentId: assessmentSessions.projectRespondentId,
       respondentArchivedAt: assessmentSessions.respondentArchivedAt,
     })
     .from(assessmentSessions)
@@ -172,20 +176,28 @@ export async function cancelMyAssessmentSessionAction(
   }
 
   try {
-    const { db, actorUserId, session } = await resolveOwnedSession({
-      tenantSlug,
-      sessionId,
-    });
+    const { db, tenantSlug: resolvedTenantSlug, actorUserId, session } =
+      await resolveOwnedSession({
+        tenantSlug,
+        sessionId,
+      });
 
-    if (
-      session.sessionStatus !== "not_started" &&
-      session.sessionStatus !== "in_progress"
-    ) {
-      throw new Error("Anulować można tylko badanie rozpoczęte lub nierozpoczęte.");
+    if (session.sessionStatus === "completed") {
+      throw new Error(
+        "Nie można anulować badania, które zostało już ukończone.",
+      );
+    }
+
+    if (!session.projectRespondentId) {
+      throw new Error("Nie można ustalić zaproszenia powiązanego z tą sesją.");
     }
 
     const now = new Date();
 
+    /**
+     * Idempotentnie zamykamy sesję:
+     * jeżeli była już cancelled, nadal resetujemy zaproszenie i indeks.
+     */
     await db
       .update(assessmentSessions)
       .set({
@@ -196,6 +208,23 @@ export async function cancelMyAssessmentSessionAction(
         updatedBy: actorUserId,
       })
       .where(eq(assessmentSessions.id, sessionId));
+
+    await db
+      .update(assessmentProjectRespondents)
+      .set({
+        status: "invited",
+        startedAt: null,
+        completedAt: null,
+        updatedAt: now,
+        updatedBy: actorUserId,
+      })
+      .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
+
+    await resetAssessmentInvitationIndexAfterCancel({
+      tenantSlug: resolvedTenantSlug,
+      tenantProjectRespondentId: session.projectRespondentId,
+      userId: actorUserId,
+    });
 
     await db.insert(tenantAuditLog).values({
       actorUserId,
@@ -210,12 +239,15 @@ export async function cancelMyAssessmentSessionAction(
         status: "cancelled",
         cancelledAt: now.toISOString(),
         respondentArchivedAt: now.toISOString(),
+        projectRespondentStatus: "invited",
       },
     });
 
     revalidatePath("/my/assessment");
 
-    return ok("Badanie zostało anulowane.");
+    return ok(
+      "Badanie zostało anulowane. Zaproszenie jest ponownie dostępne.",
+    );
   } catch (error) {
     return fail(error);
   }
@@ -256,6 +288,11 @@ export async function archiveMyCompletedAssessmentSessionAction(
       })
       .where(eq(assessmentSessions.id, sessionId));
 
+    await archiveAssessmentInvitationIndexBySession({
+      tenantSlug,
+      tenantSessionId: sessionId,
+      userId: actorUserId,
+    });
     await db.insert(tenantAuditLog).values({
       actorUserId,
       actorRole: "RESPONDENT",

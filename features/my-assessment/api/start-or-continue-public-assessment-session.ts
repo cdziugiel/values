@@ -402,7 +402,7 @@ export async function startOrContinuePublicAssessmentSession({
         userId: session.user.id,
     });
 
-    await ensureProjectQuestionnaire({
+    const projectQuestionnaire = await ensureProjectQuestionnaire({
         db,
         projectId: project.id,
         questionnaire,
@@ -431,9 +431,17 @@ export async function startOrContinuePublicAssessmentSession({
         forceNew,
     });
 
+    const params = new URLSearchParams({
+        tenant: tenantSlug,
+    });
+
     return {
         tenantSlug,
         sessionId: assessmentSession.id,
-        href: `/my/assessment/sessions/${assessmentSession.id}?tenant=${tenantSlug}&questionnaireVersionId=${questionnaire.questionnaireVersionId}`,
+        projectQuestionnaireId: projectQuestionnaire.id,
+        href:
+            `/my/assessment/sessions/${encodeURIComponent(assessmentSession.id)}` +
+            `/questionnaire/${encodeURIComponent(projectQuestionnaire.id)}` +
+            `?${params.toString()}`,
     };
 }

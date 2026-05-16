@@ -22,36 +22,40 @@ export default async function TenantLayout({
     tenantSlug,
   });
 
-const tenantNavigation = [
-  {
-    label: "Dashboard",
-    href: `/t/${ctx.tenantSlug}/dashboard`,
-  },
-  {
-    label: "Organizacje",
-    href: `/t/${ctx.tenantSlug}/client-organizations`,
-  },
-  {
-    label: "Jednostki",
-    href: `/t/${ctx.tenantSlug}/client-units`,
-  },
-  {
-    label: "Projekty badawcze",
-    href: `/t/${ctx.tenantSlug}/assessment-projects`,
-  },
-  {
-    label: "Respondenci",
-    href: `/t/${ctx.tenantSlug}/respondents`,
-  },
-  {
-    label: "Raporty",
-    href: `/t/${ctx.tenantSlug}/reports`,
-  },
-  {
-    label: "Członkowie",
-    href: `/t/${ctx.tenantSlug}/members`,
-  },
-];
+  const tenantNavigation = [
+    {
+      label: "Dashboard",
+      href: `/t/${ctx.tenantSlug}/dashboard`,
+    },
+    {
+      label: "Organizacje",
+      href: `/t/${ctx.tenantSlug}/client-organizations`,
+    },
+    {
+      label: "Jednostki",
+      href: `/t/${ctx.tenantSlug}/client-units`,
+    },
+    {
+      label: "Projekty badawcze",
+      href: `/t/${ctx.tenantSlug}/assessment-projects`,
+    },
+    {
+      label: "Respondenci",
+      href: `/t/${ctx.tenantSlug}/respondents`,
+    },
+    {
+      label: "Raporty",
+      href: `/t/${ctx.tenantSlug}/reports`,
+    },
+    {
+      label: "Członkowie",
+      href: `/t/${ctx.tenantSlug}/members`,
+    },
+    {
+      label: "Dostępy raportowe",
+      href: `/t/${tenantSlug}/report-access`,
+    }
+  ];
 
   return (
     <div className="space-y-6">

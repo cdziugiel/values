@@ -1,3 +1,4 @@
+// features/assessment-projects/api/assessment-project.actions.ts
 "use server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -99,7 +100,7 @@ export async function createAssessmentProjectAction(
     });
 
     revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
-
+    revalidatePath("/my/assessment");
     return {
       status: "success",
       message: "Projekt badawczy został utworzony.",
@@ -155,6 +156,14 @@ export async function updateAssessmentProjectAction(
     });
 
     revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
+    await updateAssessmentProject({
+      db,
+      ctx,
+      input: parsed.data,
+    });
+
+    revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
+    revalidatePath("/my/assessment");
 
     return {
       status: "success",
@@ -205,7 +214,14 @@ export async function archiveAssessmentProjectAction(
     });
 
     revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
+    await archiveAssessmentProject({
+      db,
+      ctx,
+      input: parsed.data,
+    });
 
+    revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
+    revalidatePath("/my/assessment");
     return {
       status: "success",
       message: "Projekt badawczy został zarchiwizowany.",

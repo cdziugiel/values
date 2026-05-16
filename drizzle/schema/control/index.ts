@@ -10,3 +10,4 @@ export * from "./tenant-database-connections";
 export * from "./tenant-memberships";
 export * from "./tenants";
 export * from "./users";
+export * from "./assessment-invitation-index";

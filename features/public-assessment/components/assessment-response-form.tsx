@@ -337,6 +337,99 @@ function LikertScaleChoice({
   );
 }
 
+
+function LikertItemInput({
+  item,
+  fieldName,
+  existingValue,
+  responseConfig,
+  htmlRequired,
+}: {
+  item: AssessmentResponseFormItem;
+  fieldName: string;
+  existingValue: unknown;
+  responseConfig: Record<string, unknown>;
+  htmlRequired: boolean;
+}) {
+  const values = createLikertValues(item);
+  const scaleMin = item.scaleMin ?? 1;
+  const scaleMax = item.scaleMax ?? 5;
+  const step = getNumberConfig(responseConfig, "step", 1);
+  const display = getLikertDisplay(responseConfig);
+  const showValueLabels = shouldShowLikertValueLabels(responseConfig);
+
+  const existingNumber =
+    typeof existingValue === "number" ? existingValue : null;
+
+  const [selectedLikertValue, setSelectedLikertValue] = useState<number | null>(
+    existingNumber,
+  );
+
+  const selectedLikertLabel =
+    selectedLikertValue === null || showValueLabels
+      ? null
+      : getLikertStoredValueLabel({
+        config: responseConfig,
+        value: selectedLikertValue,
+      });
+
+  if (display === "slider") {
+    return (
+      <div className="mt-4 w-full space-y-3">
+        <input
+          type="range"
+          name={fieldName}
+          min={scaleMin}
+          max={scaleMax}
+          step={step}
+          required={htmlRequired}
+          defaultValue={existingNumber ?? Math.round((scaleMin + scaleMax) / 2)}
+          className="w-full"
+        />
+
+        <div className="flex justify-between gap-4 text-xs text-muted-foreground">
+          <span>{item.scaleMinLabel ?? ""}</span>
+          <span>{item.scaleMaxLabel ?? ""}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-3 md:ml-auto md:mt-0 md:w-[360px] md:max-w-[55vw]">
+      <LikertScaleChoice
+        fieldName={fieldName}
+        values={values}
+        existingNumber={existingNumber}
+        responseConfig={responseConfig}
+        htmlRequired={htmlRequired}
+        showValueLabels={showValueLabels}
+        onChange={setSelectedLikertValue}
+      />
+
+      <div className="min-h-6 text-center text-sm text-muted-foreground">
+        {selectedLikertLabel ? (
+          <span className="inline-flex rounded-full border bg-green-50 px-3 py-1 text-sm font-medium text-green-800">
+            {selectedLikertLabel}
+          </span>
+        ) : showValueLabels ? null : (
+          <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_auto_1fr] md:grid-cols-2">
+            <div className="text-left leading-snug">
+              {item.scaleMinLabel ?? ""}
+            </div>
+
+            <div className="text-right leading-snug">
+              {item.scaleMaxLabel ?? ""}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
 function AssessmentItemInput({
   item,
   isCurrentPage,
@@ -351,81 +444,15 @@ function AssessmentItemInput({
   const htmlRequired = isCurrentPage && item.required;
 
   if (item.type === "likert") {
-    const values = createLikertValues(item);
-    const scaleMin = item.scaleMin ?? 1;
-    const scaleMax = item.scaleMax ?? 5;
-    const step = getNumberConfig(responseConfig, "step", 1);
-    const display = getLikertDisplay(responseConfig);
-    const showValueLabels = shouldShowLikertValueLabels(responseConfig);
-    const existingNumber =
-      typeof existingValue === "number" ? existingValue : null;
-    const [selectedLikertValue, setSelectedLikertValue] = useState<number | null>(
-      existingNumber,
-    );
-
-    const selectedLikertLabel =
-      selectedLikertValue === null || showValueLabels
-        ? null
-        : getLikertStoredValueLabel({
-          config: responseConfig,
-          value: selectedLikertValue,
-        });
-    if (display === "slider") {
-      return (
-        <div className="w-full mt-4 space-y-3 ">
-          <input
-            type="range"
-            name={fieldName}
-            min={scaleMin}
-            max={scaleMax}
-            step={step}
-            required={htmlRequired}
-            defaultValue={existingNumber ?? Math.round((scaleMin + scaleMax) / 2)}
-            className="w-full"
-          />
-
-          <div className="flex justify-between gap-4 text-xs text-muted-foreground">
-            <span>{item.scaleMinLabel ?? ""}</span>
-            <span>{item.scaleMaxLabel ?? ""}</span>
-          </div>
-        </div>
-      );
-    }
-
     return (
-      <div className="mt-4 space-y-3 md:mt-0 md:ml-auto md:w-[360px] md:max-w-[55vw]">
-        <LikertScaleChoice
-          fieldName={fieldName}
-          values={values}
-          existingNumber={existingNumber}
-          responseConfig={responseConfig}
-          htmlRequired={htmlRequired}
-          showValueLabels={showValueLabels}
-          onChange={setSelectedLikertValue}
-        />
-
-        <div className="min-h-6 text-center text-sm text-muted-foreground">
-          {selectedLikertLabel ? (
-            <span className="inline-flex rounded-full border bg-green-50 px-3 py-1 text-sm font-medium text-green-800">
-              {selectedLikertLabel}
-            </span>
-          ) : showValueLabels ? null : (
-            <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_auto_1fr] md:grid-cols-2">
-              <div className="text-left leading-snug">
-                {item.scaleMinLabel ?? ""}
-              </div>
-
-              <div className="text-right leading-snug">
-                {item.scaleMaxLabel ?? ""}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <LikertItemInput
+        item={item}
+        fieldName={fieldName}
+        existingValue={existingValue}
+        responseConfig={responseConfig}
+        htmlRequired={htmlRequired}
+      />
     );
-
-
-
   }
 
   if (item.type === "true_false") {

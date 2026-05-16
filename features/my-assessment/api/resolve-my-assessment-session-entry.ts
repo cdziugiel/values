@@ -9,6 +9,7 @@ import {
 import { requireSession } from "@/server/auth/require-session";
 import { getTenantDb } from "@/server/db/tenant-db";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
+import { getMyAssessmentTenantDbBySlug } from "./my-assessment-tenant-db";
 
 function normalizeEmail(value: string | null | undefined) {
     const normalized = value?.trim().toLowerCase();
@@ -24,12 +25,6 @@ export async function resolveMyAssessmentSessionEntry({
     sessionId: string;
     questionnaireVersionId: string;
 }) {
-    if (!tenantSlug) {
-        return {
-            ok: false as const,
-            message: "Brakuje tenanta badania.",
-        };
-    }
 
     if (!sessionId) {
         return {
@@ -55,8 +50,16 @@ export async function resolveMyAssessmentSessionEntry({
         };
     }
 
-    const ctx = await requireTenantContext({ tenantSlug });
-    const db = await getTenantDb(ctx);
+    const tenant = await getMyAssessmentTenantDbBySlug(tenantSlug);
+
+    if (!tenant) {
+        return {
+            ok: false as const,
+            message: "Nie znaleziono domyślnego tenanta badania.",
+        };
+    }
+
+    const db = tenant.db;
 
     const rows = await db
         .select({
@@ -127,7 +130,7 @@ export async function resolveMyAssessmentSessionEntry({
     return {
         ok: true as const,
         data: {
-            tenantSlug,
+            tenantSlug: tenant.tenantSlug,
             sessionId,
             sessionStatus: row.sessionStatus,
             projectQuestionnaireId: projectQuestionnaire.id,

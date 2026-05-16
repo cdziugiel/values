@@ -7,3 +7,4 @@ export * from "./questionnaire-item-dimension-scores";
 export * from "./questionnaire-page-dimension-scores";
 export * from "./report-builder";
 export * from "./report-template-bindings";
+export * from "./report-access";

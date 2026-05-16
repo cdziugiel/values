@@ -1,64 +1,90 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
-
+// features/my-assessment/api/my-assessment-report-link.queries.ts
 import {
-  questionnaireReportTemplateBindings,
-  reportTemplateVersions,
-  tenantDatabaseConnections,
-  tenants,
-} from "@/drizzle/schema";
+  getActiveReportAccessGrantForSession,
+  getReportAccessOfferForCompletedSession,
+} from "@/features/report-access/api/report-access.queries";
+import { reportAccessGrants } from "@/drizzle/schema";
+import { requireSession } from "@/server/auth/require-session";
 
-import {
-  assessmentProjectQuestionnaires,
-  assessmentSessions,
-} from "@/drizzle/schema/tenant-schema";
+export type MyAssessmentReportAccessState = {
+  reportHref: string | null;
+  unlockHref: string | null;
+  isUnlocked: boolean;
+  isAvailableForPurchase: boolean;
+  message: string | null;
+};
 
-import { controlDb } from "@/server/db/control-db";
-import { getTenantDbByConnection } from "@/server/db/tenant-db-by-connection";
-import { decryptSecret } from "@/server/security/encryption";
-
-async function getTenantDbBySlug(tenantSlug: string) {
-  const rows = await controlDb
-    .select({
-      tenantId: tenants.id,
-      tenantSlug: tenants.slug,
-      databaseName: tenantDatabaseConnections.databaseName,
-      databaseUrlEncrypted: tenantDatabaseConnections.databaseUrlEncrypted,
-      schemaVersion: tenantDatabaseConnections.schemaVersion,
-    })
-    .from(tenants)
-    .innerJoin(
-      tenantDatabaseConnections,
-      eq(tenantDatabaseConnections.tenantId, tenants.id),
-    )
-    .where(
-      and(
-        eq(tenants.slug, tenantSlug),
-        eq(tenants.status, "active"),
-        isNull(tenants.deletedAt),
-        eq(tenantDatabaseConnections.migrationStatus, "success"),
-      ),
-    )
-    .limit(1);
-
-  const connection = rows[0];
-
-  if (!connection) {
-    return null;
+export async function getMyAssessmentReportAccessState({
+  tenantSlug,
+  sessionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+}): Promise<MyAssessmentReportAccessState> {
+  if (!tenantSlug || !sessionId) {
+    return {
+      reportHref: null,
+      unlockHref: null,
+      isUnlocked: false,
+      isAvailableForPurchase: false,
+      message: "Brakuje danych sesji lub tenanta.",
+    };
   }
 
-  const databaseUrl = decryptSecret(connection.databaseUrlEncrypted);
+  const offer = await getReportAccessOfferForCompletedSession({
+    tenantSlug,
+    sessionId,
+  });
+
+  if (!offer.ok) {
+    return {
+      reportHref: null,
+      unlockHref: null,
+      isUnlocked: false,
+      isAvailableForPurchase: false,
+      message: offer.message,
+    };
+  }
+
+  const existingGrant =
+    offer.existingGrant ??
+    (await getActiveReportAccessGrantForSession({
+      tenantSlug,
+      sessionId,
+      reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
+      userId: offer.actorUserId,
+    }));
+
+  if (existingGrant) {
+    return {
+      reportHref: `/my/assessment/sessions/${sessionId}/report/${existingGrant.reportTemplateVersionId}?tenant=${tenantSlug}`,
+      unlockHref: null,
+      isUnlocked: true,
+      isAvailableForPurchase: false,
+      message: null,
+    };
+  }
 
   return {
-    tenantSlug: connection.tenantSlug,
-    db: getTenantDbByConnection({
-      tenantId: connection.tenantId,
-      databaseName: connection.databaseName,
-      schemaVersion: Number(connection.schemaVersion ?? 0),
-      databaseUrl,
-    }),
+    reportHref: null,
+    unlockHref: `/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenantSlug}`,
+    isUnlocked: false,
+    isAvailableForPurchase: Boolean(offer.product),
+    message: offer.product
+      ? null
+      : "Dla tego raportu nie ma jeszcze aktywnego produktu sprzedażowego.",
   };
 }
 
+/**
+ * Kompatybilność wsteczna.
+ *
+ * Uwaga: ta funkcja zwraca link do raportu WYŁĄCZNIE wtedy,
+ * gdy user ma już aktywny grant dostępu.
+ *
+ * Do UI lepiej używać getMyAssessmentReportAccessState,
+ * bo pozwala pokazać też przycisk „Odblokuj raport”.
+ */
 export async function getMyAssessmentReportHref({
   tenantSlug,
   sessionId,
@@ -66,123 +92,11 @@ export async function getMyAssessmentReportHref({
   tenantSlug: string;
   sessionId: string;
 }) {
-  if (!tenantSlug || !sessionId) {
-    return null;
-  }
-
-  const tenant = await getTenantDbBySlug(tenantSlug);
-
-  if (!tenant) {
-    return null;
-  }
-
-  const session = await tenant.db.query.assessmentSessions.findFirst({
-    where: and(
-      eq(assessmentSessions.id, sessionId),
-      eq(assessmentSessions.status, "completed"),
-      isNull(assessmentSessions.deletedAt),
-    ),
-    columns: {
-      id: true,
-      assessmentProjectId: true,
-    },
+  const authSession = await requireSession();
+  const access = await getMyAssessmentReportAccessState({
+    tenantSlug,
+    sessionId,
   });
 
-  if (!session) {
-    return null;
-  }
-
-  const projectQuestionnaires = await tenant.db
-    .select({
-      questionnaireVersionId:
-        assessmentProjectQuestionnaires.questionnaireVersionId,
-    })
-    .from(assessmentProjectQuestionnaires)
-    .where(
-      and(
-        eq(
-          assessmentProjectQuestionnaires.assessmentProjectId,
-          session.assessmentProjectId,
-        ),
-        eq(assessmentProjectQuestionnaires.status, "active"),
-        isNull(assessmentProjectQuestionnaires.deletedAt),
-      ),
-    );
-
-  const questionnaireVersionIds = projectQuestionnaires
-    .map((row) => row.questionnaireVersionId)
-    .filter(Boolean);
-
-  if (questionnaireVersionIds.length === 0) {
-    return null;
-  }
-
-  /**
-   * Najpierw szukamy bindingu jawnie przypiętego do wersji kwestionariusza.
-   */
-  const bindingRows = await controlDb
-    .select({
-      reportTemplateVersionId:
-        questionnaireReportTemplateBindings.reportTemplateVersionId,
-      isDefault: questionnaireReportTemplateBindings.isDefault,
-      updatedAt: questionnaireReportTemplateBindings.updatedAt,
-    })
-    .from(questionnaireReportTemplateBindings)
-    .innerJoin(
-      reportTemplateVersions,
-      eq(
-        reportTemplateVersions.id,
-        questionnaireReportTemplateBindings.reportTemplateVersionId,
-      ),
-    )
-    .where(
-      and(
-        inArray(
-          questionnaireReportTemplateBindings.questionnaireVersionId,
-          questionnaireVersionIds,
-        ),
-        eq(questionnaireReportTemplateBindings.status, "active"),
-        eq(reportTemplateVersions.status, "active"),
-        isNull(questionnaireReportTemplateBindings.deletedAt),
-        isNull(reportTemplateVersions.deletedAt),
-      ),
-    );
-
-  const defaultBinding =
-    bindingRows.find((row) => row.isDefault) ?? bindingRows[0];
-
-  if (defaultBinding?.reportTemplateVersionId) {
-    return `/my/assessment/sessions/${sessionId}/report/${defaultBinding.reportTemplateVersionId}?tenant=${tenantSlug}`;
-  }
-
-  /**
-   * Fallback: jeśli nie ma bindingu, bierzemy aktywny/defaultowy template
-   * bezpośrednio po questionnaireVersionId.
-   */
-  const directTemplate = await controlDb.query.reportTemplateVersions.findFirst({
-    where: and(
-      inArray(reportTemplateVersions.questionnaireVersionId, questionnaireVersionIds),
-      eq(reportTemplateVersions.status, "active"),
-      eq(reportTemplateVersions.isDefault, true),
-      isNull(reportTemplateVersions.deletedAt),
-    ),
-  });
-
-  if (directTemplate) {
-    return `/my/assessment/sessions/${sessionId}/report/${directTemplate.id}?tenant=${tenantSlug}`;
-  }
-
-  const anyActiveTemplate = await controlDb.query.reportTemplateVersions.findFirst({
-    where: and(
-      inArray(reportTemplateVersions.questionnaireVersionId, questionnaireVersionIds),
-      eq(reportTemplateVersions.status, "active"),
-      isNull(reportTemplateVersions.deletedAt),
-    ),
-  });
-
-  if (!anyActiveTemplate) {
-    return null;
-  }
-
-  return `/my/assessment/sessions/${sessionId}/report/${anyActiveTemplate.id}?tenant=${tenantSlug}`;
+  return access.reportHref;
 }

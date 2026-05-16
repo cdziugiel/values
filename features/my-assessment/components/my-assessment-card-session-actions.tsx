@@ -55,9 +55,9 @@ export function MyAssessmentCardSessionActions({
         <form
           action={cancelAction}
           onSubmit={(event) => {
-            const confirmed = window.confirm(
-              "Anulować rozpoczęte badanie? Zniknie z listy rozpoczętych badań. Tej operacji nie traktujemy jako ukończenia badania.",
-            );
+          const confirmed = window.confirm(
+            "Anulować rozpoczęte badanie? Dotychczasowa sesja zostanie zamknięta, a zaproszenie wróci na listę tak, aby można było rozpocząć badanie od początku.",
+          );
 
             if (!confirmed) {
               event.preventDefault();

@@ -1,8 +1,8 @@
 // features/my-assessment/components/my-assessment-completed-result-view.tsx
 
 import Link from "next/link";
-import { getMyAssessmentReportHref } from "../api/my-assessment-report-link.queries";
-
+import { getMyAssessmentReportAccessState } from "../api/my-assessment-report-link.queries";
+import { RedeemReportAccessCodeForm } from "@/features/report-access/components/redeem-report-access-code-form";
 
 type CompletedAssessmentScore = {
   id?: string | null;
@@ -79,6 +79,23 @@ type ResponsePageGroup = {
 const DEFAULT_CATEGORY_KEY = "__NO_CATEGORY__";
 const DEFAULT_CATEGORY_LABEL = "Bez kategorii";
 const FALLBACK_ORDER_INDEX = Number.MAX_SAFE_INTEGER;
+
+function formatDateTime(value: unknown) {
+  if (!value) return "—";
+
+  const date = new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("pl-PL", {
+    timeZone: "Europe/Warsaw",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 function formatPercent(value: unknown) {
   const numberValue = Number(value);
@@ -369,10 +386,10 @@ export async function MyAssessmentCompletedResultView({
   result,
 }: MyAssessmentCompletedResultViewProps) {
   const payload = result.payload;
-const reportHref = await getMyAssessmentReportHref({
-  tenantSlug: result.tenantSlug,
-  sessionId: result.sessionId,
-});
+  const reportAccess = await getMyAssessmentReportAccessState({
+    tenantSlug: result.tenantSlug,
+    sessionId: result.sessionId,
+  });
   const scores = Array.isArray(payload?.scores) ? payload.scores : [];
   const scoreGroups = groupScoresByCategory(scores);
   const responses = Array.isArray(payload?.responses) ? payload.responses : [];
@@ -400,24 +417,37 @@ const reportHref = await getMyAssessmentReportHref({
               zapisane w momencie zakończenia sesji.
             </p>
           </div>
-<div className="flex flex-wrap gap-2">
-  {reportHref ? (
-    <Link
-      href={reportHref}
-      className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-    >
-      Zobacz raport
-    </Link>
-  ) : null}
+          <div className="flex flex-wrap gap-2">
+            {reportAccess.reportHref ? (
+              <Link
+                href={reportAccess.reportHref}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+              >
+                Zobacz raport
+              </Link>
+            ) : reportAccess.unlockHref ? (
+              <Link
+                href={reportAccess.unlockHref}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+              >
+                Odblokuj raport
+              </Link>
+            ) : null}
 
-  <Link
-    href="/my/assessment"
-    className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-  >
-    Wróć do moich badań
-  </Link>
-</div>
-          
+            <Link
+              href="/my/assessment"
+              className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+            >
+              Wróć do moich badań
+            </Link>
+
+            {reportAccess.message ? (
+              <div className="w-full text-xs text-muted-foreground">
+                {reportAccess.message}
+              </div>
+            ) : null}
+          </div>
+
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -444,14 +474,19 @@ const reportHref = await getMyAssessmentReportHref({
               Snapshot
             </div>
             <div className="mt-1 font-medium">
-              {payload?.frozenAt
-                ? new Date(payload.frozenAt).toLocaleString("pl-PL")
-                : "—"}
+              {formatDateTime(payload?.frozenAt)}
             </div>
           </div>
         </div>
       </section>
-
+      {!reportAccess.isUnlocked ? (
+        <section className="mt-8">
+          <RedeemReportAccessCodeForm
+            tenantSlug={result.tenantSlug}
+            sessionId={result.sessionId}
+          />
+        </section>
+      ) : null}
       <section className="mt-8 space-y-4">
         <div>
           <h2 className="text-xl font-semibold">Podsumowanie wymiarów</h2>

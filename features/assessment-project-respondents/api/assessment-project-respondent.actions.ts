@@ -69,12 +69,15 @@ export async function addAssessmentProjectRespondentAction(
       message: "Respondent został dodany do projektu.",
     };
   } catch (error) {
+    const message =
+      error instanceof Error &&
+        error.message === "Respondent jest już przypisany do tego projektu."
+        ? error.message
+        : "Nie udało się dodać respondenta do projektu. Sprawdź, czy respondent nie jest już przypisany do tego badania.";
+
     return {
       status: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Nie udało się dodać respondenta do projektu.",
+      message,
     };
   }
 }

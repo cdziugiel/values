@@ -17,6 +17,7 @@ import { requireSession } from "@/server/auth/require-session";
 import { controlDb } from "@/server/db/control-db";
 import { getTenantDb } from "@/server/db/tenant-db";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
+import { getMyAssessmentTenantDbBySlug } from "./my-assessment-tenant-db";
 
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
@@ -32,12 +33,6 @@ export async function resolveMyAssessmentSessionQuestionnaireForm({
   sessionId: string;
   projectQuestionnaireId: string;
 }) {
-  if (!tenantSlug) {
-    return {
-      ok: false as const,
-      message: "Brakuje tenanta badania.",
-    };
-  }
 
   const authSession = await requireSession();
   const email = normalizeEmail(authSession.user.email);
@@ -49,16 +44,24 @@ export async function resolveMyAssessmentSessionQuestionnaireForm({
     };
   }
 
-  const ctx = await requireTenantContext({ tenantSlug });
-  const db = await getTenantDb(ctx);
+  const tenant = await getMyAssessmentTenantDbBySlug(tenantSlug);
 
-    const sessionRows = await db
+  if (!tenant) {
+    return {
+      ok: false as const,
+      message: "Nie znaleziono domyślnego tenanta badania.",
+    };
+  }
+
+  const db = tenant.db;
+
+  const sessionRows = await db
     .select({
-        sessionId: assessmentSessions.id,
-        sessionStatus: assessmentSessions.status,
-        assessmentProjectId: assessmentSessions.assessmentProjectId,
-        respondentId: assessmentSessions.respondentId,
-        respondentEmail: respondentIdentities.email,
+      sessionId: assessmentSessions.id,
+      sessionStatus: assessmentSessions.status,
+      assessmentProjectId: assessmentSessions.assessmentProjectId,
+      respondentId: assessmentSessions.respondentId,
+      respondentEmail: respondentIdentities.email,
     })
     .from(assessmentSessions)
     .innerJoin(
@@ -97,10 +100,10 @@ export async function resolveMyAssessmentSessionQuestionnaireForm({
 
   if (sessionRow.sessionStatus === "completed") {
     return {
-        ok: false as const,
-        message: "Ta sesja badania została już zakończona.",
+      ok: false as const,
+      message: "Ta sesja badania została już zakończona.",
     };
-    }
+  }
 
   const projectQuestionnaire =
     await db.query.assessmentProjectQuestionnaires.findFirst({
@@ -221,7 +224,7 @@ export async function resolveMyAssessmentSessionQuestionnaireForm({
   return {
     ok: true as const,
     data: {
-      tenantSlug,
+      tenantSlug: tenant.tenantSlug,
       session: {
         id: sessionId,
       },
