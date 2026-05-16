@@ -222,7 +222,7 @@ export async function getMyAssessments(): Promise<MyAssessment> {
           ),
         )
         .orderBy(desc(assessmentSessions.updatedAt));
-
+      const completedPublicSessionIds = new Set<string>();
       for (const row of publicSessionRows) {
         if (
           row.sessionStatus === "in_progress" &&
@@ -242,10 +242,17 @@ export async function getMyAssessments(): Promise<MyAssessment> {
         }
 
         if (row.sessionStatus === "completed" && row.completedAt) {
+          if (completedPublicSessionIds.has(row.sessionId)) {
+            continue;
+          }
+
+          completedPublicSessionIds.add(row.sessionId);
+
           const version = publicVersionRows.find(
             (item) =>
               item.questionnaireVersionId === row.questionnaireVersionId,
           );
+
 
           if (!version) {
             continue;
@@ -270,7 +277,7 @@ export async function getMyAssessments(): Promise<MyAssessment> {
 
             updatedAt: row.updatedAt,
             completedAt: row.completedAt,
-
+            projectQuestionnaireId: row.projectQuestionnaireId,
             actionHref:
               `/my/assessment/sessions/${encodeURIComponent(row.sessionId)}` +
               `/completed?tenant=${encodeURIComponent(
@@ -352,13 +359,13 @@ export async function getMyAssessments(): Promise<MyAssessment> {
 
         tenantSlug: assessmentInvitationIndex.tenantSlug,
         tenantName: assessmentInvitationIndex.tenantName,
-
         tenantProjectId: assessmentInvitationIndex.tenantProjectId,
         tenantProjectRespondentId:
           assessmentInvitationIndex.tenantProjectRespondentId,
         tenantProjectQuestionnaireId:
           assessmentInvitationIndex.tenantProjectQuestionnaireId,
         tenantSessionId: assessmentInvitationIndex.tenantSessionId,
+        tenantAccessLinkId: assessmentInvitationIndex.tenantAccessLinkId,
 
         questionnaireId: assessmentInvitationIndex.questionnaireId,
         questionnaireVersionId:
@@ -392,8 +399,16 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       )
       .orderBy(desc(assessmentInvitationIndex.updatedAt))
     : [];
-
   for (const row of invitationRows) {
+    const projectNameSnapshot = row.projectNameSnapshot?.trim() ?? "";
+
+    const looksLikePublicMirror =
+      projectNameSnapshot.startsWith("PUBLIC") &&
+      !row.tenantAccessLinkId &&
+      !row.invitedAt;
+    if (looksLikePublicMirror) {
+      continue;
+    }
     const status: MyAssessmentQuestionnaireStatus =
       row.status === "completed"
         ? "completed"
@@ -419,7 +434,6 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       id: `invitation:${row.id}`,
       source: "invited",
       code: "INVITED",
-
       name:
         row.questionnaireNameSnapshot ??
         row.projectNameSnapshot ??
@@ -440,7 +454,7 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       tenantSlug: row.tenantSlug,
       projectId: row.tenantProjectId,
       projectName: row.projectNameSnapshot,
-
+      projectQuestionnaireId: row.tenantProjectQuestionnaireId,
       sessionId:
         row.status === "in_progress" || row.status === "completed"
           ? row.tenantSessionId

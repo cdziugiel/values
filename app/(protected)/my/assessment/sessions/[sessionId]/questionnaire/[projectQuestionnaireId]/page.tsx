@@ -87,6 +87,7 @@ export default async function Page({ params, searchParams }: PageProps) {
           token=""
           tenantSlug={data.tenantSlug}
           sessionId={sessionId}
+          projectQuestionnaireId={projectQuestionnaireId}
           items={data.items}
         />
       </div>

@@ -55,6 +55,7 @@ type AssessmentResponseFormItem = {
 type AssessmentResponseFormProps = {
   token: string;
   sessionId: string;
+  projectQuestionnaireId?: string;
   items: AssessmentResponseFormItem[];
   mode?: "token" | "my-assessment";
   tenantSlug?: string;
@@ -628,6 +629,7 @@ export function AssessmentResponseForm({
   items,
   mode = "token",
   tenantSlug = "",
+  projectQuestionnaireId,
 }: AssessmentResponseFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -784,53 +786,59 @@ export function AssessmentResponseForm({
     });
   }
 
-  function finishAssessment() {
-    const form = formRef.current;
+function finishAssessment() {
+  const form = formRef.current;
 
-    if (form && !form.reportValidity()) {
-      return;
-    }
-
-    const formData = getFormData();
-
-    if (!formData) {
-      setState({
-        status: "error",
-        message: "Nie udało się odczytać formularza.",
-      });
-      return;
-    }
-
-    startTransition(async () => {
-      const saveState = await saveAssessmentResponsesAction(
-        {
-          status: "idle",
-          message: "",
-        },
-        formData,
-      );
-
-      setState(saveState);
-
-      if (saveState.status !== "success") {
-        return;
-      }
-
-      const completeFormData = new FormData();
-      completeFormData.set("token", token);
-      completeFormData.set("sessionId", sessionId);
-      completeFormData.set("mode", mode);
-      completeFormData.set("tenantSlug", tenantSlug);
-
-      await completeAssessmentSessionAction(
-        {
-          status: "idle",
-          message: "",
-        },
-        completeFormData,
-      );
-    });
+  if (form && !form.reportValidity()) {
+    return;
   }
+
+  const formData = getFormData();
+
+  if (!formData) {
+    setState({
+      status: "error",
+      message: "Nie udało się odczytać formularza.",
+    });
+    return;
+  }
+
+  startTransition(async () => {
+    const saveState = await saveAssessmentResponsesAction(
+      {
+        status: "idle",
+        message: "",
+      },
+      formData,
+    );
+
+    setState(saveState);
+
+    if (saveState.status !== "success") {
+      return;
+    }
+
+    const completeFormData = new FormData();
+    completeFormData.set("token", token);
+    completeFormData.set("sessionId", sessionId);
+    completeFormData.set("mode", mode);
+    completeFormData.set("tenantSlug", tenantSlug);
+    completeFormData.set("projectQuestionnaireId", projectQuestionnaireId ?? "");
+
+    const completeState = await completeAssessmentSessionAction(
+      {
+        status: "idle",
+        message: "",
+      },
+      completeFormData,
+    );
+
+    setState({
+      status: completeState.status,
+      message: completeState.message,
+    });
+  });
+}
 
   if (pageGroups.length === 0 || !currentPage) {
     return (
@@ -850,6 +858,12 @@ export function AssessmentResponseForm({
         <input type="hidden" name="sessionId" value={sessionId} />
         <input type="hidden" name="mode" value={mode} />
         <input type="hidden" name="tenantSlug" value={tenantSlug} />
+        <input
+          type="hidden"
+          name="projectQuestionnaireId"
+          value={projectQuestionnaireId}
+        />
+        
 
         <section className="rounded-2xl border bg-card p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

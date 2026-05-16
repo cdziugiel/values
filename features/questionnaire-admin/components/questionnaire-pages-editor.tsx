@@ -31,6 +31,7 @@ import {
     Plus,
     Settings2,
 } from "lucide-react";
+import { QuestionnaireXlsxImportExportPanel } from "./questionnaire-xlsx-import-export-panel";
 
 type QuestionnairePagesEditorProps = {
     versionId: string;
@@ -392,7 +393,7 @@ function getLikertPresetKey(responseConfig: unknown): LikertPresetKey {
         return preset;
     }
 
-    return "custom";
+    return "agreement_7_short";
 }
 function likertValueLabelsToText(responseConfig: unknown) {
     const config = asRecord(responseConfig);
@@ -500,7 +501,7 @@ function LikertPresetFields({
     const initialShowValueLabels = getConfigBoolean(
         defaultResponseConfig,
         "showValueLabels",
-        initialPresetKey !== "custom",
+        initialPresetKey !== "agreement_7_short",
     );
 
     const [presetKey, setPresetKey] = useState<LikertPresetKey>(initialPresetKey);
@@ -557,63 +558,63 @@ function LikertPresetFields({
 
 
     const configSyncKey = JSON.stringify({
-    responseConfig: asRecord(defaultResponseConfig),
-    defaultScaleMin,
-    defaultScaleMax,
-    defaultScaleMinLabel,
-    defaultScaleMaxLabel,
-});
-
-useEffect(() => {
-    const nextPresetKey = getLikertPresetKey(defaultResponseConfig);
-    const nextPreset = LIKERT_PRESETS[nextPresetKey];
-
-    const nextStepRaw = getConfigNumber(
-        defaultResponseConfig,
-        "step",
-        nextPreset.step,
-    );
-
-    const nextStep =
-        typeof nextStepRaw === "number" ? nextStepRaw : nextPreset.step;
-
-    const nextScaleMin = defaultScaleMin ?? nextPreset.scaleMin;
-    const nextScaleMax = defaultScaleMax ?? nextPreset.scaleMax;
-    const nextScaleMinLabel = defaultScaleMinLabel ?? nextPreset.scaleMinLabel;
-    const nextScaleMaxLabel = defaultScaleMaxLabel ?? nextPreset.scaleMaxLabel;
-
-    const nextShowValueLabels = getConfigBoolean(
-        defaultResponseConfig,
-        "showValueLabels",
-        nextPresetKey !== "custom",
-    );
-
-    const configLabels = getLikertValueLabels(defaultResponseConfig);
-    const sourceLabels =
-        Object.keys(configLabels).length > 0
-            ? configLabels
-            : nextPreset.valueLabels;
-
-    const nextValues = createLikertConfigValues({
-        scaleMin: nextScaleMin,
-        scaleMax: nextScaleMax,
-        step: nextStep,
+        responseConfig: asRecord(defaultResponseConfig),
+        defaultScaleMin,
+        defaultScaleMax,
+        defaultScaleMinLabel,
+        defaultScaleMaxLabel,
     });
 
-    setPresetKey(nextPresetKey);
-    setScaleMin(nextScaleMin);
-    setScaleMax(nextScaleMax);
-    setStep(nextStep);
-    setScaleMinLabel(nextScaleMinLabel);
-    setScaleMaxLabel(nextScaleMaxLabel);
-    setShowValueLabels(nextShowValueLabels);
-    setValueLabels(
-        normalizeValueLabelsForScale({
-            labels: sourceLabels,
-            values: nextValues,
-        }),
-    );
-}, [configSyncKey]);
+    useEffect(() => {
+        const nextPresetKey = getLikertPresetKey(defaultResponseConfig);
+        const nextPreset = LIKERT_PRESETS[nextPresetKey];
+
+        const nextStepRaw = getConfigNumber(
+            defaultResponseConfig,
+            "step",
+            nextPreset.step,
+        );
+
+        const nextStep =
+            typeof nextStepRaw === "number" ? nextStepRaw : nextPreset.step;
+
+        const nextScaleMin = defaultScaleMin ?? nextPreset.scaleMin;
+        const nextScaleMax = defaultScaleMax ?? nextPreset.scaleMax;
+        const nextScaleMinLabel = defaultScaleMinLabel ?? nextPreset.scaleMinLabel;
+        const nextScaleMaxLabel = defaultScaleMaxLabel ?? nextPreset.scaleMaxLabel;
+
+        const nextShowValueLabels = getConfigBoolean(
+            defaultResponseConfig,
+            "showValueLabels",
+            nextPresetKey !== "agreement_7_short",
+        );
+
+        const configLabels = getLikertValueLabels(defaultResponseConfig);
+        const sourceLabels =
+            Object.keys(configLabels).length > 0
+                ? configLabels
+                : nextPreset.valueLabels;
+
+        const nextValues = createLikertConfigValues({
+            scaleMin: nextScaleMin,
+            scaleMax: nextScaleMax,
+            step: nextStep,
+        });
+
+        setPresetKey(nextPresetKey);
+        setScaleMin(nextScaleMin);
+        setScaleMax(nextScaleMax);
+        setStep(nextStep);
+        setScaleMinLabel(nextScaleMinLabel);
+        setScaleMaxLabel(nextScaleMaxLabel);
+        setShowValueLabels(nextShowValueLabels);
+        setValueLabels(
+            normalizeValueLabelsForScale({
+                labels: sourceLabels,
+                values: nextValues,
+            }),
+        );
+    }, [configSyncKey]);
 
     function updateScale(next: {
         scaleMin?: number;
@@ -1640,6 +1641,11 @@ function ArchiveQuestionnairePageButton({
     );
 }
 
+function getLikertPresetLabel(responseConfig: unknown) {
+    const presetKey = getLikertPresetKey(responseConfig);
+    return LIKERT_PRESETS[presetKey]?.label ?? "Własna skala";
+}
+
 export function QuestionnairePagesEditor({
     versionId,
     pages,
@@ -1773,6 +1779,15 @@ export function QuestionnairePagesEditor({
                             <span>
                                 skala: {item.scaleMin ?? "—"}–{item.scaleMax ?? "—"}
                             </span>
+                            <span>
+                                typ: {item.type}
+                            </span>
+
+                            {item.type === "likert" ? (
+                                <span>
+                                    preset: {getLikertPresetLabel(item.responseConfig)}
+                                </span>
+                            ) : null}
                         </div>
 
                         <div className="mt-2">
@@ -1937,7 +1952,6 @@ export function QuestionnairePagesEditor({
                     Rozwijaj strony, dodawaj itemy bezpośrednio pod sekcjami i edytuj scoring.
                 </p>
             </div>
-
             <form action={formAction} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
                 <input type="hidden" name="versionId" value={versionId} />
 

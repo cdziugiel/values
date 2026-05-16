@@ -1,3 +1,4 @@
+// drizzle/schema/shared/questionnaires.ts
 import {
   boolean,
   index,

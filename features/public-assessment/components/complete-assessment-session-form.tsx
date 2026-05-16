@@ -1,3 +1,4 @@
+// features/public-assessment/components/complete-assessment-session-form.tsx
 "use client";
 
 import { useActionState } from "react";
@@ -8,8 +9,11 @@ import {
 } from "../api/complete-assessment-session.actions";
 
 type CompleteAssessmentSessionFormProps = {
+  mode?: "token" | "my-assessment";
   token: string;
+  tenantSlug?: string;
   sessionId: string;
+  projectQuestionnaireId?: string;
 };
 
 const initialState: CompleteAssessmentSessionState = {
@@ -18,8 +22,11 @@ const initialState: CompleteAssessmentSessionState = {
 };
 
 export function CompleteAssessmentSessionForm({
+  mode = "token",
   token,
+  tenantSlug = "",
   sessionId,
+  projectQuestionnaireId = "",
 }: CompleteAssessmentSessionFormProps) {
   const [state, formAction, isPending] = useActionState(
     completeAssessmentSessionAction,
@@ -28,8 +35,15 @@ export function CompleteAssessmentSessionForm({
 
   return (
     <form action={formAction} className="space-y-3 rounded-2xl border bg-card p-5">
+      <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="sessionId" value={sessionId} />
+      <input
+        type="hidden"
+        name="projectQuestionnaireId"
+        value={projectQuestionnaireId}
+      />
 
       <div>
         <h2 className="text-lg font-semibold">Zakończ badanie</h2>

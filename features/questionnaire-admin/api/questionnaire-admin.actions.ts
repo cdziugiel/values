@@ -1,3 +1,4 @@
+// features/questionnaire-admin/api/questionnaire-admin.actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -967,5 +968,66 @@ export async function unpublishQuestionnaireVersionAction(
         };
     } catch (error) {
         return fail(error);
+    }
+}
+
+import { importQuestionnaireVersionXlsx } from "./questionnaire-xlsx.import";
+
+export async function importQuestionnaireVersionXlsxAction(
+    _previousState: QuestionnaireAdminActionState,
+    formData: FormData,
+): Promise<QuestionnaireAdminActionState> {
+    const actor = await requireSuperAdmin();
+
+    try {
+        const versionId = String(formData.get("versionId") ?? "");
+        const file = formData.get("file");
+
+        if (!versionId) {
+            return {
+                status: "error",
+                message: "Brak identyfikatora wersji kwestionariusza.",
+            };
+        }
+
+        if (!(file instanceof File)) {
+            return {
+                status: "error",
+                message: "Nie wybrano pliku XLSX.",
+            };
+        }
+
+        if (!file.name.toLowerCase().endsWith(".xlsx")) {
+            return {
+                status: "error",
+                message: "Import obsługuje tylko pliki .xlsx.",
+            };
+        }
+
+        const fileBuffer = await file.arrayBuffer();
+
+        const result = await importQuestionnaireVersionXlsx({
+            actorUserId: actor.id,
+            versionId,
+            fileBuffer,
+        });
+
+        revalidatePath(`/dashboard/questionnaires/editor/${versionId}`);
+        revalidatePath(`/dashboard/questionnaires/preview/${versionId}`);
+
+        return {
+            status: "success",
+            message: `Zaimportowano: ${result.pagesCount} stron, ${result.itemsCount} itemów, ${result.dimensionsCount} wymiarów.`,
+        };
+    } catch (error) {
+        console.error("questionnaire_xlsx_import_failed", error);
+
+        return {
+            status: "error",
+            message:
+                error instanceof Error
+                    ? error.message
+                    : "Nie udało się zaimportować pliku. Sprawdź format arkuszy i spróbuj ponownie.",
+        };
     }
 }

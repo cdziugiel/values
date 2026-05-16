@@ -116,7 +116,17 @@ export function MyAssessmentCardSessionActions({
             name="sessionId"
             value={questionnaire.sessionId ?? ""}
           />
+<input
+  type="hidden"
+  name="source"
+  value={questionnaire.source}
+/>
 
+<input
+  type="hidden"
+  name="projectQuestionnaireId"
+  value={questionnaire.projectQuestionnaireId ?? ""}
+/>
           <Button
             type="submit"
             variant="outline"

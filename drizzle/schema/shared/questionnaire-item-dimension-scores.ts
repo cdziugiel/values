@@ -1,3 +1,4 @@
+// drizzle/schema/shared/questionnaire-item-dimension-scores.ts
 import {
   boolean,
   index,

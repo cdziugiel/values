@@ -139,10 +139,10 @@ export type ReorderQuestionnaireDimensionInput = z.infer<
 >;
 
 export const likertPresetSchema = z.enum([
-    "custom",
     "agreement_7_short",
     "agreement_7_full",
     "frequency_5",
+    "custom",
 ]);
 
 const checkboxBoolean = z
@@ -185,7 +185,7 @@ export const createQuestionnaireItemSchema = z.object({
     numberMax: z.coerce.number().optional().or(z.literal("")),
     numberStep: z.coerce.number().optional().or(z.literal("")),
 
-    likertPreset: likertPresetSchema.optional().default("custom"),
+    likertPreset: likertPresetSchema.optional().default("agreement_7_short"),
     showValueLabels: checkboxBoolean.default(false),
     likertValueLabelsText: optionalString,
 });
@@ -217,7 +217,7 @@ export const updateQuestionnaireItemSchema = z.object({
     numberMax: z.coerce.number().optional().or(z.literal("")),
     numberStep: z.coerce.number().optional().or(z.literal("")),
 
-    likertPreset: likertPresetSchema.optional().default("custom"),
+    likertPreset: likertPresetSchema.optional().default("agreement_7_short"),
     showValueLabels: checkboxBoolean.default(false),
     likertValueLabelsText: optionalString,
 });

@@ -22,7 +22,7 @@ export type MyAssessmentQuestionnaire = {
   questionnaireId: string | null;
   questionnaireVersionId: string | null;
   questionnaireVersionName: string | null;
-
+  projectQuestionnaireId?: string | null;
   tenantSlug?: string | null;
   projectId?: string | null;
   projectName?: string | null;

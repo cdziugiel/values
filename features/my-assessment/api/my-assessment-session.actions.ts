@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
+  assessmentInvitationIndex,
   tenantDatabaseConnections,
   tenants,
 } from "@/drizzle/schema";
@@ -259,6 +260,10 @@ export async function archiveMyCompletedAssessmentSessionAction(
 ): Promise<MyAssessmentSessionActionState> {
   const tenantSlug = String(formData.get("tenantSlug") ?? "");
   const sessionId = String(formData.get("sessionId") ?? "");
+  const source = String(formData.get("source") ?? "");
+  const projectQuestionnaireId = String(
+    formData.get("projectQuestionnaireId") ?? "",
+  );
 
   if (!tenantSlug || !sessionId) {
     return {
@@ -276,37 +281,81 @@ export async function archiveMyCompletedAssessmentSessionAction(
     if (session.sessionStatus !== "completed") {
       throw new Error("Archiwizować można tylko zakończone badanie.");
     }
+    if (source === "invited") {
+      if (!projectQuestionnaireId) {
+        return {
+          status: "error",
+          message: "Brakuje identyfikatora kwestionariusza.",
+        };
+      }
 
+      const now = new Date();
+
+      await controlDb
+        .update(assessmentInvitationIndex)
+        .set({
+          status: "archived",
+          deletedAt: now,
+          lastSyncedAt: now,
+          updatedAt: now,
+          userId: actorUserId,
+        })
+        .where(
+          and(
+            eq(assessmentInvitationIndex.tenantSlug, tenantSlug),
+            eq(assessmentInvitationIndex.tenantSessionId, sessionId),
+            eq(
+              assessmentInvitationIndex.tenantProjectQuestionnaireId,
+              projectQuestionnaireId,
+            ),
+          ),
+        );
+
+      revalidatePath("/my/assessment");
+
+      return ok("Badanie zostało przeniesione do archiwum.");
+    }
+
+    if (source === "public") {
+      const now = new Date();
+
+      await db
+        .update(assessmentSessions)
+        .set({
+          respondentArchivedAt: now,
+          updatedAt: now,
+          updatedBy: actorUserId,
+        })
+        .where(eq(assessmentSessions.id, sessionId));
+
+      await db.insert(tenantAuditLog).values({
+        actorUserId,
+        actorRole: "RESPONDENT",
+        action: "assessment_session_archived_by_respondent",
+        entityType: "assessment_session",
+        entityId: sessionId,
+        after: {
+          respondentArchivedAt: now.toISOString(),
+          source,
+          projectQuestionnaireId: projectQuestionnaireId || null,
+        },
+      });
+
+      revalidatePath("/my/assessment");
+
+      return ok("Badanie zostało przeniesione do archiwum.");
+    }
     const now = new Date();
 
-    await db
-      .update(assessmentSessions)
-      .set({
-        respondentArchivedAt: now,
-        updatedAt: now,
-        updatedBy: actorUserId,
-      })
-      .where(eq(assessmentSessions.id, sessionId));
 
-    await archiveAssessmentInvitationIndexBySession({
-      tenantSlug,
-      tenantSessionId: sessionId,
-      userId: actorUserId,
-    });
-    await db.insert(tenantAuditLog).values({
-      actorUserId,
-      actorRole: "RESPONDENT",
-      action: "assessment_session_archived_by_respondent",
-      entityType: "assessment_session",
-      entityId: sessionId,
-      after: {
-        respondentArchivedAt: now.toISOString(),
-      },
-    });
 
-    revalidatePath("/my/assessment");
 
-    return ok("Badanie zostało przeniesione do archiwum.");
+    return {
+      status: "error",
+      message: "Nieznany typ badania do archiwizacji.",
+    };
+
+
   } catch (error) {
     return fail(error);
   }

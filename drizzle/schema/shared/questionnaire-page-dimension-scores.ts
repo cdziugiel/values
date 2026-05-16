@@ -1,3 +1,4 @@
+// drizzle/schema/shared/questionnaire-page-dimension-scores.ts
 import { sql } from "drizzle-orm";
 import {
   boolean,

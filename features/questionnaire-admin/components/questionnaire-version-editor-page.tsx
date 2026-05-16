@@ -14,6 +14,7 @@ import { QuestionnaireVersionClonePanel } from "./questionnaire-version-clone-pa
 
 import { getQuestionnaireReportTemplateAdminData } from "../api/questionnaire-report-template.queries";
 import { QuestionnaireReportTemplateSection } from "../components/questionnaire-report-template-section";
+import { QuestionnaireXlsxImportExportPanel } from "./questionnaire-xlsx-import-export-panel";
 
 type QuestionnaireVersionEditorPageProps = {
   versionId: string;
@@ -59,6 +60,7 @@ export async function QuestionnaireVersionEditorPage({
         }
       />
 
+            <QuestionnaireXlsxImportExportPanel versionId={versionId} />
       <QuestionnaireVersionPublishPanel
         versionId={versionId}
         status={data.version.status}

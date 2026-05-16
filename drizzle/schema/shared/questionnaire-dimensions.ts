@@ -1,3 +1,4 @@
+// drizzle/schema/shared/questionnaire-dimensions.ts
 import {
   index,
   integer,

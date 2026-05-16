@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
+// features/questionnaire-admin/api/questionnaire-admin.mutations.ts
+import { and, asc, desc, eq, gt, inArray, isNull, lt } from "drizzle-orm";
 import { validateQuestionnaireVersionForPublishing } from "./questionnaire-version-publishing.validation";
 import {
   questionnaireDimensions,
@@ -18,7 +19,11 @@ import {
   assertQuestionnairePageVersionIsDraft,
   assertQuestionnaireVersionIsDraft,
 } from "./questionnaire-version-guards";
-
+import type {
+  ReplaceQuestionnaireVersionStructureFromImportInput,
+  ReplaceQuestionnaireVersionStructureFromImportResult,
+  QuestionnaireItemType,
+} from "../types/questionnaire-admin.types";
 import {
   assignItemDimensionSchema,
   createQuestionnaireDimensionSchema,
@@ -2201,4 +2206,403 @@ export async function unpublishQuestionnaireVersionAsSuperAdmin({
   });
 
   return unpublished;
+}
+
+
+const IMPORT_ALLOWED_ITEM_TYPES: QuestionnaireItemType[] = [
+  "likert",
+  "true_false",
+  "single_choice",
+  "multiple_choice",
+  "text",
+  "number",
+];
+
+function assertUniqueImportCodes(
+  rows: { code: string }[],
+  entityLabel: string,
+) {
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    const code = row.code.trim();
+
+    if (!code) {
+      throw new Error(`${entityLabel}: pusty code.`);
+    }
+
+    if (seen.has(code)) {
+      throw new Error(`${entityLabel}: duplikat code "${code}".`);
+    }
+
+    seen.add(code);
+  }
+}
+
+function assertUniqueOrderIndexes(
+  rows: { orderIndex: number; code: string }[],
+  entityLabel: string,
+) {
+  const seen = new Set<number>();
+
+  for (const row of rows) {
+    if (!Number.isInteger(row.orderIndex)) {
+      throw new Error(`${entityLabel}: orderIndex dla "${row.code}" musi być liczbą całkowitą.`);
+    }
+
+    if (seen.has(row.orderIndex)) {
+      throw new Error(`${entityLabel}: duplikat orderIndex "${row.orderIndex}".`);
+    }
+
+    seen.add(row.orderIndex);
+  }
+}
+
+function assertImportWeight(value: string, context: string) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${context}: weight musi być liczbą.`);
+  }
+}
+
+function normalizeImportJsonValue(value: unknown, fallback: unknown) {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  return value;
+}
+
+export async function replaceQuestionnaireVersionStructureFromImport({
+  actorUserId,
+  input,
+}: {
+  actorUserId: string;
+  input: ReplaceQuestionnaireVersionStructureFromImportInput;
+}): Promise<ReplaceQuestionnaireVersionStructureFromImportResult> {
+  await assertQuestionnaireVersionIsDraft(input.versionId);
+
+  const version = await controlDb.query.questionnaireVersions.findFirst({
+    where: and(
+      eq(questionnaireVersions.id, input.versionId),
+      isNull(questionnaireVersions.deletedAt),
+    ),
+  });
+
+  if (!version) {
+    throw new Error("Nie znaleziono wersji kwestionariusza.");
+  }
+
+  assertUniqueImportCodes(input.dimensions, "Wymiary");
+  assertUniqueImportCodes(input.pages, "Strony");
+  assertUniqueImportCodes(input.items, "Itemy");
+
+  assertUniqueOrderIndexes(input.dimensions, "Wymiary");
+  assertUniqueOrderIndexes(input.pages, "Strony");
+  assertUniqueOrderIndexes(input.items, "Itemy");
+
+  const dimensionCodes = new Set(input.dimensions.map((dimension) => dimension.code));
+  const pageCodes = new Set(input.pages.map((page) => page.code));
+  const itemCodes = new Set(input.items.map((item) => item.code));
+
+  for (const dimension of input.dimensions) {
+    if (!dimension.name.trim()) {
+      throw new Error(`Wymiar "${dimension.code}" nie ma nazwy.`);
+    }
+  }
+
+  for (const page of input.pages) {
+    if (!page.title.trim()) {
+      throw new Error(`Strona "${page.code}" nie ma tytułu.`);
+    }
+  }
+
+  for (const item of input.items) {
+    if (!IMPORT_ALLOWED_ITEM_TYPES.includes(item.type)) {
+      throw new Error(`Item "${item.code}" ma nieobsługiwany typ: ${item.type}.`);
+    }
+
+    if (!item.text.trim()) {
+      throw new Error(`Item "${item.code}" nie ma treści.`);
+    }
+
+    if (item.pageCode && !pageCodes.has(item.pageCode)) {
+      throw new Error(
+        `Item "${item.code}" wskazuje nieistniejącą stronę "${item.pageCode}".`,
+      );
+    }
+
+    if (
+      item.type === "likert" &&
+      item.scaleMin !== null &&
+      item.scaleMax !== null &&
+      item.scaleMin >= item.scaleMax
+    ) {
+      throw new Error(
+        `Item "${item.code}" ma niepoprawną skalę Likerta: scaleMin >= scaleMax.`,
+      );
+    }
+  }
+
+  for (const score of input.itemDimensions) {
+    if (!itemCodes.has(score.itemCode)) {
+      throw new Error(
+        `Przypisanie wymiaru do itemu wskazuje nieistniejący item "${score.itemCode}".`,
+      );
+    }
+
+    if (!dimensionCodes.has(score.dimensionCode)) {
+      throw new Error(
+        `Przypisanie itemu "${score.itemCode}" wskazuje nieistniejący wymiar "${score.dimensionCode}".`,
+      );
+    }
+
+    assertImportWeight(
+      score.weight,
+      `Przypisanie itemu "${score.itemCode}" do wymiaru "${score.dimensionCode}"`,
+    );
+  }
+
+  for (const score of input.pageDimensions) {
+    if (!pageCodes.has(score.pageCode)) {
+      throw new Error(
+        `Przypisanie wymiaru do strony wskazuje nieistniejącą stronę "${score.pageCode}".`,
+      );
+    }
+
+    if (!dimensionCodes.has(score.dimensionCode)) {
+      throw new Error(
+        `Przypisanie strony "${score.pageCode}" wskazuje nieistniejący wymiar "${score.dimensionCode}".`,
+      );
+    }
+
+    assertImportWeight(
+      score.weight,
+      `Przypisanie strony "${score.pageCode}" do wymiaru "${score.dimensionCode}"`,
+    );
+  }
+
+  const result = await controlDb.transaction(async (tx) => {
+    const existingItems = await tx
+      .select({ id: questionnaireItems.id })
+      .from(questionnaireItems)
+      .where(eq(questionnaireItems.questionnaireVersionId, input.versionId));
+
+    const existingPages = await tx
+      .select({ id: questionnairePages.id })
+      .from(questionnairePages)
+      .where(eq(questionnairePages.questionnaireVersionId, input.versionId));
+
+    const existingDimensions = await tx
+      .select({ id: questionnaireDimensions.id })
+      .from(questionnaireDimensions)
+      .where(eq(questionnaireDimensions.questionnaireVersionId, input.versionId));
+
+    const existingItemIds = existingItems.map((item) => item.id);
+    const existingPageIds = existingPages.map((page) => page.id);
+    const existingDimensionIds = existingDimensions.map((dimension) => dimension.id);
+
+    if (existingItemIds.length > 0) {
+      await tx
+        .delete(questionnaireItemDimensionScores)
+        .where(
+          inArray(
+            questionnaireItemDimensionScores.questionnaireItemId,
+            existingItemIds,
+          ),
+        );
+    }
+
+    if (existingPageIds.length > 0) {
+      await tx
+        .delete(questionnairePageDimensionScores)
+        .where(
+          inArray(
+            questionnairePageDimensionScores.questionnairePageId,
+            existingPageIds,
+          ),
+        );
+    }
+
+    if (existingItemIds.length > 0) {
+      await tx
+        .delete(questionnaireItems)
+        .where(inArray(questionnaireItems.id, existingItemIds));
+    }
+
+    if (existingPageIds.length > 0) {
+      await tx
+        .delete(questionnairePages)
+        .where(inArray(questionnairePages.id, existingPageIds));
+    }
+
+    if (existingDimensionIds.length > 0) {
+      await tx
+        .delete(questionnaireDimensions)
+        .where(inArray(questionnaireDimensions.id, existingDimensionIds));
+    }
+
+    const insertedDimensions =
+      input.dimensions.length > 0
+        ? await tx
+            .insert(questionnaireDimensions)
+            .values(
+              input.dimensions.map((dimension) => ({
+                questionnaireVersionId: input.versionId,
+                code: dimension.code.trim(),
+                name: dimension.name.trim(),
+                description: nullIfEmpty(dimension.description),
+                category: nullIfEmpty(dimension.category),
+                orderIndex: dimension.orderIndex,
+                createdBy: actorUserId,
+                updatedBy: actorUserId,
+              })),
+            )
+            .returning({
+              id: questionnaireDimensions.id,
+              code: questionnaireDimensions.code,
+            })
+        : [];
+
+    const dimensionIdByCode = new Map(
+      insertedDimensions.map((dimension) => [dimension.code, dimension.id]),
+    );
+
+    const insertedPages =
+      input.pages.length > 0
+        ? await tx
+            .insert(questionnairePages)
+            .values(
+              input.pages.map((page) => ({
+                questionnaireVersionId: input.versionId,
+                code: page.code.trim(),
+                title: page.title.trim(),
+                description: nullIfEmpty(page.description),
+                orderIndex: page.orderIndex,
+                createdBy: actorUserId,
+                updatedBy: actorUserId,
+              })),
+            )
+            .returning({
+              id: questionnairePages.id,
+              code: questionnairePages.code,
+            })
+        : [];
+
+    const pageIdByCode = new Map(
+      insertedPages.map((page) => [page.code, page.id]),
+    );
+
+    const insertedItems =
+      input.items.length > 0
+        ? await tx
+            .insert(questionnaireItems)
+            .values(
+              input.items.map((item) => ({
+                questionnaireVersionId: input.versionId,
+                questionnairePageId: item.pageCode
+                  ? pageIdByCode.get(item.pageCode) ?? null
+                  : null,
+                code: item.code.trim(),
+                orderIndex: item.orderIndex,
+                type: item.type,
+                text: item.text.trim(),
+                helpText: nullIfEmpty(item.helpText),
+                required: item.required,
+                scaleMin: item.scaleMin,
+                scaleMax: item.scaleMax,
+                scaleMinLabel: nullIfEmpty(item.scaleMinLabel),
+                scaleMaxLabel: nullIfEmpty(item.scaleMaxLabel),
+                options: normalizeImportJsonValue(item.options, []),
+                responseConfig: normalizeImportJsonValue(item.responseConfig, {}),
+                createdBy: actorUserId,
+                updatedBy: actorUserId,
+              })),
+            )
+            .returning({
+              id: questionnaireItems.id,
+              code: questionnaireItems.code,
+            })
+        : [];
+
+    const itemIdByCode = new Map(
+      insertedItems.map((item) => [item.code, item.id]),
+    );
+
+    if (input.pageDimensions.length > 0) {
+      await tx.insert(questionnairePageDimensionScores).values(
+        input.pageDimensions.map((score) => {
+          const pageId = pageIdByCode.get(score.pageCode);
+          const dimensionId = dimensionIdByCode.get(score.dimensionCode);
+
+          if (!pageId || !dimensionId) {
+            throw new Error(
+              `Nie udało się rozwiązać przypisania strony "${score.pageCode}" do wymiaru "${score.dimensionCode}".`,
+            );
+          }
+
+          return {
+            questionnairePageId: pageId,
+            questionnaireDimensionId: dimensionId,
+            weight: score.weight,
+            reverseScored: score.reverseScored,
+            createdBy: actorUserId,
+            updatedBy: actorUserId,
+          };
+        }),
+      );
+    }
+
+    if (input.itemDimensions.length > 0) {
+      await tx.insert(questionnaireItemDimensionScores).values(
+        input.itemDimensions.map((score) => {
+          const itemId = itemIdByCode.get(score.itemCode);
+          const dimensionId = dimensionIdByCode.get(score.dimensionCode);
+
+          if (!itemId || !dimensionId) {
+            throw new Error(
+              `Nie udało się rozwiązać przypisania itemu "${score.itemCode}" do wymiaru "${score.dimensionCode}".`,
+            );
+          }
+
+          return {
+            questionnaireItemId: itemId,
+            questionnaireDimensionId: dimensionId,
+            weight: score.weight,
+            reverseScored: score.reverseScored,
+            createdBy: actorUserId,
+            updatedBy: actorUserId,
+          };
+        }),
+      );
+    }
+
+    return {
+      dimensionsCount: input.dimensions.length,
+      pagesCount: input.pages.length,
+      itemsCount: input.items.length,
+      itemDimensionsCount: input.itemDimensions.length,
+      pageDimensionsCount: input.pageDimensions.length,
+    };
+  });
+
+  await controlDb.insert(systemAuditLog).values({
+    actorUserId,
+    actorRole: "SUPER_ADMIN",
+    action: "questionnaire_version_structure_imported",
+    entityType: "questionnaire_version",
+    entityId: input.versionId,
+    after: {
+      questionnaireId: version.questionnaireId,
+      version: version.version,
+      dimensionsCount: result.dimensionsCount,
+      pagesCount: result.pagesCount,
+      itemsCount: result.itemsCount,
+      itemDimensionsCount: result.itemDimensionsCount,
+      pageDimensionsCount: result.pageDimensionsCount,
+    },
+  });
+
+  return result;
 }
