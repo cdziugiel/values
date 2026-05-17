@@ -59,6 +59,7 @@ type AssessmentResponseFormProps = {
   items: AssessmentResponseFormItem[];
   mode?: "token" | "my-assessment";
   tenantSlug?: string;
+  isSuperAdmin?: boolean;
 };
 
 const initialState: SaveAssessmentResponsesState = {
@@ -622,7 +623,194 @@ function AssessmentItemInput({
     </p>
   );
 }
+function waitForNextFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
 
+function getRandomInteger(min: number, max: number) {
+  const safeMin = Math.ceil(min);
+  const safeMax = Math.floor(max);
+
+  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+}
+
+function getRandomArrayItem<T>(items: T[]) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return items[getRandomInteger(0, items.length - 1)] ?? null;
+}
+
+function shuffleArray<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function getRandomTextAnswer(item: AssessmentResponseFormItem) {
+  const responseConfig = normalizeResponseConfig(item.responseConfig);
+  const maxLength = getNumberConfig(responseConfig, "maxLength", 1000);
+
+  const value = `Odpowiedź testowa superadmin — ${item.code}`;
+
+  return value.slice(0, maxLength);
+}
+
+function getRandomNumberAnswer(item: AssessmentResponseFormItem) {
+  const responseConfig = normalizeResponseConfig(item.responseConfig);
+
+  const min =
+    typeof responseConfig.min === "number" && Number.isFinite(responseConfig.min)
+      ? responseConfig.min
+      : item.scaleMin ?? 1;
+
+  const max =
+    typeof responseConfig.max === "number" && Number.isFinite(responseConfig.max)
+      ? responseConfig.max
+      : item.scaleMax ?? 10;
+
+  const step = getNumberConfig(responseConfig, "step", 1);
+
+  if (step <= 0) {
+    return getRandomInteger(min, max);
+  }
+
+  const stepsCount = Math.max(0, Math.floor((max - min) / step));
+  const randomStep = getRandomInteger(0, stepsCount);
+
+  return Number((min + randomStep * step).toFixed(6));
+}
+
+function getRandomAnswerForItem(item: AssessmentResponseFormItem) {
+  const options = normalizeOptions(item.options);
+
+  if (item.type === "likert") {
+    return getRandomArrayItem(createLikertValues(item));
+  }
+
+  if (item.type === "true_false") {
+    const trueFalseOptions =
+      options.length > 0
+        ? options
+        : [
+          { value: true, label: "Prawda" },
+          { value: false, label: "Fałsz" },
+        ];
+
+    const selected = getRandomArrayItem(trueFalseOptions);
+
+    return selected ? optionValueToString(selected.value) : "true";
+  }
+
+  if (item.type === "single_choice") {
+    const selected = getRandomArrayItem(options);
+
+    return selected ? optionValueToString(selected.value) : null;
+  }
+
+  if (item.type === "multiple_choice") {
+    if (options.length === 0) {
+      return [];
+    }
+
+    const maxSelectedCount = Math.min(3, options.length);
+    const selectedCount = item.required
+      ? getRandomInteger(1, maxSelectedCount)
+      : getRandomInteger(0, maxSelectedCount);
+
+    return shuffleArray(options)
+      .slice(0, selectedCount)
+      .map((option) => optionValueToString(option.value));
+  }
+
+  if (item.type === "text") {
+    return getRandomTextAnswer(item);
+  }
+
+  if (item.type === "number") {
+    return getRandomNumberAnswer(item);
+  }
+
+  return null;
+}
+
+function dispatchControlChange(control: HTMLElement) {
+  control.dispatchEvent(new Event("input", { bubbles: true }));
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function fillRandomAnswerForItem(
+  form: HTMLFormElement,
+  item: AssessmentResponseFormItem,
+) {
+  const fieldName = buildFieldName(item);
+  const answer = getRandomAnswerForItem(item);
+
+  if (answer === null) {
+    return;
+  }
+
+  const controls = Array.from(
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+      "input[name], textarea[name]",
+    ),
+  ).filter((control) => control.name === fieldName);
+
+  if (controls.length === 0) {
+    return;
+  }
+
+  const firstControl = controls[0];
+
+  if (!firstControl) {
+    return;
+  }
+
+  if (firstControl instanceof HTMLInputElement && firstControl.type === "radio") {
+    const selectedValue = String(answer);
+    const matchingControl =
+      controls.find(
+        (control) =>
+          control instanceof HTMLInputElement &&
+          control.value === selectedValue,
+      ) ?? getRandomArrayItem(controls);
+
+    if (matchingControl instanceof HTMLInputElement) {
+      matchingControl.checked = true;
+      dispatchControlChange(matchingControl);
+    }
+
+    return;
+  }
+
+  if (
+    firstControl instanceof HTMLInputElement &&
+    firstControl.type === "checkbox"
+  ) {
+    const selectedValues = Array.isArray(answer) ? answer.map(String) : [];
+
+    controls.forEach((control) => {
+      if (control instanceof HTMLInputElement) {
+        control.checked = selectedValues.includes(control.value);
+        dispatchControlChange(control);
+      }
+    });
+
+    return;
+  }
+
+  if (firstControl instanceof HTMLInputElement) {
+    firstControl.value = String(answer);
+    dispatchControlChange(firstControl);
+    return;
+  }
+
+  if (firstControl instanceof HTMLTextAreaElement) {
+    firstControl.value = String(answer);
+    dispatchControlChange(firstControl);
+  }
+}
 export function AssessmentResponseForm({
   token,
   sessionId,
@@ -630,6 +818,7 @@ export function AssessmentResponseForm({
   mode = "token",
   tenantSlug = "",
   projectQuestionnaireId,
+  isSuperAdmin = false,
 }: AssessmentResponseFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -640,6 +829,7 @@ export function AssessmentResponseForm({
   });
 
   const [isPending, startTransition] = useTransition();
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
 
   const pageGroups = useMemo(() => {
     const itemsByVersion = items.reduce<
@@ -726,6 +916,21 @@ export function AssessmentResponseForm({
     return new FormData(formRef.current);
   }
 
+
+  async function saveFormData(formData: FormData) {
+    const nextState = await saveAssessmentResponsesAction(
+      {
+        status: "idle",
+        message: "",
+      },
+      formData,
+    );
+
+    setState(nextState);
+
+    return nextState;
+  }
+
   function saveCurrentForm(options?: {
     onSuccess?: () => void;
     onError?: () => void;
@@ -742,15 +947,7 @@ export function AssessmentResponseForm({
     }
 
     startTransition(async () => {
-      const nextState = await saveAssessmentResponsesAction(
-        {
-          status: "idle",
-          message: "",
-        },
-        formData,
-      );
-
-      setState(nextState);
+      const nextState = await saveFormData(formData);
 
       if (nextState.status === "success") {
         options?.onSuccess?.();
@@ -758,6 +955,70 @@ export function AssessmentResponseForm({
         options?.onError?.();
       }
     });
+  }
+
+  async function fillAllPagesRandomlyForSuperAdmin() {
+    if (!isSuperAdmin || isAutoFilling) {
+      return;
+    }
+
+    const form = formRef.current;
+
+    if (!form) {
+      setState({
+        status: "error",
+        message: "Nie udało się odczytać formularza.",
+      });
+      return;
+    }
+
+    setIsAutoFilling(true);
+    setState({
+      status: "idle",
+      message: "",
+    });
+
+    try {
+      for (let pageIndex = 0; pageIndex < pageGroups.length; pageIndex += 1) {
+        setCurrentPageIndex(pageIndex);
+        await waitForNextFrame();
+
+        const page = pageGroups[pageIndex];
+
+        if (!page) {
+          continue;
+        }
+
+        page.items.forEach((item) => {
+          fillRandomAnswerForItem(form, item);
+        });
+
+        const saveState = await saveFormData(new FormData(form));
+
+        if (saveState.status !== "success") {
+          setState({
+            status: "error",
+            message:
+              saveState.message ||
+              "Nie udało się zapisać losowych odpowiedzi.",
+          });
+
+          return;
+        }
+      }
+
+      setCurrentPageIndex(pageGroups.length - 1);
+
+      setState({
+        status: "success",
+        message:
+          "Losowe odpowiedzi zostały zaznaczone i zapisane na wszystkich stronach. Sprawdź je, a następnie świadomie kliknij „Zakończ badanie”.",
+      });
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setIsAutoFilling(false);
+    }
   }
 
   function goToPreviousPage() {
@@ -786,59 +1047,53 @@ export function AssessmentResponseForm({
     });
   }
 
-function finishAssessment() {
-  const form = formRef.current;
+  function finishAssessment() {
+    const form = formRef.current;
 
-  if (form && !form.reportValidity()) {
-    return;
-  }
-
-  const formData = getFormData();
-
-  if (!formData) {
-    setState({
-      status: "error",
-      message: "Nie udało się odczytać formularza.",
-    });
-    return;
-  }
-
-  startTransition(async () => {
-    const saveState = await saveAssessmentResponsesAction(
-      {
-        status: "idle",
-        message: "",
-      },
-      formData,
-    );
-
-    setState(saveState);
-
-    if (saveState.status !== "success") {
+    if (form && !form.reportValidity()) {
       return;
     }
 
-    const completeFormData = new FormData();
-    completeFormData.set("token", token);
-    completeFormData.set("sessionId", sessionId);
-    completeFormData.set("mode", mode);
-    completeFormData.set("tenantSlug", tenantSlug);
-    completeFormData.set("projectQuestionnaireId", projectQuestionnaireId ?? "");
+    const formData = getFormData();
 
-    const completeState = await completeAssessmentSessionAction(
-      {
-        status: "idle",
-        message: "",
-      },
-      completeFormData,
-    );
+    if (!formData) {
+      setState({
+        status: "error",
+        message: "Nie udało się odczytać formularza.",
+      });
+      return;
+    }
 
-    setState({
-      status: completeState.status,
-      message: completeState.message,
+    startTransition(async () => {
+      const saveState = await saveFormData(formData);
+
+      setState(saveState);
+
+      if (saveState.status !== "success") {
+        return;
+      }
+
+      const completeFormData = new FormData();
+      completeFormData.set("token", token);
+      completeFormData.set("sessionId", sessionId);
+      completeFormData.set("mode", mode);
+      completeFormData.set("tenantSlug", tenantSlug);
+      completeFormData.set("projectQuestionnaireId", projectQuestionnaireId ?? "");
+
+      const completeState = await completeAssessmentSessionAction(
+        {
+          status: "idle",
+          message: "",
+        },
+        completeFormData,
+      );
+
+      setState({
+        status: completeState.status,
+        message: completeState.message,
+      });
     });
-  });
-}
+  }
 
   if (pageGroups.length === 0 || !currentPage) {
     return (
@@ -863,7 +1118,7 @@ function finishAssessment() {
           name="projectQuestionnaireId"
           value={projectQuestionnaireId}
         />
-        
+
 
         <section className="rounded-2xl border bg-card p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -977,7 +1232,7 @@ function finishAssessment() {
         <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
-            disabled={isFirstPage || isPending}
+            disabled={isFirstPage || isPending || isAutoFilling}
             onClick={goToPreviousPage}
             className="inline-flex h-10 items-center justify-center rounded-md border bg-background px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -985,10 +1240,23 @@ function finishAssessment() {
           </button>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {isSuperAdmin ? (
+              <button
+                type="button"
+                disabled={isPending || isAutoFilling}
+                onClick={fillAllPagesRandomlyForSuperAdmin}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-medium text-amber-900 disabled:opacity-60"
+              >
+                {isAutoFilling
+                  ? "Losowe uzupełnianie..."
+                  : "Losowo uzupełnij wszystkie strony"}
+              </button>
+            ) : null}
+
             {!isLastPage ? (
               <button
                 type="button"
-                disabled={isPending}
+                disabled={isPending || isAutoFilling}
                 onClick={goToNextPage}
                 className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
               >
@@ -997,7 +1265,7 @@ function finishAssessment() {
             ) : (
               <button
                 type="button"
-                disabled={isPending}
+                disabled={isPending || isAutoFilling}
                 onClick={finishAssessment}
                 className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
               >

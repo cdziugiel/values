@@ -1,3 +1,5 @@
+// server/auth/require-super-admin.ts
+
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 

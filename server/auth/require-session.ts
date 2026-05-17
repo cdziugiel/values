@@ -1,3 +1,5 @@
+// server/auth/require-session.ts
+
 import { redirect } from "next/navigation";
 
 import { getCurrentSession } from "./get-session";

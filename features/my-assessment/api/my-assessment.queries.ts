@@ -2,7 +2,7 @@
 
 
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-
+import { resolveMyAssessmentQuestionnaireStatus } from "../lib/resolve-my-assessment-questionnaire-status";
 import {
   assessmentInvitationIndex,
   questionnaireVersions,
@@ -34,16 +34,6 @@ const DEFAULT_PUBLIC_TENANT_SLUG = "humanet";
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
   return normalized || null;
-}
-
-function mapSessionStatusToCardStatus(
-  status: string | null,
-): MyAssessmentQuestionnaireStatus {
-  if (status === "completed") return "completed";
-  if (status === "in_progress") return "in_progress";
-  if (status === "not_started") return "available";
-
-  return "available";
 }
 
 
@@ -302,7 +292,10 @@ export async function getMyAssessments(): Promise<MyAssessment> {
           code: row.questionnaireCode,
           name: row.questionnaireName,
           description: row.questionnaireDescription,
-          status: mapSessionStatusToCardStatus(activeSession.sessionStatus),
+          status: resolveMyAssessmentQuestionnaireStatus({
+            sessionStatus: activeSession.sessionStatus,
+            completedAt: activeSession.completedAt,
+          }),
           estimatedMinutes: null,
 
           questionnaireId: row.questionnaireId,
@@ -409,26 +402,24 @@ export async function getMyAssessments(): Promise<MyAssessment> {
     if (looksLikePublicMirror) {
       continue;
     }
-    const status: MyAssessmentQuestionnaireStatus =
-      row.status === "completed"
-        ? "completed"
-        : row.status === "in_progress"
-          ? "in_progress"
-          : "available";
+    const status = resolveMyAssessmentQuestionnaireStatus({
+      sessionStatus: row.status,
+      completedAt: row.completedAt,
+    });
 
     const actionHref =
-      row.status === "completed" && row.tenantSessionId
+      status === "completed" && row.tenantSessionId
         ? `/my/assessment/sessions/${encodeURIComponent(row.tenantSessionId)}` +
-        `/completed?tenant=${encodeURIComponent(row.tenantSlug)}`
-        : row.status === "in_progress" && row.tenantSessionId
+          `/completed?tenant=${encodeURIComponent(row.tenantSlug)}`
+        : status === "in_progress" && row.tenantSessionId
           ? buildMyQuestionnaireHref({
-            tenantSlug: row.tenantSlug,
-            sessionId: row.tenantSessionId,
-            projectQuestionnaireId: row.tenantProjectQuestionnaireId,
-          })
+              tenantSlug: row.tenantSlug,
+              sessionId: row.tenantSessionId,
+              projectQuestionnaireId: row.tenantProjectQuestionnaireId,
+            })
           : buildInvitationStartHref({
-            invitationId: row.id,
-          });
+              invitationId: row.id,
+            });
 
     invitedQuestionnaires.push({
       id: `invitation:${row.id}`,
@@ -456,16 +447,14 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       projectName: row.projectNameSnapshot,
       projectQuestionnaireId: row.tenantProjectQuestionnaireId,
       sessionId:
-        row.status === "in_progress" || row.status === "completed"
+        status === "in_progress" || status === "completed"
           ? row.tenantSessionId
           : null,
 
       sessionStatus:
-        row.status === "completed"
-          ? "completed"
-          : row.status === "in_progress"
-            ? "in_progress"
-            : null,
+        status === "completed" || status === "in_progress"
+          ? status
+          : null,
 
       createdAt: row.invitedAt,
       updatedAt: row.updatedAt,

@@ -4,6 +4,11 @@ import Link from "next/link";
 
 import { AssessmentResponseForm } from "@/features/public-assessment";
 import { resolveMyAssessmentSessionQuestionnaireForm } from "@/features/my-assessment/api/resolve-my-assessment-session-questionnaire-form";
+import { eq } from "drizzle-orm";
+
+import { users } from "@/drizzle/schema";
+import { controlDb } from "@/server/db/control-db";
+import { getCurrentSession } from "@/server/auth/get-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,7 +26,23 @@ type PageProps = {
 export default async function Page({ params, searchParams }: PageProps) {
   const { sessionId, projectQuestionnaireId } = await params;
   const { tenant } = await searchParams;
-  
+
+  const session = await getCurrentSession();
+
+  const currentUser = session?.user?.id
+    ? await controlDb.query.users.findFirst({
+      where: eq(users.id, session.user.id),
+      columns: {
+        id: true,
+        globalRole: true,
+        status: true,
+      },
+    })
+    : null;
+
+  const isSuperAdmin =
+    currentUser?.status === "active" &&
+    currentUser.globalRole === "SUPER_ADMIN";
 
   const result = await resolveMyAssessmentSessionQuestionnaireForm({
     tenantSlug: tenant ?? "",
@@ -89,6 +110,7 @@ export default async function Page({ params, searchParams }: PageProps) {
           sessionId={sessionId}
           projectQuestionnaireId={projectQuestionnaireId}
           items={data.items}
+          isSuperAdmin={isSuperAdmin}
         />
       </div>
     </main>
