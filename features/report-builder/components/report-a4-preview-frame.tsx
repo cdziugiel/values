@@ -2,6 +2,12 @@
 "use client";
 
 import { useMemo } from "react";
+import {
+  getReportComponentsCss,
+  normalizeReportComponentBindings,
+  renderReportComponent,
+} from "../lib/report-components";
+import { buildReportContext } from "../lib/report-context";
 
 type ReportA4PreviewFrameProps = {
   page: any;
@@ -13,6 +19,38 @@ function escapeClosingScript(value: string) {
   return value.replace(/<\/script/gi, "<\\/script");
 }
 
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderPreviewComponentBindings({
+  html,
+  page,
+  context,
+}: {
+  html: string;
+  page: any;
+  context: ReturnType<typeof buildReportContext>;
+}) {
+  const bindings = normalizeReportComponentBindings(page.componentBindings);
+
+  return bindings.reduce((currentHtml, binding) => {
+    const renderedComponent = renderReportComponent({ binding, context });
+
+    const slotPattern = new RegExp(
+      `<([a-zA-Z][\\w:-]*)\\b([^>]*?)data-report-slot=["']${escapeRegExp(
+        binding.slot,
+      )}["']([^>]*)>([\\s\\S]*?)<\\/\\1>`,
+      "g",
+    );
+
+    return currentHtml.replace(slotPattern, (_match, tagName, before, after) => {
+      return `<${tagName}${before}data-report-slot="${binding.slot}"${after}>${renderedComponent}</${tagName}>`;
+    });
+  }, html);
+}
+
 function buildPreviewHtml({
   page,
   reportTemplateVersion,
@@ -22,13 +60,15 @@ function buildPreviewHtml({
   reportTemplateVersion: any;
   pageSizeClass: string;
 }) {
-  const globalCss = reportTemplateVersion.globalCss ?? "";
+  const globalCss = `
+    ${getReportComponentsCss()}
+    ${reportTemplateVersion.globalCss ?? ""}
+  `;
   const pageCss = page.css ?? "";
 
   const globalJs = escapeClosingScript(reportTemplateVersion.globalJs ?? "");
   const pageJs = escapeClosingScript(page.js ?? "");
 
-  const html = page.html ?? "";
 
   const reportContext = {
     mode: "builder-preview",
@@ -79,6 +119,12 @@ function buildPreviewHtml({
       ],
     },
   };
+  const context = buildReportContext(reportContext.samplePayload);
+  const html = renderPreviewComponentBindings({
+    html: page.html ?? "",
+    page,
+    context,
+  });
 
   return `
 <!doctype html>

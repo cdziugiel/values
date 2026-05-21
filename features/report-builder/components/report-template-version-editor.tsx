@@ -77,6 +77,8 @@ function ReportTemplateVersionSettingsForm({
         stringifyJson(reportTemplateVersion.dataBindings, {}),
     );
 
+    const [showConfigDetails, setShowConfigDetails] = useState(false);
+
     return (
         <form action={formAction} className="space-y-4 rounded-2xl border bg-card p-5">
             <input
@@ -86,10 +88,28 @@ function ReportTemplateVersionSettingsForm({
             />
 
             <div className="flex items-start gap-3">
-                <Settings2 className="mt-1 h-5 w-5 text-muted-foreground" />
 
                 <div>
-                    <h2 className="text-lg font-semibold">Ustawienia wersji raportu</h2>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex items-center justify-center space-2"
+                        onClick={() => setShowConfigDetails(!showConfigDetails)}
+                    >
+                        <Settings2 className="mt-1 h-5 w-5 text-muted-foreground" />
+                        {showConfigDetails ? (
+                            <>
+                                <ChevronDown className="h-4 w-4" />
+
+                            </>
+                        ) : (
+                            <>
+                                <ChevronRight className="h-4 w-4" />
+
+                            </>
+                        )}
+                        <h2 className="text-lg font-semibold">Ustawienia wersji raportu</h2>
+                    </Button>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Globalny CSS/JS działa na wszystkich stronach raportu. Kod JS będzie
                         wykonywany dopiero w sandboxowanym podglądzie.
@@ -97,92 +117,95 @@ function ReportTemplateVersionSettingsForm({
                 </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
-                <Input name="name" defaultValue={reportTemplateVersion.name} required />
+            {showConfigDetails && <div className="space-y-4 rounded-2xl border bg-card p-5">
+                <div className="grid gap-3 md:grid-cols-4">
+                    <Input name="name" defaultValue={reportTemplateVersion.name} required />
 
-                <Input
-                    name="description"
-                    defaultValue={reportTemplateVersion.description ?? ""}
-                    placeholder="Opis wersji"
-                />
-
-
-                <select
-                    name="orientation"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                    defaultValue={reportTemplateVersion.orientation ?? "portrait"}
-                >
-                    <option value="portrait">A4 pionowo</option>
-                    <option value="landscape">A4 poziomo</option>
-                </select>
-            </div>
-
-
-
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <div className="text-sm font-medium">Global CSS</div>
-                    <textarea
-                        name="globalCss"
-                        defaultValue={reportTemplateVersion.globalCss ?? ""}
-                        className="min-h-48 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
-                        spellCheck={false}
-                        placeholder={".report-page-content { padding: 32px; }"}
+                    <Input
+                        name="description"
+                        defaultValue={reportTemplateVersion.description ?? ""}
+                        placeholder="Opis wersji"
                     />
+
+
+                    <select
+                        name="orientation"
+                        className="h-10 rounded-md border bg-background px-3 text-sm"
+                        defaultValue={reportTemplateVersion.orientation ?? "portrait"}
+                    >
+                        <option value="portrait">A4 pionowo</option>
+                        <option value="landscape">A4 poziomo</option>
+                    </select>
                 </div>
 
-                <div className="space-y-2">
-                    <div className="text-sm font-medium">Global JS</div>
-                    <textarea
-                        name="globalJs"
-                        defaultValue={reportTemplateVersion.globalJs ?? ""}
-                        className="min-h-48 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
-                        spellCheck={false}
-                        placeholder={"console.log('report context', window.__REPORT__);"}
-                    />
+
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <div className="text-sm font-medium">Global CSS</div>
+                        <textarea
+                            name="globalCss"
+                            defaultValue={reportTemplateVersion.globalCss ?? ""}
+                            className="min-h-48 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                            spellCheck={false}
+                            placeholder={".report-page-content { padding: 32px; }"}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="text-sm font-medium">Global JS</div>
+                        <textarea
+                            name="globalJs"
+                            defaultValue={reportTemplateVersion.globalJs ?? ""}
+                            className="min-h-48 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                            spellCheck={false}
+                            placeholder={"console.log('report context', window.__REPORT__);"}
+                        />
+                    </div>
                 </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <div className="text-sm font-medium">Config JSON</div>
-                    <textarea
-                        name="config"
-                        value={configText}
-                        onChange={(event) => setConfigText(event.target.value)}
-                        className="min-h-40 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
-                        spellCheck={false}
-                    />
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <div className="text-sm font-medium">Config JSON</div>
+                        <textarea
+                            name="config"
+                            value={configText}
+                            onChange={(event) => setConfigText(event.target.value)}
+                            className="min-h-40 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                            spellCheck={false}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="text-sm font-medium">Data bindings JSON</div>
+                        <textarea
+                            name="dataBindings"
+                            value={dataBindingsText}
+                            onChange={(event) => setDataBindingsText(event.target.value)}
+                            className="min-h-40 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                            spellCheck={false}
+                            placeholder={'{ "primaryScore": "scores.vMEME.TRADITION" }'}
+                        />
+                    </div>
                 </div>
+                {state.status !== "idle" ? (
+                    <p
+                        className={
+                            state.status === "success"
+                                ? "text-sm text-green-700"
+                                : "text-sm text-destructive"
+                        }
+                    >
+                        {state.message}
+                    </p>
+                ) : null}
 
-                <div className="space-y-2">
-                    <div className="text-sm font-medium">Data bindings JSON</div>
-                    <textarea
-                        name="dataBindings"
-                        value={dataBindingsText}
-                        onChange={(event) => setDataBindingsText(event.target.value)}
-                        className="min-h-40 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
-                        spellCheck={false}
-                        placeholder={'{ "primaryScore": "scores.vMEME.TRADITION" }'}
-                    />
-                </div>
-            </div>
+                <Button type="submit" disabled={isPending}>
+                    {isPending ? "Zapisywanie..." : "Zapisz ustawienia raportu"}
+                </Button>
+            </div>}
 
-            {state.status !== "idle" ? (
-                <p
-                    className={
-                        state.status === "success"
-                            ? "text-sm text-green-700"
-                            : "text-sm text-destructive"
-                    }
-                >
-                    {state.message}
-                </p>
-            ) : null}
 
-            <Button type="submit" disabled={isPending}>
-                {isPending ? "Zapisywanie..." : "Zapisz ustawienia raportu"}
-            </Button>
         </form>
     );
 }

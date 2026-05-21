@@ -65,6 +65,7 @@ type SnapshotPayload = {
   scores?: SnapshotScore[] | null;
   responses?: SnapshotResponse[] | null;
   analytics?: Record<string, unknown> | null;
+  crossScores?: unknown;
 };
 
 type ReportScore = {
@@ -111,9 +112,96 @@ type ResponsesPageGroup = {
   responses: SnapshotResponse[];
 };
 
+
+export type ReportScoreMetric = {
+  rawScore?: number | null;
+  weightedScore?: number | null;
+  meanScore?: number | null;
+  weightedMeanScore?: number | null;
+  normalizedScore?: number | null;
+  completeness?: number | null;
+};
+
+export type ReportCrossScoreNode = ReportScoreMetric & {
+  by?: Record<string, Record<string, ReportScoreMetric>>;
+};
+
+export type ReportCrossScores = Record<
+  string,
+  Record<string, ReportCrossScoreNode>
+>;
+
 const DEFAULT_CATEGORY = "__NO_CATEGORY__";
 const DEFAULT_CATEGORY_LABEL = "Bez kategorii";
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER;
+
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function metricFromRecord(value: unknown): ReportScoreMetric {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    rawScore: numberOrNull(value.rawScore),
+    weightedScore: numberOrNull(value.weightedScore),
+    meanScore: numberOrNull(value.meanScore),
+    weightedMeanScore: numberOrNull(value.weightedMeanScore),
+    normalizedScore: numberOrNull(value.normalizedScore),
+    completeness: numberOrNull(value.completeness),
+  };
+}
+
+function normalizeCrossScores(value: unknown): ReportCrossScores {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const result: ReportCrossScores = {};
+
+  for (const [targetCategory, targetCategoryValue] of Object.entries(value)) {
+    if (!isRecord(targetCategoryValue)) {
+      continue;
+    }
+
+    result[targetCategory] = {};
+
+    for (const [targetCode, targetScoreValue] of Object.entries(targetCategoryValue)) {
+      if (!isRecord(targetScoreValue)) {
+        continue;
+      }
+
+      const node: ReportCrossScoreNode = {
+        ...metricFromRecord(targetScoreValue),
+        by: {},
+      };
+
+      const by = targetScoreValue.by;
+
+      if (isRecord(by)) {
+        for (const [filterCategory, filterCategoryValue] of Object.entries(by)) {
+          if (!isRecord(filterCategoryValue)) {
+            continue;
+          }
+
+          node.by ??= {};
+          node.by[filterCategory] = {};
+
+          for (const [filterCode, metricValue] of Object.entries(filterCategoryValue)) {
+            node.by[filterCategory][filterCode] = metricFromRecord(metricValue);
+          }
+        }
+      }
+
+      result[targetCategory][normalizeDimensionCode(targetCode)] = node;
+    }
+  }
+
+  return result;
+}
 
 function stringOrFallback(value: unknown, fallback: string) {
   if (typeof value !== "string") {
@@ -452,9 +540,18 @@ export function buildReportContext(payload: SnapshotPayload | null | undefined) 
     (response) => response.responseExists === true,
   );
 
-  const scoresIndex = buildScoresIndex(scores);
-  const crossScores = buildCrossScores(responses);
-  const responsesByPage = groupResponsesByPage(responses);
+const scoresIndex = buildScoresIndex(scores);
+
+const calculatedCrossScores = buildCrossScores(responses);
+
+const crossScoresSource =
+  payload?.crossScores ??
+  payload?.analytics?.crossScores ??
+  calculatedCrossScores;
+
+const crossScores = normalizeCrossScores(crossScoresSource);
+
+const responsesByPage = groupResponsesByPage(responses);
 
   return {
     version: 1,

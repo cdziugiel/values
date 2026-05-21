@@ -1,3 +1,4 @@
+// app/(protected)/my/assessment/sessions/[sessionId]/report/[reportTemplateVersionId]/page.tsx
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -8,6 +9,13 @@ import { ReportDocumentPreviewFrame } from "@/features/report-builder/components
 import { getActiveReportAccessGrantForSession } from "@/features/report-access/api/report-access.queries";
 import { requireSession } from "@/server/auth/require-session";
 import { assertCanViewMyAssessmentReport } from "@/features/report-access/api/report-access-guard.queries";
+import { Button } from "@/components/ui/button";
+
+type ReportPdfDownloadButtonProps = {
+  tenantSlug: string;
+  sessionId: string;
+  reportTemplateVersionId: string;
+};
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,6 +29,26 @@ type PageProps = {
     tenant?: string;
   }>;
 };
+
+export function ReportPdfDownloadButton({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+}: ReportPdfDownloadButtonProps) {
+  const href =
+    `/my/assessment/sessions/${sessionId}` +
+    `/report/${reportTemplateVersionId}/pdf` +
+    `?tenant=${encodeURIComponent(tenantSlug)}`;;
+
+  return (
+    <Button asChild>
+      <a href={href} target="_blank" rel="noreferrer">
+        Pobierz PDF
+      </a>
+    </Button>
+  );
+}
+
 
 export default async function MyAssessmentReportPage({
   params,
@@ -102,6 +130,11 @@ export default async function MyAssessmentReportPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <ReportPdfDownloadButton
+            tenantSlug={tenant}
+            sessionId={sessionId}
+            reportTemplateVersionId={reportTemplateVersionId}
+          />
           <Link
             href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenant}`}
             className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"

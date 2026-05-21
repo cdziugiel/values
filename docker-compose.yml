@@ -1,6 +1,8 @@
 services:
   web:
-    image: node:22-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: humanet-values-web
     working_dir: /app
     restart: unless-stopped
@@ -15,9 +17,11 @@ services:
       NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: "1"
 
-      # Hot reload / file watching inside Docker, especially useful on macOS
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
+
+      # Playwright browser cache inside official image
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
 
     volumes:
       - .:/app

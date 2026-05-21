@@ -2,6 +2,11 @@
 
 import { buildReportContext, type ReportContext } from "./report-context";
 import { evaluateReportPathCondition } from "./report-condition";
+import {
+  getReportComponentsCss,
+  normalizeReportComponentBindings,
+  renderReportComponent,
+} from "./report-components";
 
 type ReportTemplatePage = {
   id: string;
@@ -168,8 +173,42 @@ body {
   }
 }
 
+${getReportComponentsCss()}
+
 ${reportTemplateVersion.globalCss ?? ""}
 `.trim();
+}
+
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderComponentBindings({
+  html,
+  page,
+  context,
+}: {
+  html: string;
+  page: ReportTemplatePage;
+  context: ReportContext;
+}) {
+  const bindings = normalizeReportComponentBindings(page.componentBindings);
+
+  return bindings.reduce((currentHtml, binding) => {
+    const renderedComponent = renderReportComponent({ binding, context });
+
+    const slotPattern = new RegExp(
+      `<([a-zA-Z][\\w:-]*)\\b([^>]*?)data-report-slot=["']${escapeRegExp(
+        binding.slot,
+      )}["']([^>]*)>([\\s\\S]*?)<\\/\\1>`,
+      "g",
+    );
+
+    return currentHtml.replace(slotPattern, (_match, tagName, before, after) => {
+      return `<${tagName}${before}data-report-slot="${binding.slot}"${after}>${renderedComponent}</${tagName}>`;
+    });
+  }, html);
 }
 
 export function renderReportDocument({
@@ -185,7 +224,13 @@ export function renderReportDocument({
 
   const pageHtml = visiblePages
     .map((page) => {
-      const html = interpolateHtml(page.html ?? "", context);
+      const interpolatedHtml = interpolateHtml(page.html ?? "", context);
+
+      const html = renderComponentBindings({
+        html: interpolatedHtml,
+        page,
+        context,
+      });
 
       return `
 <section class="report-page ${pageClass}" data-report-page-id="${page.id}" data-report-page-code="${page.code}">
@@ -197,14 +242,14 @@ ${page.css ?? ""}
 <script>
 try {
   window.__REPORT_CURRENT_PAGE__ = ${escapeClosingScript(
-    JSON.stringify({
-      id: page.id,
-      code: page.code,
-      title: page.title,
-      config: page.config ?? {},
-      componentBindings: page.componentBindings ?? [],
-    }),
-  )};
+        JSON.stringify({
+          id: page.id,
+          code: page.code,
+          title: page.title,
+          config: page.config ?? {},
+          componentBindings: page.componentBindings ?? [],
+        }),
+      )};
 
   ${escapeClosingScript(page.js ?? "")}
 } catch (error) {
@@ -230,14 +275,13 @@ try {
 </head>
 
 <body>
-  <div class="report-document">
-    ${pageHtml}
-  </div>
-
   <script>
     window.__REPORT__ = ${escapeClosingScript(JSON.stringify(context))};
   </script>
 
+  <div class="report-document">
+    ${pageHtml}
+  </div>
   <script>
     try {
       ${escapeClosingScript(reportTemplateVersion.globalJs ?? "")}
@@ -245,6 +289,7 @@ try {
       console.error("Report global JS error:", error);
     }
   </script>
+
 </body>
 </html>
 `.trim();

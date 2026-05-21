@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/shared/ui";
 
 import { getReportTemplateVersionEditorData } from "../api/report-template-admin.queries";
+import { listReportPreviewSessionOptions } from "../api/report-preview-session.queries";
 import { ReportTemplateVersionEditForm } from "./report-template-version-edit-form";
+import { ReportRealDataPreviewPicker } from "./report-real-data-preview-picker";
 
 function statusLabel(status: string) {
   if (status === "active") return "Aktywny";
@@ -48,6 +50,10 @@ export async function ReportTemplateVersionEditorPage({
 
   const { version } = data;
 
+  const previewSessions = await listReportPreviewSessionOptions({
+    reportTemplateVersionId: version.reportTemplateVersionId,
+  });
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -55,8 +61,15 @@ export async function ReportTemplateVersionEditorPage({
         description={`${version.reportTemplateName} · ${version.version}`}
         actions={
           <div className="flex flex-wrap gap-2">
+            <ReportRealDataPreviewPicker
+              reportTemplateVersionId={version.reportTemplateVersionId}
+              sessions={previewSessions}
+            />
+
             <Button asChild>
-              <Link href={`/dashboard/report-builder/${version.reportTemplateVersionId}`}>
+              <Link
+                href={`/dashboard/report-builder/${version.reportTemplateVersionId}`}
+              >
                 Otwórz builder raportu
               </Link>
             </Button>
@@ -99,13 +112,15 @@ export async function ReportTemplateVersionEditorPage({
           <div>
             <h2 className="text-lg font-semibold">Treść raportu</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Strony A4, HTML/CSS/JS, warunki widoczności i komponenty aplikacyjne
-              edytujesz w builderze raportu.
+              Strony A4, HTML/CSS/JS, warunki widoczności i komponenty
+              aplikacyjne edytujesz w builderze raportu.
             </p>
           </div>
 
           <Button asChild>
-            <Link href={`/dashboard/report-builder/${version.reportTemplateVersionId}`}>
+            <Link
+              href={`/dashboard/report-builder/${version.reportTemplateVersionId}`}
+            >
               Przejdź do buildera
             </Link>
           </Button>

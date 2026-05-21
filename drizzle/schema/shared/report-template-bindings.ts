@@ -1,3 +1,4 @@
+// drizzle/schema/shared/report-template-bindings.ts
 import {
   boolean,
   index,
