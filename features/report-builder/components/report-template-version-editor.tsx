@@ -15,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { ReportDataReferencePanel } from "./report-data-reference-panel";
 
 import {
     archiveReportTemplatePageAction,
@@ -644,7 +643,6 @@ export function ReportTemplateVersionEditor({
                 reportTemplateVersion={reportTemplateVersion}
             />
 
-            <ReportDataReferencePanel />
             <CreateReportTemplatePageForm
                 reportTemplateVersionId={reportTemplateVersion.id}
             />

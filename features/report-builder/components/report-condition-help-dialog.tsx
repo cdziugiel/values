@@ -27,7 +27,7 @@ export function ReportConditionHelpDialog() {
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="gap-2">
           <HelpCircle size={16} />
-          Pomoc: warunki raportu
+          Warunki
         </Button>
       </DialogTrigger>
 

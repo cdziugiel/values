@@ -9,6 +9,7 @@ import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { getReportTemplateVersionEditor } from "@/features/report-builder/api/report-builder.queries";
 import { ReportTemplateVersionEditor } from "@/features/report-builder/components/report-template-version-editor";
 import { ReportConditionHelpDialog } from "@/features/report-builder";
+import { ReportDataReferencePanel } from "@/features/report-builder/components/report-data-reference-panel";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -55,9 +56,10 @@ export default async function ReportBuilderPage({ params }: PageProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <ReportConditionHelpDialog />
 
+          <ReportDataReferencePanel />
           <Button asChild variant="outline">
             <Link
               href={`/dashboard/report-templates/${reportTemplateVersion.reportTemplateId}/versions/${reportTemplateVersion.id}`}
