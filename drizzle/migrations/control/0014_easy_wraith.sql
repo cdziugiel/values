@@ -1,0 +1,1 @@
+ALTER TYPE "public"."questionnaire_item_type" ADD VALUE 'current_desired' BEFORE 'text';

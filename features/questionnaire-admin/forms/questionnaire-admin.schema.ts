@@ -17,9 +17,10 @@ export const questionnaireItemTypeSchema = z.enum([
     "true_false",
     "single_choice",
     "multiple_choice",
+    "current_desired",
     "text",
     "number",
-]);
+])
 
 
 const stringBoolean = z
@@ -159,6 +160,19 @@ const optionalString = z
         return normalized || undefined;
     });
 
+const currentDesiredSelectionSchema = z
+    .string()
+    .default("multiple")
+    .transform((value) =>
+        value === "single" || value === "multiple" ? value : "multiple",
+    );
+
+const currentDesiredConfigFields = {
+    currentDesiredCurrentLabel: z.string().max(120).optional().or(z.literal("")),
+    currentDesiredDesiredLabel: z.string().max(120).optional().or(z.literal("")),
+};
+
+
 export const createQuestionnaireItemSchema = z.object({
     versionId: z.string().uuid(),
     pageId: z.string().uuid().optional().or(z.literal("")),
@@ -188,6 +202,7 @@ export const createQuestionnaireItemSchema = z.object({
     likertPreset: likertPresetSchema.optional().default("agreement_7_short"),
     showValueLabels: checkboxBoolean.default(false),
     likertValueLabelsText: optionalString,
+    ...currentDesiredConfigFields,
 });
 
 export const updateQuestionnaireItemSchema = z.object({
@@ -220,6 +235,7 @@ export const updateQuestionnaireItemSchema = z.object({
     likertPreset: likertPresetSchema.optional().default("agreement_7_short"),
     showValueLabels: checkboxBoolean.default(false),
     likertValueLabelsText: optionalString,
+    ...currentDesiredConfigFields,
 });
 
 export const assignItemDimensionSchema = z.object({

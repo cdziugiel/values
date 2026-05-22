@@ -115,16 +115,51 @@ async function getNextDimensionOrderIndex(versionId: string) {
   return (lastDimension?.orderIndex ?? 0) + 1;
 }
 
-async function getNextPageOrderIndex(versionId: string) {
-  const lastPage = await controlDb.query.questionnairePages.findFirst({
-    where: and(
-      eq(questionnairePages.questionnaireVersionId, versionId),
-      isNull(questionnairePages.deletedAt),
-    ),
-    orderBy: desc(questionnairePages.orderIndex),
-  });
+async function getNextPageIdentity(versionId: string) {
+  const activePages = await controlDb
+    .select({
+      orderIndex: questionnairePages.orderIndex,
+    })
+    .from(questionnairePages)
+    .where(
+      and(
+        eq(questionnairePages.questionnaireVersionId, versionId),
+        isNull(questionnairePages.deletedAt),
+      ),
+    )
+    .orderBy(asc(questionnairePages.orderIndex));
 
-  return (lastPage?.orderIndex ?? 0) + 1;
+  const allPages = await controlDb
+    .select({
+      code: questionnairePages.code,
+    })
+    .from(questionnairePages)
+    .where(eq(questionnairePages.questionnaireVersionId, versionId));
+
+  const usedActiveOrderIndexes = new Set(
+    activePages.map((page) => page.orderIndex),
+  );
+
+  const usedCodes = new Set(allPages.map((page) => page.code));
+
+  let orderIndex = 1;
+
+  while (usedActiveOrderIndexes.has(orderIndex)) {
+    orderIndex += 1;
+  }
+
+  let code = `PAGE_${pad3(orderIndex)}`;
+  let suffix = 1;
+
+  while (usedCodes.has(code)) {
+    suffix += 1;
+    code = `PAGE_${pad3(orderIndex)}_${suffix}`;
+  }
+
+  return {
+    orderIndex,
+    code,
+  };
 }
 
 async function getNextItemOrderIndex(versionId: string) {
@@ -573,9 +608,7 @@ export async function createQuestionnairePageAsSuperAdmin({
 }) {
   const parsed = createQuestionnairePageSchema.parse(input);
   await assertQuestionnaireVersionIsDraft(parsed.versionId);
-  const orderIndex = await getNextPageOrderIndex(parsed.versionId);
-  const code = await buildUniquePageCode(parsed.versionId, orderIndex);
-
+  const { orderIndex, code } = await getNextPageIdentity(parsed.versionId);
   const [page] = await controlDb
     .insert(questionnairePages)
     .values({
@@ -1715,52 +1748,57 @@ function buildItemAnswerConfig(
     numberMin?: number | "";
     numberMax?: number | "";
     numberStep?: number | "";
+    currentDesiredCurrentSelection?: "single" | "multiple";
+    currentDesiredDesiredSelection?: "single" | "multiple";
+    allowSameOptionForCurrentAndDesired?: boolean;
+    currentDesiredCurrentLabel?: string;
+    currentDesiredDesiredLabel?: string;
   },
   previousResponseConfig?: unknown,
 ) {
-if (parsed.type === "likert") {
-const presetKey =
-  getLikertPreset(parsed.likertPreset) ??
-  getExistingLikertPreset(previousResponseConfig) ??
-  "custom";
-  const preset = LIKERT_PRESETS[presetKey];
+  if (parsed.type === "likert") {
+    const presetKey =
+      getLikertPreset(parsed.likertPreset) ??
+      getExistingLikertPreset(previousResponseConfig) ??
+      "custom";
+    const preset = LIKERT_PRESETS[presetKey];
 
-  const showValueLabels = Boolean(parsed.showValueLabels);
+    const showValueLabels = Boolean(parsed.showValueLabels);
 
-  const customValueLabels = parseLikertValueLabelsText(
-    parsed.likertValueLabelsText,
-  );
+    const customValueLabels = parseLikertValueLabelsText(
+      parsed.likertValueLabelsText,
+    );
 
-  const valueLabels =
-    Object.keys(customValueLabels).length > 0
-      ? customValueLabels
-      : preset.valueLabels;
+    const valueLabels =
+      Object.keys(customValueLabels).length > 0
+        ? customValueLabels
+        : preset.valueLabels;
 
-  const scaleMin = nullableInt(parsed.scaleMin) ?? preset.scaleMin;
-  const scaleMax = nullableInt(parsed.scaleMax) ?? preset.scaleMax;
-  const step = numberOrNull(parsed.likertStep) ?? preset.step;
+    const scaleMin = nullableInt(parsed.scaleMin) ?? preset.scaleMin;
+    const scaleMax = nullableInt(parsed.scaleMax) ?? preset.scaleMax;
+    const step = numberOrNull(parsed.likertStep) ?? preset.step;
 
-  return {
-    scaleMin,
-    scaleMax,
-    scaleMinLabel: nullIfEmpty(parsed.scaleMinLabel) ?? preset.scaleMinLabel,
-    scaleMaxLabel: nullIfEmpty(parsed.scaleMaxLabel) ?? preset.scaleMaxLabel,
-    options: [],
-    responseConfig: {
-      preset: presetKey,
-      display: parsed.likertDisplay || "buttons",
-      step,
-      showValueLabels,
+    return {
+      scaleMin,
+      scaleMax,
+      scaleMinLabel: nullIfEmpty(parsed.scaleMinLabel) ?? preset.scaleMinLabel,
+      scaleMaxLabel: nullIfEmpty(parsed.scaleMaxLabel) ?? preset.scaleMaxLabel,
+      options: [],
+      responseConfig: {
+        preset: presetKey,
+        display: parsed.likertDisplay || "buttons",
+        step,
+        showValueLabels,
 
-      /**
-       * Ważne:
-       * Etykiety zapisujemy zawsze.
-       * showValueLabels kontroluje tylko to, czy respondent widzi je przy każdej odpowiedzi.
-       */
-      valueLabels,
-    },
-  };
-}
+        /**
+         * Ważne:
+         * Etykiety zapisujemy zawsze.
+         * showValueLabels kontroluje tylko to, czy respondent widzi je przy każdej odpowiedzi.
+         */
+        valueLabels,
+      },
+    };
+  }
 
   if (parsed.type === "true_false") {
     return {
@@ -1792,7 +1830,19 @@ const presetKey =
       responseConfig: {},
     };
   }
-
+if (parsed.type === "current_desired") {
+  return {
+    scaleMin: null,
+    scaleMax: null,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    options: [],
+    responseConfig: {
+      currentLabel: nullIfEmpty(parsed.currentDesiredCurrentLabel) ?? "Tak jest teraz",
+      desiredLabel: nullIfEmpty(parsed.currentDesiredDesiredLabel) ?? "Chcę, żeby tak było",
+    },
+  };
+}
   if (parsed.type === "text") {
     return {
       scaleMin: null,
@@ -2214,6 +2264,7 @@ const IMPORT_ALLOWED_ITEM_TYPES: QuestionnaireItemType[] = [
   "true_false",
   "single_choice",
   "multiple_choice",
+  "current_desired",
   "text",
   "number",
 ];
@@ -2446,23 +2497,23 @@ export async function replaceQuestionnaireVersionStructureFromImport({
     const insertedDimensions =
       input.dimensions.length > 0
         ? await tx
-            .insert(questionnaireDimensions)
-            .values(
-              input.dimensions.map((dimension) => ({
-                questionnaireVersionId: input.versionId,
-                code: dimension.code.trim(),
-                name: dimension.name.trim(),
-                description: nullIfEmpty(dimension.description),
-                category: nullIfEmpty(dimension.category),
-                orderIndex: dimension.orderIndex,
-                createdBy: actorUserId,
-                updatedBy: actorUserId,
-              })),
-            )
-            .returning({
-              id: questionnaireDimensions.id,
-              code: questionnaireDimensions.code,
-            })
+          .insert(questionnaireDimensions)
+          .values(
+            input.dimensions.map((dimension) => ({
+              questionnaireVersionId: input.versionId,
+              code: dimension.code.trim(),
+              name: dimension.name.trim(),
+              description: nullIfEmpty(dimension.description),
+              category: nullIfEmpty(dimension.category),
+              orderIndex: dimension.orderIndex,
+              createdBy: actorUserId,
+              updatedBy: actorUserId,
+            })),
+          )
+          .returning({
+            id: questionnaireDimensions.id,
+            code: questionnaireDimensions.code,
+          })
         : [];
 
     const dimensionIdByCode = new Map(
@@ -2472,22 +2523,22 @@ export async function replaceQuestionnaireVersionStructureFromImport({
     const insertedPages =
       input.pages.length > 0
         ? await tx
-            .insert(questionnairePages)
-            .values(
-              input.pages.map((page) => ({
-                questionnaireVersionId: input.versionId,
-                code: page.code.trim(),
-                title: page.title.trim(),
-                description: nullIfEmpty(page.description),
-                orderIndex: page.orderIndex,
-                createdBy: actorUserId,
-                updatedBy: actorUserId,
-              })),
-            )
-            .returning({
-              id: questionnairePages.id,
-              code: questionnairePages.code,
-            })
+          .insert(questionnairePages)
+          .values(
+            input.pages.map((page) => ({
+              questionnaireVersionId: input.versionId,
+              code: page.code.trim(),
+              title: page.title.trim(),
+              description: nullIfEmpty(page.description),
+              orderIndex: page.orderIndex,
+              createdBy: actorUserId,
+              updatedBy: actorUserId,
+            })),
+          )
+          .returning({
+            id: questionnairePages.id,
+            code: questionnairePages.code,
+          })
         : [];
 
     const pageIdByCode = new Map(
@@ -2497,33 +2548,33 @@ export async function replaceQuestionnaireVersionStructureFromImport({
     const insertedItems =
       input.items.length > 0
         ? await tx
-            .insert(questionnaireItems)
-            .values(
-              input.items.map((item) => ({
-                questionnaireVersionId: input.versionId,
-                questionnairePageId: item.pageCode
-                  ? pageIdByCode.get(item.pageCode) ?? null
-                  : null,
-                code: item.code.trim(),
-                orderIndex: item.orderIndex,
-                type: item.type,
-                text: item.text.trim(),
-                helpText: nullIfEmpty(item.helpText),
-                required: item.required,
-                scaleMin: item.scaleMin,
-                scaleMax: item.scaleMax,
-                scaleMinLabel: nullIfEmpty(item.scaleMinLabel),
-                scaleMaxLabel: nullIfEmpty(item.scaleMaxLabel),
-                options: normalizeImportJsonValue(item.options, []),
-                responseConfig: normalizeImportJsonValue(item.responseConfig, {}),
-                createdBy: actorUserId,
-                updatedBy: actorUserId,
-              })),
-            )
-            .returning({
-              id: questionnaireItems.id,
-              code: questionnaireItems.code,
-            })
+          .insert(questionnaireItems)
+          .values(
+            input.items.map((item) => ({
+              questionnaireVersionId: input.versionId,
+              questionnairePageId: item.pageCode
+                ? pageIdByCode.get(item.pageCode) ?? null
+                : null,
+              code: item.code.trim(),
+              orderIndex: item.orderIndex,
+              type: item.type,
+              text: item.text.trim(),
+              helpText: nullIfEmpty(item.helpText),
+              required: item.required,
+              scaleMin: item.scaleMin,
+              scaleMax: item.scaleMax,
+              scaleMinLabel: nullIfEmpty(item.scaleMinLabel),
+              scaleMaxLabel: nullIfEmpty(item.scaleMaxLabel),
+              options: normalizeImportJsonValue(item.options, []),
+              responseConfig: normalizeImportJsonValue(item.responseConfig, {}),
+              createdBy: actorUserId,
+              updatedBy: actorUserId,
+            })),
+          )
+          .returning({
+            id: questionnaireItems.id,
+            code: questionnaireItems.code,
+          })
         : [];
 
     const itemIdByCode = new Map(

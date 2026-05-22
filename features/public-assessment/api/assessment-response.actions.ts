@@ -24,6 +24,10 @@ export type SaveAssessmentResponsesState = {
   message: string;
 };
 
+type CurrentDesiredJsonValue = {
+  current: boolean;
+  desired: boolean;
+};
 type AssessmentResponseValuePayload =
   | {
     valueType: "number";
@@ -51,7 +55,7 @@ type AssessmentResponseValuePayload =
     numberValue: null;
     textValue: null;
     booleanValue: null;
-    jsonValue: string[];
+    jsonValue: string[] | CurrentDesiredJsonValue;
   };
 
 function parseBooleanValue(value: string) {
@@ -163,7 +167,21 @@ function buildResponseValue({
       jsonValue: selectedValues,
     };
   }
+  if (itemType === "current_desired") {
+    const parsed = parseCurrentDesiredValue(values[0]);
 
+    if (!parsed) {
+      return null;
+    }
+
+    return {
+      valueType: "json",
+      numberValue: null,
+      textValue: null,
+      booleanValue: null,
+      jsonValue: parsed,
+    };
+  }
   if (itemType === "text") {
     const rawValue = String(values[0] ?? "").trim();
 
@@ -232,6 +250,51 @@ async function getTenantDbBySlug(tenantSlug: string) {
     db,
     tenantSlug: connection.tenantSlug,
   };
+}
+
+
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+}
+
+function parseCurrentDesiredValue(value: FormDataEntryValue | undefined) {
+  const rawValue = String(value ?? "").trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return null;
+    }
+
+    const raw = parsed as Record<string, unknown>;
+
+    const current = raw.current === true;
+    const desired = raw.desired === true;
+
+
+
+    return {
+      current,
+      desired,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function resolveMyAssessmentSessionForSaving({
@@ -452,11 +515,11 @@ export async function saveAssessmentResponsesAction(
   }
 
   if (!token) {
-  return {
-    status: "error",
-    message: "Brak tokena sesji.",
-  };
-}
+    return {
+      status: "error",
+      message: "Brak tokena sesji.",
+    };
+  }
 
   const tokenHash = hashAssessmentAccessToken(token);
 

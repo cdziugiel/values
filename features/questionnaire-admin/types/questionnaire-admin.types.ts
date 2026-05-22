@@ -93,6 +93,7 @@ export type QuestionnaireItemType =
   | "true_false"
   | "single_choice"
   | "multiple_choice"
+  | "current_desired"
   | "text"
   | "number";
 

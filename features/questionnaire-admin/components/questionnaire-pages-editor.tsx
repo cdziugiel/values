@@ -50,6 +50,7 @@ const itemTypes = [
     "true_false",
     "single_choice",
     "multiple_choice",
+    "current_desired",
     "text",
     "number",
 ];
@@ -921,7 +922,47 @@ function ResponseTypeFields({
             </div>
         );
     }
+if (type === "current_desired") {
+    return (
+        <div className="space-y-3 rounded-xl border p-3">
+            <div className="text-sm font-medium">Konfiguracja current / desired</div>
 
+            <p className="text-xs text-muted-foreground">
+                Ten typ itemu traktuje treść itemu jako pojedyncze stwierdzenie.
+                Respondent może zaznaczyć, czy to stwierdzenie opisuje aktualny
+                stan organizacji, stan pożądany albo oba jednocześnie.
+            </p>
+
+            <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                    name="currentDesiredCurrentLabel"
+                    defaultValue={getConfigString(
+                        defaultResponseConfig,
+                        "currentLabel",
+                        "Tak jest teraz",
+                    )}
+                    placeholder="Etykieta current"
+                />
+
+                <Input
+                    name="currentDesiredDesiredLabel"
+                    defaultValue={getConfigString(
+                        defaultResponseConfig,
+                        "desiredLabel",
+                        "Chcę, żeby tak było",
+                    )}
+                    placeholder="Etykieta desired"
+                />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+                Minimum jedno zaznaczenie „Tak jest teraz” i minimum jedno
+                zaznaczenie „Chcę, żeby tak było” będzie sprawdzane na poziomie
+                całej strony.
+            </p>
+        </div>
+    );
+}
     if (type === "text") {
         const multiline = getConfigBoolean(defaultResponseConfig, "multiline", true);
         const maxLength = getConfigNumber(defaultResponseConfig, "maxLength", 1000);

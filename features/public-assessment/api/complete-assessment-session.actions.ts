@@ -37,6 +37,23 @@ export type CompleteAssessmentSessionState = {
   message: string;
 };
 
+function isCurrentDesiredJsonValue(value: unknown) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  ) {
+    return false;
+  }
+
+  const raw = value as Record<string, unknown>;
+
+  return (
+    typeof raw.current === "boolean" &&
+    typeof raw.desired === "boolean"
+  );
+}
+
 function isResponseFilled(response: {
   valueType: string;
   numberValue: number | null;
@@ -57,7 +74,15 @@ function isResponseFilled(response: {
   }
 
   if (response.valueType === "json") {
-    return Array.isArray(response.jsonValue) && response.jsonValue.length > 0;
+    if (Array.isArray(response.jsonValue)) {
+      return response.jsonValue.length > 0;
+    }
+
+    if (isCurrentDesiredJsonValue(response.jsonValue)) {
+      return true;
+    }
+
+    return false;
   }
 
   return false;

@@ -408,6 +408,12 @@ export async function createQuestionnaireItemAction(
             formData.get("showValueLabels") === "on" ||
             formData.get("showValueLabels") === "true",
         likertValueLabelsText: String(formData.get("likertValueLabelsText") ?? ""),
+        currentDesiredCurrentLabel: String(
+            formData.get("currentDesiredCurrentLabel") ?? "Tak jest teraz",
+        ),
+        currentDesiredDesiredLabel: String(
+            formData.get("currentDesiredDesiredLabel") ?? "Chcę, żeby tak było",
+        ),
     };
 
     const parsed = createQuestionnaireItemSchema.safeParse(rawInput);
@@ -472,6 +478,12 @@ export async function updateQuestionnaireItemAction(
             formData.get("showValueLabels") === "on" ||
             formData.get("showValueLabels") === "true",
         likertValueLabelsText: String(formData.get("likertValueLabelsText") ?? ""),
+        currentDesiredCurrentLabel: String(
+            formData.get("currentDesiredCurrentLabel") ?? "Tak jest teraz",
+        ),
+        currentDesiredDesiredLabel: String(
+            formData.get("currentDesiredDesiredLabel") ?? "Chcę, żeby tak było",
+        ),
     };
 
     const parsed = updateQuestionnaireItemSchema.safeParse(rawInput);

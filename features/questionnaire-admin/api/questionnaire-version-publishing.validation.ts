@@ -66,6 +66,7 @@ function isScoredItemType(type: string) {
     "true_false",
     "single_choice",
     "multiple_choice",
+    "current_desired",
     "number",
   ].includes(type);
 }
@@ -214,7 +215,31 @@ export async function validateQuestionnaireVersionForPublishing(
         issues.push(`Item scoringowy ${label} nie ma przypisanego wymiaru.`);
       }
     }
+    if (item.type === "current_desired") {
+      const currentLabel = getStringConfig(
+        item.responseConfig,
+        "currentLabel",
+        "Tak jest teraz",
+      );
 
+      const desiredLabel = getStringConfig(
+        item.responseConfig,
+        "desiredLabel",
+        "Chcę, żeby tak było",
+      );
+
+      if (!currentLabel?.trim()) {
+        issues.push(
+          `Item current/desired ${label} ma pustą etykietę „Tak jest teraz”.`,
+        );
+      }
+
+      if (!desiredLabel?.trim()) {
+        issues.push(
+          `Item current/desired ${label} ma pustą etykietę „Chcę, żeby tak było”.`,
+        );
+      }
+    }
     if (item.type === "likert") {
       if (item.scaleMin === null || item.scaleMax === null) {
         issues.push(`Item Likerta ${label} nie ma ustawionego zakresu skali.`);
@@ -285,6 +310,7 @@ export async function validateQuestionnaireVersionForPublishing(
         "true_false",
         "single_choice",
         "multiple_choice",
+        "current_desired",
         "text",
         "number",
       ].includes(item.type)

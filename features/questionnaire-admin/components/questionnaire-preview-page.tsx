@@ -95,6 +95,20 @@ function getLikertDisplay(config: Record<string, unknown>) {
   return "buttons";
 }
 
+function getConfigString(
+  config: Record<string, unknown>,
+  key: string,
+  fallback: string,
+) {
+  const value = config[key];
+
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  return fallback;
+}
+
 function createLikertValues(item: QuestionnairePreviewItem) {
   const scaleMin = item.scaleMin ?? 1;
   const scaleMax = item.scaleMax ?? 5;
@@ -212,7 +226,33 @@ function PreviewItemInput({ item }: { item: QuestionnairePreviewItem }) {
       </div>
     );
   }
+  if (item.type === "current_desired") {
+    const currentLabel = getConfigString(
+      responseConfig,
+      "currentLabel",
+      "Tak jest teraz",
+    );
 
+    const desiredLabel = getConfigString(
+      responseConfig,
+      "desiredLabel",
+      "Chcę, żeby tak było",
+    );
+
+    return (
+      <div className="mt-4 flex flex-wrap gap-3">
+        <label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+          <input type="checkbox" disabled />
+          <span>{currentLabel}</span>
+        </label>
+
+        <label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+          <input type="checkbox" disabled />
+          <span>{desiredLabel}</span>
+        </label>
+      </div>
+    );
+  }
   if (item.type === "single_choice") {
     return (
       <div className="mt-4 space-y-2">

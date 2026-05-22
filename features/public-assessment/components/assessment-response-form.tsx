@@ -67,8 +67,26 @@ const initialState: SaveAssessmentResponsesState = {
   message: "",
 };
 
+type CurrentDesiredAnswer = {
+  current: boolean;
+  desired: boolean;
+};
 
+function normalizeCurrentDesiredAnswer(value: unknown): CurrentDesiredAnswer {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {
+      current: false,
+      desired: false,
+    };
+  }
 
+  const raw = value as Record<string, unknown>;
+
+  return {
+    current: raw.current === true,
+    desired: raw.desired === true,
+  };
+}
 
 function getLikertValueLabels(config: Record<string, unknown>) {
   const valueLabels = config.valueLabels;
@@ -183,6 +201,14 @@ function getNumberConfig(
   return fallback;
 }
 
+
+function currentDesiredAnswerToInputValue(answer: CurrentDesiredAnswer) {
+  return JSON.stringify({
+    current: answer.current,
+    desired: answer.desired,
+  });
+}
+
 function getBooleanConfig(
   config: Record<string, unknown>,
   key: string,
@@ -233,7 +259,9 @@ function getExistingValue(item: AssessmentResponseFormItem) {
 
     return [];
   }
-
+if (item.type === "current_desired") {
+  return normalizeCurrentDesiredAnswer(item.existingJsonValue);
+}
   return "";
 }
 
@@ -265,6 +293,73 @@ function buildFieldName(item: AssessmentResponseFormItem) {
     item.code,
     item.type,
   ].join(":");
+}
+
+
+function CurrentDesiredItemInput({
+  item,
+  fieldName,
+  existingValue,
+  responseConfig,
+}: {
+  item: AssessmentResponseFormItem;
+  fieldName: string;
+  existingValue: unknown;
+  responseConfig: Record<string, unknown>;
+}) {
+  const existingAnswer = normalizeCurrentDesiredAnswer(existingValue);
+
+  const [answer, setAnswer] = useState({
+    current: existingAnswer.current,
+    desired: existingAnswer.desired,
+  });
+
+  const currentLabel =
+    typeof responseConfig.currentLabel === "string"
+      ? responseConfig.currentLabel
+      : "Tak jest teraz";
+
+  const desiredLabel =
+    typeof responseConfig.desiredLabel === "string"
+      ? responseConfig.desiredLabel
+      : "Chcę, żeby tak było";
+
+  function updateMarker(marker: "current" | "desired", checked: boolean) {
+    setAnswer((previous) => ({
+      ...previous,
+      [marker]: checked,
+    }));
+  }
+
+  return (
+    <div className="mt-4 flex flex-wrap gap-4">
+      <input
+        type="hidden"
+        name={fieldName}
+        value={JSON.stringify(answer)}
+      />
+
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+        <input
+          type="checkbox"
+  name={`current-desired-ui:${item.id}:current`}
+          checked={answer.current}
+          onChange={(event) => updateMarker("current", event.target.checked)}
+        />
+        <span>{currentLabel}</span>
+      </label>
+
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+        <input
+          type="checkbox"
+  name={`current-desired-ui:${item.id}:desired`}
+          checked={answer.desired}
+          onChange={(event) => updateMarker("desired", event.target.checked)}
+        />
+        <span>{desiredLabel}</span>
+      </label>
+    </div>
+  );
 }
 
 
@@ -456,7 +551,16 @@ function AssessmentItemInput({
       />
     );
   }
-
+if (item.type === "current_desired") {
+  return (
+    <CurrentDesiredItemInput
+      item={item}
+      fieldName={fieldName}
+      existingValue={existingValue}
+      responseConfig={responseConfig}
+    />
+  );
+}
   if (item.type === "true_false") {
     const trueFalseOptions =
       options.length > 0
@@ -703,6 +807,24 @@ function getRandomAnswerForItem(item: AssessmentResponseFormItem) {
     return selected ? optionValueToString(selected.value) : "true";
   }
 
+
+if (item.type === "current_desired") {
+  const current = Math.random() >= 0.5;
+  const desired = Math.random() >= 0.5;
+
+  if (!current && !desired) {
+    return {
+      current: true,
+      desired: false,
+    };
+  }
+
+  return {
+    current,
+    desired,
+  };
+}
+
   if (item.type === "single_choice") {
     const selected = getRandomArrayItem(options);
 
@@ -757,10 +879,42 @@ function fillRandomAnswerForItem(
     ),
   ).filter((control) => control.name === fieldName);
 
+
   if (controls.length === 0) {
     return;
   }
 
+
+if (item.type === "current_desired") {
+  const currentDesiredAnswer = normalizeCurrentDesiredAnswer(answer);
+
+  const hiddenControl = controls.find(
+    (control) =>
+      control instanceof HTMLInputElement &&
+      control.type === "hidden" &&
+      control.name === fieldName,
+  );
+
+  if (hiddenControl instanceof HTMLInputElement) {
+    hiddenControl.value = currentDesiredAnswerToInputValue(currentDesiredAnswer);
+    dispatchControlChange(hiddenControl);
+  }
+
+  const uiControls = Array.from(
+    form.querySelectorAll<HTMLInputElement>(
+      `input[name="current-desired-ui:${item.id}:current"], input[name="current-desired-ui:${item.id}:desired"]`,
+    ),
+  );
+
+  uiControls.forEach((control) => {
+    const marker = control.name.endsWith(":current") ? "current" : "desired";
+
+    control.checked = currentDesiredAnswer[marker];
+    dispatchControlChange(control);
+  });
+
+  return;
+}
   const firstControl = controls[0];
 
   if (!firstControl) {
@@ -1030,12 +1184,81 @@ export function AssessmentResponseForm({
     });
   }
 
+function validateCurrentDesiredPage(page: typeof currentPage) {
+  if (!page) {
+    return true;
+  }
+
+  const currentDesiredItems = page.items.filter(
+    (item) => item.type === "current_desired",
+  );
+
+  if (currentDesiredItems.length === 0) {
+    return true;
+  }
+
+  const formData = getFormData();
+
+  if (!formData) {
+    setState({
+      status: "error",
+      message: "Nie udało się odczytać formularza.",
+    });
+
+    return false;
+  }
+
+  let currentCount = 0;
+  let desiredCount = 0;
+
+  for (const item of currentDesiredItems) {
+    const rawValue = formData.get(buildFieldName(item));
+
+    if (typeof rawValue !== "string" || !rawValue.trim()) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue);
+      const answer = normalizeCurrentDesiredAnswer(parsed);
+
+if (answer.current) {
+  currentCount += 1;
+}
+
+if (answer.desired) {
+  desiredCount += 1;
+}
+    } catch {
+      continue;
+    }
+  }
+
+  if (currentCount < 1 || desiredCount < 1) {
+    setState({
+      status: "error",
+      message:
+        "Na tej stronie zaznacz co najmniej jedną odpowiedź w kolumnie „Tak jest” i co najmniej jedną w kolumnie „Chcę tak”.",
+    });
+
+    return false;
+  }
+
+  return true;
+}
+
+
+
   function goToNextPage() {
     const form = formRef.current;
 
-    if (form && !form.reportValidity()) {
-      return;
-    }
+if (form && !form.reportValidity()) {
+  return;
+}
+
+if (!validateCurrentDesiredPage(currentPage)) {
+  return;
+}
 
     saveCurrentForm({
       onSuccess: () => {
@@ -1050,10 +1273,13 @@ export function AssessmentResponseForm({
   function finishAssessment() {
     const form = formRef.current;
 
-    if (form && !form.reportValidity()) {
-      return;
-    }
+if (form && !form.reportValidity()) {
+  return;
+}
 
+if (!validateCurrentDesiredPage(currentPage)) {
+  return;
+}
     const formData = getFormData();
 
     if (!formData) {

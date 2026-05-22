@@ -11,6 +11,7 @@ const QUESTIONNAIRE_ITEM_TYPES: QuestionnaireItemType[] = [
     "true_false",
     "single_choice",
     "multiple_choice",
+    "current_desired",
     "text",
     "number",
 ];

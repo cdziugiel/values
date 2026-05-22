@@ -1,3 +1,5 @@
+// drizzle/schema/shared/enums.ts
+
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const userStatusEnum = pgEnum("user_status", [
@@ -62,6 +64,7 @@ export const questionnaireItemTypeEnum = pgEnum("questionnaire_item_type", [
   "true_false",
   "single_choice",
   "multiple_choice",
+  "current_desired",
   "text",
   "number",
 ]);
