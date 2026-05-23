@@ -458,7 +458,7 @@ await createAssessmentResultSnapshot({
   projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
   questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
 });
-      step = "auto-grant-report-access";
+/*       step = "auto-grant-report-access";
       const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
         db,
         tenantSlug,
@@ -467,7 +467,14 @@ await createAssessmentResultSnapshot({
         actorEmail,
         projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
         questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
-      });
+      }); */
+      const reportAccessGrantResult = {
+  granted: false,
+  mode: "manual_partner_grant_required",
+  message:
+    "Dostęp do raportu nie jest nadawany automatycznie. Może go nadać partner po zakończeniu sesji.",
+};
+
       step = "insert-audit-log";
       await db.insert(tenantAuditLog).values({
         actorUserId,
@@ -478,7 +485,7 @@ await createAssessmentResultSnapshot({
         after: {
           completedAt: now.toISOString(),
           scoring: scoringResult,
-          autoGrant: autoGrantResult,
+          reportAccessGrant: reportAccessGrantResult,
           mode: "my-assessment",
           projectQuestionnaireId:
             currentProjectQuestionnaire.projectQuestionnaireId,
@@ -719,7 +726,7 @@ await createAssessmentResultSnapshot({
   questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
 });
 
-    const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
+/*     const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
       db,
       tenantSlug: connection.tenantSlug,
       sessionId: session.sessionId,
@@ -727,7 +734,13 @@ await createAssessmentResultSnapshot({
       actorEmail: session.respondentEmail ?? null,
       projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
       questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
-    });
+    }); */
+    const reportAccessGrantResult = {
+  granted: false,
+  mode: "manual_partner_grant_required",
+  message:
+    "Dostęp do raportu nie jest nadawany automatycznie. Może go nadać partner po zakończeniu sesji.",
+};
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
       actorRole: "PUBLIC_RESPONDENT",
@@ -737,7 +750,7 @@ await createAssessmentResultSnapshot({
       after: {
         completedAt: now.toISOString(),
         scoring: scoringResult,
-        autoGrant: autoGrantResult,
+        reportAccessGrant: reportAccessGrantResult,
         mode: "token",
         projectQuestionnaireId:
           currentProjectQuestionnaire.projectQuestionnaireId,
