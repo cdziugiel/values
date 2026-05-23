@@ -1,15 +1,7 @@
 // features/report-builder/components/report-data-reference-panel.tsx
 "use client";
 
-import { useState } from "react";
-import { Database, ChevronDown, ChevronRight } from "lucide-react";
-
-
-
-
-// features/report-builder/components/report-condition-help-dialog.tsx
-
-import { HelpCircle } from "lucide-react";
+import { Database, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +15,45 @@ import {
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed">
+    <pre className="overflow-x-auto rounded-[1.25rem] border border-black/10 bg-[#0f172a] p-4 text-xs leading-relaxed text-slate-100 shadow-inner">
       <code>{children}</code>
     </pre>
+  );
+}
+
+function ReferenceSection({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.5rem] border border-black/10 bg-white/75 p-5 shadow-sm">
+      <div className="mb-3 flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#171717] text-xs font-semibold text-white">
+          {number}
+        </span>
+
+        <div>
+          <h3 className="text-base font-semibold tracking-[-0.02em] text-[#171717]">
+            {title}
+          </h3>
+
+          {description ? (
+            <p className="mt-1 text-sm leading-6 text-[#6b7280]">
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="space-y-3">{children}</div>
+    </section>
   );
 }
 
@@ -33,74 +61,70 @@ export function ReportDataReferencePanel() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-2">
-          <HelpCircle size={16} />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-full border-black/10 bg-white/70 text-[#171717] shadow-sm hover:bg-white"
+        >
+          <Database size={16} />
           Dane
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="h-[90vh] w-[96vw] max-w-none overflow-hidden p-4 sm:!max-w-[800px] lg:!max-w-[1000px] xl:!max-w-[1200px] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Dostępne dane raportu</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="h-[90vh] w-[96vw] max-w-none overflow-hidden rounded-[2rem] border-black/10 bg-white/95 p-0 shadow-[0_18px_48px_rgba(15,23,42,0.16)] backdrop-blur sm:!max-w-[900px] lg:!max-w-[1080px]">
+        <DialogHeader className="border-b border-black/10 p-6 text-left">
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
+            <Database size={13} />
+            Referencja danych
+          </div>
+
+          <DialogTitle className="text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+            Dostępne dane raportu
+          </DialogTitle>
+
+          <DialogDescription className="max-w-3xl text-sm leading-6 text-[#6b7280]">
             Ścieżki i przykłady danych, których możesz używać w HTML, JS,
             warunkach widoczności i komponentach raportu.
           </DialogDescription>
         </DialogHeader>
 
-
-        {
-          <div className="space-y-6 border-t px-5 py-5 text-sm">
-            <section className="space-y-2">
-              <h3 className="font-semibold">1. Dane projektu i sesji</h3>
-
-              <CodeBlock>
-                {`{{ project.name }}
+        <div className="h-full overflow-y-auto bg-[#f7f7f8] p-5 md:p-6">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <ReferenceSection number="1" title="Dane projektu i sesji">
+              <CodeBlock>{`{{ project.name }}
 {{ project.description }}
 {{ session.id }}
 {{ session.completedAt }}
-{{ frozenAt }}`}
-              </CodeBlock>
-            </section>
+{{ frozenAt }}`}</CodeBlock>
+            </ReferenceSection>
 
-            <section className="space-y-2">
-              <h3 className="font-semibold">2. Wyniki wymiarów</h3>
-
-              <p className="text-muted-foreground">
-                Wyniki są grupowane po kategorii wymiaru i kodzie wymiaru.
-              </p>
-
-              <CodeBlock>
-                {`{{ scores.vMEME.TRADITION.meanScore }}
+            <ReferenceSection
+              number="2"
+              title="Wyniki wymiarów"
+              description="Wyniki są grupowane po kategorii wymiaru i kodzie wymiaru."
+            >
+              <CodeBlock>{`{{ scores.vMEME.TRADITION.meanScore }}
 {{ scores.vMEME.TRADITION.weightedMeanScore }}
 {{ scores.vMEME.TRADITION.rawScore }}
 {{ scores.vMEME.TRADITION.completeness }}
 
-{{ scores.AREA.NEEDS.weightedMeanScore }}`}
-              </CodeBlock>
-            </section>
+{{ scores.AREA.NEEDS.weightedMeanScore }}`}</CodeBlock>
+            </ReferenceSection>
 
-            <section className="space-y-2">
-              <h3 className="font-semibold">3. Przecięcia wymiarów</h3>
-
-              <p className="text-muted-foreground">
-                Przecięcia pozwalają sprawdzić np. wynik vMEME tylko dla itemów
-                należących do konkretnego obszaru AREA.
-              </p>
-
-              <CodeBlock>
-                {`{{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.meanScore }}
+            <ReferenceSection
+              number="3"
+              title="Przecięcia wymiarów"
+              description="Przecięcia pozwalają sprawdzić wynik jednego wymiaru w kontekście innego obszaru."
+            >
+              <CodeBlock>{`{{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.meanScore }}
 {{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.weightedMeanScore }}
 {{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.answeredItemsCount }}
-{{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.itemsCount }}`}
-              </CodeBlock>
-            </section>
+{{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.itemsCount }}`}</CodeBlock>
+            </ReferenceSection>
 
-            <section className="space-y-2">
-              <h3 className="font-semibold">4. Odpowiedzi respondenta</h3>
-
-              <CodeBlock>
-                {`responses[]:
+            <ReferenceSection number="4" title="Odpowiedzi respondenta">
+              <CodeBlock>{`responses[]:
 {
   itemId,
   itemCode,
@@ -111,15 +135,11 @@ export function ReportDataReferencePanel() {
   responseNumericValue,
   responseDisplayValue,
   dimensions[]
-}`}
-              </CodeBlock>
-            </section>
+}`}</CodeBlock>
+            </ReferenceSection>
 
-            <section className="space-y-2">
-              <h3 className="font-semibold">5. Przykład użycia w HTML</h3>
-
-              <CodeBlock>
-                {`<div class="report-page-content">
+            <ReferenceSection number="5" title="Przykład użycia w HTML">
+              <CodeBlock>{`<div class="report-page-content">
   <h1>{{ project.name }}</h1>
 
   <p>
@@ -131,15 +151,11 @@ export function ReportDataReferencePanel() {
     TRADITION tylko dla NEEDS:
     {{ crossScores.vMEME.TRADITION.by.AREA.NEEDS.weightedMeanScore }}
   </p>
-</div>`}
-              </CodeBlock>
-            </section>
+</div>`}</CodeBlock>
+            </ReferenceSection>
 
-            <section className="space-y-2">
-              <h3 className="font-semibold">6. Przykład użycia w JS</h3>
-
-              <CodeBlock>
-                {`const report = window.__REPORT__;
+            <ReferenceSection number="6" title="Przykład użycia w JS">
+              <CodeBlock>{`const report = window.__REPORT__;
 
 const tradition = report.scores.vMEME.TRADITION;
 const needsTradition =
@@ -148,20 +164,24 @@ const needsTradition =
 console.log({
   tradition: tradition.weightedMeanScore,
   needsTradition: needsTradition.weightedMeanScore,
-});`}
-              </CodeBlock>
-            </section>
-
-            <section className="rounded-xl border bg-amber-50 p-4 text-amber-900">
-              <h3 className="font-semibold">Uwaga</h3>
-              <p className="mt-1 text-sm">
-                To jest referencja struktury danych. W kolejnym kroku warto dodać
-                wybór przykładowej zakończonej sesji i pokazać tu realny JSON
-                snapshotu używany w podglądzie raportu.
-              </p>
-            </section>
+});`}</CodeBlock>
+            </ReferenceSection>
           </div>
-        }
+
+          <section className="mt-5 rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5 text-amber-900">
+            <div className="flex gap-3">
+              <ShieldCheck size={18} className="mt-0.5 shrink-0" />
+              <div>
+                <h3 className="font-semibold">Uwaga</h3>
+                <p className="mt-1 text-sm leading-6">
+                  To jest referencja struktury danych. Dla realnych wartości
+                  użyj podglądu na zakończonej sesji respondenta, ponieważ dane
+                  raportu pochodzą ze snapshotu konkretnej sesji.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
       </DialogContent>
     </Dialog>
   );

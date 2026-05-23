@@ -1,7 +1,9 @@
 // features/report-builder/components/report-a4-preview-frame.tsx
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileText, Maximize2 } from "lucide-react";
+
 import {
   getReportComponentsCss,
   normalizeReportComponentBindings,
@@ -15,10 +17,27 @@ type ReportA4PreviewFrameProps = {
   pageSizeClass: string;
 };
 
+const A4_PORTRAIT = {
+  width: 794 + 48, // szerokość strony + body padding 24px z obu stron iframe
+  height: 1123 + 48,
+};
+
+const A4_LANDSCAPE = {
+  width: 1123 + 48,
+  height: 794 + 48,
+};
+
+function getPreviewFrameSize(pageSizeClass: string) {
+  if (pageSizeClass.includes("landscape")) {
+    return A4_LANDSCAPE;
+  }
+
+  return A4_PORTRAIT;
+}
+
 function escapeClosingScript(value: string) {
   return value.replace(/<\/script/gi, "<\\/script");
 }
-
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -69,7 +88,6 @@ function buildPreviewHtml({
   const globalJs = escapeClosingScript(reportTemplateVersion.globalJs ?? "");
   const pageJs = escapeClosingScript(page.js ?? "");
 
-
   const reportContext = {
     mode: "builder-preview",
     templateVersion: {
@@ -119,6 +137,7 @@ function buildPreviewHtml({
       ],
     },
   };
+
   const context = buildReportContext(reportContext.samplePayload);
   const html = renderPreviewComponentBindings({
     html: page.html ?? "",
@@ -246,6 +265,9 @@ export function ReportA4PreviewFrame({
   reportTemplateVersion,
   pageSizeClass,
 }: ReportA4PreviewFrameProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+
   const srcDoc = useMemo(
     () =>
       buildPreviewHtml({
@@ -256,14 +278,86 @@ export function ReportA4PreviewFrame({
     [page, reportTemplateVersion, pageSizeClass],
   );
 
+  const frameSize = useMemo(
+    () => getPreviewFrameSize(pageSizeClass),
+    [pageSizeClass],
+  );
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const updateScale = () => {
+      const availableWidth = viewport.clientWidth;
+
+      const nextScale = Math.min(1, availableWidth / frameSize.width);
+
+      setScale(nextScale);
+    };
+
+    updateScale();
+
+    const resizeObserver = new ResizeObserver(updateScale);
+    resizeObserver.observe(viewport);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [frameSize.width]);
+
   return (
-    <div className="overflow-hidden rounded-xl border bg-muted/30">
-      <iframe
-        title={`Podgląd strony raportu: ${page.title}`}
-        srcDoc={srcDoc}
-        sandbox="allow-scripts"
-        className="h-[720px] w-full bg-muted"
-      />
-    </div>
+    <section className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur">
+      <div className="flex flex-col gap-3 border-b border-black/10 bg-white/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+            <FileText size={18} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-[#171717]">
+              {page.title || "Podgląd strony raportu"}
+            </div>
+
+            <div className="mt-0.5 truncate font-mono text-xs text-[#6b7280]">
+              {page.code ?? "bez kodu"} · {pageSizeClass}
+            </div>
+          </div>
+        </div>
+
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1 text-xs font-medium text-[#6b7280]">
+          <Maximize2 size={13} />
+          Preview A4
+        </div>
+      </div>
+
+      <div className="">
+        <div
+          ref={viewportRef}
+          className="overflow-hidden  bg-white shadow-inner"
+        >
+          <div
+            style={{
+              height: frameSize.height * scale,
+            }}
+          >
+            <iframe
+              title={`Podgląd strony raportu: ${page.title}`}
+              srcDoc={srcDoc}
+              sandbox="allow-scripts"
+              style={{
+                width: frameSize.width,
+                height: frameSize.height,
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+              }}
+              className="block border-0 bg-[#f3f4f6]"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

@@ -24,7 +24,7 @@ export type ProtectedNavigationItem = {
 
 const baseUserNavigation: ProtectedNavigationItem[] = [
   {
-    label: "Moje badanie",
+    label: "Moje badania",
     href: "/my/assessment",
     icon: <ClipboardCheck className="h-4 w-4 shrink-0" />,
   },
@@ -110,7 +110,7 @@ export async function getProtectedNavigation(
   return [
     ...baseUserNavigation,
     {
-      label: "Panel tenanta",
+      label: "Panel partnera",
       href: `/t/${activeTenantSlugs[0]}/dashboard`,
       icon: <PanelsTopLeft className="h-4 w-4 shrink-0" />,
     },

@@ -117,20 +117,20 @@ function DimensionChips({
     }
 
     return (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
             {scores.map((score) => (
                 <span
                     key={score.id}
-                    className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-xs text-[#6b7280]"
                     title={`weight: ${score.weight}; reverse: ${score.reverseScored ? "tak" : "nie"
                         }`}
                 >
-                    <span className="font-medium text-foreground">
+                    <span className="font-semibold text-[#171717]">
                         {score.dimensionCode}
                     </span>
                     <span>{score.dimensionName}</span>
                     {score.reverseScored ? (
-                        <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px]">
+                        <span className="rounded-full bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#171717]">
                             R
                         </span>
                     ) : null}
@@ -482,11 +482,6 @@ function LikertPresetFields({
     defaultScaleMaxLabel?: string | null;
 }) {
     const initialPresetKey = getLikertPresetKey(defaultResponseConfig);
-    console.log("LIKERT DEBUG", {
-        defaultResponseConfig,
-        parsedConfig: asRecord(defaultResponseConfig),
-        initialPresetKey,
-    });
     const initialPreset = LIKERT_PRESETS[initialPresetKey];
 
     const initialDisplay = getLikertDisplay(defaultResponseConfig);
@@ -678,7 +673,7 @@ function LikertPresetFields({
     }
 
     return (
-        <div className="space-y-4 rounded-xl border p-3">
+        <div className="space-y-4 rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
             <div>
                 <div className="text-sm font-medium">Konfiguracja skali Likerta</div>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -695,7 +690,7 @@ function LikertPresetFields({
             <div className="grid gap-3 md:grid-cols-2">
                 <select
                     name="likertPreset"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     value={presetKey}
                     onChange={(event) => handlePresetChange(event.target.value)}
                 >
@@ -708,7 +703,7 @@ function LikertPresetFields({
 
                 <select
                     name="likertDisplay"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     defaultValue={initialDisplay}
                 >
                     <option value="buttons">Przyciski / kropki</option>
@@ -788,7 +783,7 @@ function LikertPresetFields({
                 />
             </div>
 
-            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+            <div className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/60 p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <label className="flex items-center gap-2 text-sm">
                         <input
@@ -817,7 +812,7 @@ function LikertPresetFields({
                                 key={value}
                                 className="grid grid-cols-[72px_1fr] items-center gap-2"
                             >
-                                <div className="rounded-md border bg-background px-2 py-2 text-center font-mono text-xs">
+                                <div className="rounded-xl border border-black/10 bg-white px-2 py-2 text-center font-mono text-xs text-[#171717]">
                                     {value}
                                 </div>
 
@@ -882,7 +877,7 @@ function ResponseTypeFields({
             : "Fałsz";
 
         return (
-            <div className="space-y-3 rounded-xl border p-3">
+            <div className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
                 <div className="text-sm font-medium">Odpowiedzi prawda/fałsz</div>
 
                 <div className="grid gap-3 md:grid-cols-2">
@@ -904,7 +899,7 @@ function ResponseTypeFields({
 
     if (type === "single_choice" || type === "multiple_choice") {
         return (
-            <div className="space-y-3 rounded-xl border p-3">
+            <div className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
                 <div className="text-sm font-medium">Opcje wyboru</div>
 
                 <p className="text-xs text-muted-foreground">
@@ -924,7 +919,7 @@ function ResponseTypeFields({
     }
 if (type === "current_desired") {
     return (
-        <div className="space-y-3 rounded-xl border p-3">
+        <div className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
             <div className="text-sm font-medium">Konfiguracja current / desired</div>
 
             <p className="text-xs text-muted-foreground">
@@ -968,7 +963,7 @@ if (type === "current_desired") {
         const maxLength = getConfigNumber(defaultResponseConfig, "maxLength", 1000);
 
         return (
-            <div className="space-y-3 rounded-xl border p-3">
+            <div className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
                 <div className="text-sm font-medium">
                     Konfiguracja odpowiedzi tekstowej
                 </div>
@@ -998,7 +993,7 @@ if (type === "current_desired") {
         const step = getConfigNumber(defaultResponseConfig, "step", 1);
 
         return (
-            <div className="space-y-3 rounded-xl border p-3">
+            <div className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
                 <div className="text-sm font-medium">
                     Konfiguracja odpowiedzi liczbowej
                 </div>
@@ -1051,14 +1046,14 @@ function QuestionnaireItemEditForm({
     const [itemType, setItemType] = useState(item.type);
 
     return (
-        <form action={formAction} className="space-y-4 rounded-xl border bg-muted/30 p-4">
+        <form action={formAction} className="space-y-4 rounded-[1.5rem] border border-black/10 bg-white/75 p-4 shadow-sm backdrop-blur">
             <input type="hidden" name="versionId" value={versionId} />
             <input type="hidden" name="itemId" value={item.id} />
 
             <div className="grid gap-3 md:grid-cols-2">
                 <select
                     name="pageId"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     defaultValue={item.questionnairePageId ?? ""}
                 >
                     <option value="">Brak strony</option>
@@ -1071,7 +1066,7 @@ function QuestionnaireItemEditForm({
 
                 <select
                     name="type"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     value={itemType}
                     onChange={(event) => setItemType(event.target.value)}
                 >
@@ -1249,7 +1244,7 @@ function AssignItemDimensionForm({
 
                 <select
                     name="dimensionId"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                 >
                     {availableDimensions.map((dimension) => (
                         <option key={dimension.id} value={dimension.id}>
@@ -1353,7 +1348,7 @@ function CreateItemForPageForm({
     );
 
     return (
-        <form action={formAction} className="space-y-4 rounded-xl border bg-background p-4">
+        <form action={formAction} className="space-y-4 rounded-[1.5rem] border border-black/10 bg-white/75 p-4 shadow-sm backdrop-blur">
             <input type="hidden" name="versionId" value={versionId} />
             <input type="hidden" name="pageId" value={pageId ?? ""} />
 
@@ -1367,7 +1362,7 @@ function CreateItemForPageForm({
 
                 <select
                     name="type"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     value={newItemType}
                     onChange={(event) => setNewItemType(event.target.value)}
                 >
@@ -1451,7 +1446,7 @@ function AssignPageDimensionForm({
 
                 <select
                     name="dimensionId"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    className="h-10 rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                 >
                     {availableDimensions.map((dimension) => (
                         <option key={dimension.id} value={dimension.id}>
@@ -1595,7 +1590,7 @@ function EditQuestionnairePageForm({
     );
 
     return (
-        <form action={formAction} className="space-y-3 rounded-xl border bg-muted/30 p-4">
+        <form action={formAction} className="space-y-3 rounded-[1.5rem] border border-black/10 bg-white/75 p-4 shadow-sm backdrop-blur">
             <input type="hidden" name="versionId" value={versionId} />
             <input type="hidden" name="pageId" value={page.id} />
 
@@ -1785,11 +1780,11 @@ export function QuestionnairePagesEditor({
         );
 
         return (
-            <div key={item.id} className="overflow-hidden rounded-xl border bg-background">
+            <div key={item.id} className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white/80 shadow-sm backdrop-blur">
                 <button
                     type="button"
                     onClick={() => toggleItem(item.id)}
-                    className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40"
+                    className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                 >
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1842,7 +1837,7 @@ export function QuestionnairePagesEditor({
                 </button>
 
                 {isOpen ? (
-                    <div className="space-y-4 border-t bg-muted/10 p-4">
+                    <div className="space-y-4 border-t border-black/10 bg-white/35 p-4">
                         {isEditing ? (
                             <QuestionnaireItemEditForm
                                 versionId={versionId}
@@ -1853,7 +1848,7 @@ export function QuestionnairePagesEditor({
                         ) : (
                             <>
                                 {item.helpText ? (
-                                    <div className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
+                                    <div className="rounded-[1.25rem] border border-black/10 bg-white/70 p-3 text-sm text-[#6b7280]">
                                         {item.helpText}
                                     </div>
                                 ) : null}
@@ -1863,7 +1858,7 @@ export function QuestionnairePagesEditor({
                                         type="button"
                                         size="sm"
                                         variant="outline"
-                                        className="gap-2"
+                                        className="gap-2 rounded-full border-black/10 bg-white/70 text-[#171717]"
                                         onClick={() => setEditingItemId(item.id)}
                                     >
                                         <Edit3 size={14} />
@@ -1874,7 +1869,7 @@ export function QuestionnairePagesEditor({
                                         type="button"
                                         size="sm"
                                         variant="outline"
-                                        className="gap-2"
+                                        className="gap-2 rounded-full border-black/10 bg-white/70 text-[#171717]"
                                         onClick={() =>
                                             setEditingItemScoringId(
                                                 isScoringEditing ? null : item.id,
@@ -1897,7 +1892,7 @@ export function QuestionnairePagesEditor({
                                 </div>
 
                                 {isScoringEditing ? (
-                                    <div className="rounded-lg border bg-background p-3">
+                                    <div className="rounded-[1.5rem] border border-black/10 bg-white/75 p-4 shadow-sm">
                                         <div className="mb-2 text-sm font-medium">
                                             Wymiary itemu
                                         </div>
@@ -1986,20 +1981,27 @@ export function QuestionnairePagesEditor({
 
 
     return (
-        <section className="space-y-4 rounded-2xl border bg-card p-5">
-            <div>
-                <h2 className="text-lg font-semibold">Struktura kwestionariusza</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Rozwijaj strony, dodawaj itemy bezpośrednio pod sekcjami i edytuj scoring.
+        <section className="group relative overflow-hidden rounded-[2rem] hv-brand-card p-6 transition duration-300 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+
+            <div className="max-w-3xl">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
+                    <Settings2 size={13} />
+                    Struktura
+                </div>
+
+                <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[#171717]">Struktura kwestionariusza</h2>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-[#6b7280]">
+                    Rozwijaj strony, dodawaj itemy bezpośrednio pod sekcjami i edytuj scoring. Szczegóły są ukryte w rozwijanych panelach, żeby edytor był czytelniejszy.
                 </p>
             </div>
-            <form action={formAction} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <form action={formAction} className="mt-6 grid gap-3 rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm md:grid-cols-[1fr_1fr_auto]">
                 <input type="hidden" name="versionId" value={versionId} />
 
-                <Input name="title" placeholder="W pracy najbardziej lubię..." required />
-                <Input name="description" placeholder="Opis / instrukcja" />
+                <Input name="title" placeholder="Tytuł strony, np. W pracy najbardziej lubię..." required className="rounded-2xl border-black/10 bg-white" />
+                <Input name="description" placeholder="Opis / instrukcja" className="rounded-2xl border-black/10 bg-white" />
 
-                <Button type="submit" disabled={isPending}>
+                <Button type="submit" disabled={isPending} className="rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a]">
                     {isPending ? "Dodawanie..." : "Dodaj stronę"}
                 </Button>
             </form>
@@ -2018,7 +2020,7 @@ export function QuestionnairePagesEditor({
 
             <div className="space-y-3">
                 {pages.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                    <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-5 text-sm text-[#6b7280]">
                         Brak stron.
                     </div>
                 ) : (
@@ -2035,11 +2037,11 @@ export function QuestionnairePagesEditor({
                         const isOpen = openPageIds.has(page.id);
                         const isScoringEditing = editingPageScoringId === page.id;
                         return (
-                            <div key={page.id} className="overflow-hidden rounded-2xl border">
+                            <div key={page.id} className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/75 shadow-sm backdrop-blur">
                                 <button
                                     type="button"
                                     onClick={() => togglePage(page.id)}
-                                    className="flex w-full items-start justify-between gap-4 bg-background px-4 py-4 text-left hover:bg-muted/40"
+                                    className="flex w-full items-start justify-between gap-4 bg-white/70 px-5 py-4 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                                 >
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
@@ -2074,7 +2076,7 @@ export function QuestionnairePagesEditor({
                                 </button>
 
                                 {isOpen ? (
-                                    <div className="space-y-4 border-t bg-muted/10 p-4">
+                                    <div className="space-y-4 border-t border-black/10 bg-white/35 p-4">
                                         {isEditing ? (
                                             <EditQuestionnairePageForm
                                                 versionId={versionId}
@@ -2088,7 +2090,7 @@ export function QuestionnairePagesEditor({
                                                         type="button"
                                                         size="sm"
                                                         variant="outline"
-                                                        className="gap-2"
+                                                        className="gap-2 rounded-full border-black/10 bg-white/70 text-[#171717]"
                                                         onClick={() => setEditingPageId(page.id)}
                                                     >
                                                         <Edit3 size={14} />
@@ -2099,7 +2101,7 @@ export function QuestionnairePagesEditor({
                                                         type="button"
                                                         size="sm"
                                                         variant="outline"
-                                                        className="gap-2"
+                                                        className="gap-2 rounded-full border-black/10 bg-white/70 text-[#171717]"
                                                         onClick={() =>
                                                             setEditingPageScoringId(
                                                                 isScoringEditing ? null : page.id,
@@ -2122,7 +2124,7 @@ export function QuestionnairePagesEditor({
                                                 </div>
 
                                                 {isScoringEditing ? (
-                                                    <div className="rounded-lg border bg-background p-3">
+                                                    <div className="rounded-[1.5rem] border border-black/10 bg-white/75 p-4 shadow-sm">
                                                         <div className="mb-2 text-sm font-medium">
                                                             Wymiary strony
                                                         </div>
@@ -2202,7 +2204,7 @@ export function QuestionnairePagesEditor({
                                                     </div>
                                                 ) : null}
 
-                                                <div className="rounded-lg border bg-background p-3">
+                                                <div className="rounded-[1.5rem] border border-black/10 bg-white/75 p-4 shadow-sm">
                                                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                                         <div>
                                                             <div className="text-sm font-medium">
@@ -2257,11 +2259,11 @@ export function QuestionnairePagesEditor({
                 )}
             </div>
             {unpagedItems.length > 0 ? (
-                <div className="overflow-hidden rounded-2xl border border-dashed">
+                <div className="overflow-hidden rounded-[2rem] border border-dashed border-black/10 bg-white/60 shadow-sm backdrop-blur">
                     <button
                         type="button"
                         onClick={() => setIsUnpagedOpen((value) => !value)}
-                        className="flex w-full items-start justify-between gap-4 bg-background px-4 py-4 text-left hover:bg-muted/40"
+                        className="flex w-full items-start justify-between gap-4 bg-white/70 px-5 py-4 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     >
                         <div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -2289,7 +2291,7 @@ export function QuestionnairePagesEditor({
                     </button>
 
                     {isUnpagedOpen ? (
-                        <div className="space-y-3 border-t bg-muted/10 p-4">
+                        <div className="space-y-3 border-t border-black/10 bg-white/35 p-4">
                             <Button
                                 type="button"
                                 size="sm"

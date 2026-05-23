@@ -35,10 +35,11 @@ export async function createTenantAction(
 ): Promise<CreateTenantActionState> {
   const actor = await requireSuperAdmin();
 
-  const rawInput = {
-    slug: String(formData.get("slug") ?? ""),
-    name: String(formData.get("name") ?? ""),
-  };
+const rawInput = {
+  slug: String(formData.get("slug") ?? ""),
+  name: String(formData.get("name") ?? ""),
+  ownerEmail: String(formData.get("ownerEmail") ?? ""),
+};
 
   const parsed = createTenantSchema.safeParse(rawInput);
 

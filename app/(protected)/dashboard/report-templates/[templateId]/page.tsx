@@ -6,16 +6,30 @@ import { ReportTemplateDetailsPage } from "@/features/report-builder/components/
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+
+
+
+
 type PageProps = {
   params: Promise<{
     templateId: string;
   }>;
+  searchParams: Promise<{
+    archivedTemplateVersions?: string;
+  }>;
 };
 
-export default async function ReportTemplatePage({ params }: PageProps) {
+
+export default async function Page({ params, searchParams }: PageProps) {
   await requireSuperAdmin();
 
   const { templateId } = await params;
+  const { archivedTemplateVersions } = await searchParams;
 
-  return <ReportTemplateDetailsPage reportTemplateId={templateId} />;
+  return (
+    <ReportTemplateDetailsPage
+      reportTemplateId={templateId}
+      showArchivedTemplateVersions={archivedTemplateVersions === "1"}
+    />
+  );
 }

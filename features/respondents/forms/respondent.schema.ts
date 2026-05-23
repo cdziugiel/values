@@ -1,14 +1,45 @@
 import { z } from "zod";
 
-const optionalUuid = z.string().uuid().optional().or(z.literal(""));
-const optionalText = z.string().max(180).optional().or(z.literal(""));
+const normalizeOptionalString = (value: unknown) => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
 
+  const normalized = value.trim();
+
+  return normalized || undefined;
+};
+
+const normalizeOptionalEmail = (value: unknown) => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return normalized || undefined;
+};
+
+const optionalUuid = z.preprocess(
+  normalizeOptionalString,
+  z.string().uuid().optional(),
+);
+
+const optionalText = z.preprocess(
+  normalizeOptionalString,
+  z.string().max(180).optional(),
+);
+
+const optionalEmail = z.preprocess(
+  normalizeOptionalEmail,
+  z.string().email().optional(),
+);
 export const createRespondentSchema = z.object({
   tenantSlug: z.string().min(2),
   externalCode: optionalText,
   clientOrganizationId: optionalUuid,
   clientUnitId: optionalUuid,
-  email: z.string().email().optional().or(z.literal("")),
+  email: optionalEmail,
   firstName: optionalText,
   lastName: optionalText,
   phone: optionalText,
@@ -20,7 +51,7 @@ export const updateRespondentSchema = z.object({
   externalCode: optionalText,
   clientOrganizationId: optionalUuid,
   clientUnitId: optionalUuid,
-  email: z.string().email().optional().or(z.literal("")),
+  email: optionalEmail,
   firstName: optionalText,
   lastName: optionalText,
   phone: optionalText,

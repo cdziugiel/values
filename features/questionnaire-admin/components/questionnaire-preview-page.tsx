@@ -1,8 +1,15 @@
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Eye,
+  FileText,
+  ListChecks,
+  Pencil,
+  ShieldCheck,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { PageHeader } from "@/shared/ui";
 
@@ -350,6 +357,60 @@ function PreviewItemInput({ item }: { item: QuestionnairePreviewItem }) {
   );
 }
 
+function BrandButton({
+  href,
+  children,
+  variant = "primary",
+}: {
+  href: string;
+  children: React.ReactNode;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <Button
+      asChild
+      variant={variant === "primary" ? "default" : "outline"}
+      className={
+        variant === "primary"
+          ? "rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
+          : "rounded-full border-black/10 bg-white/70 text-[#171717] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+      }
+    >
+      <Link href={href}>{children}</Link>
+    </Button>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+}) {
+  return (
+    <article className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm backdrop-blur">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+            {label}
+          </p>
+
+          <div className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[#171717]">
+            {value}
+          </div>
+        </div>
+
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-[#171717]">
+          {icon}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function PreviewItemCard({
   item,
   index,
@@ -358,28 +419,38 @@ function PreviewItemCard({
   index: number;
 }) {
   return (
-    <div className="rounded-xl border bg-background p-4">
-      <div className="flex gap-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium">
+    <article className="group relative overflow-hidden rounded-[1.5rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+
+      <div className="flex gap-4">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
           {index + 1}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="font-medium leading-relaxed">{item.text}</div>
+          <div className="flex flex-wrap items-start gap-2">
+            <h3 className="font-medium leading-7 tracking-[-0.01em] text-[#171717]">
+              {item.text}
+            </h3>
 
             {item.required ? (
-              <Badge variant="secondary">wymagane</Badge>
+              <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                wymagane
+              </Badge>
             ) : null}
           </div>
 
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span>{item.code}</span>
-            <span>· {item.type}</span>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#6b7280]">
+            <span className="rounded-full border border-black/10 bg-white/70 px-2.5 py-1 font-mono">
+              {item.code}
+            </span>
+            <span className="rounded-full border border-black/10 bg-white/70 px-2.5 py-1">
+              {item.type}
+            </span>
           </div>
 
           {item.helpText ? (
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-3 text-sm leading-6 text-[#6b7280]">
               {item.helpText}
             </p>
           ) : null}
@@ -387,7 +458,7 @@ function PreviewItemCard({
           <PreviewItemInput item={item} />
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -400,16 +471,18 @@ export async function QuestionnairePreviewPage({
 
   if (!data) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Nie znaleziono wersji"
-          description="Nie znaleziono wersji kwestionariusza do podglądu."
-          actions={
-            <Button asChild variant="outline">
-              <Link href="/dashboard/questionnaires">Wróć</Link>
-            </Button>
-          }
-        />
+      <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="mx-auto w-full max-w-5xl space-y-6">
+          <PageHeader
+            title="Nie znaleziono wersji"
+            description="Nie znaleziono wersji kwestionariusza do podglądu."
+          />
+
+          <BrandButton href="/dashboard/questionnaires" variant="secondary">
+            <ArrowLeft size={16} />
+            Wróć
+          </BrandButton>
+        </div>
       </div>
     );
   }
@@ -419,130 +492,186 @@ export async function QuestionnairePreviewPage({
     data.unpagedItems.length;
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title={`Podgląd: ${data.questionnaire.name}`}
-        description="Administracyjny podgląd kwestionariusza. Odpowiedzi nie są zapisywane."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/dashboard/questionnaires/editor/${data.version.id}`}>
+    <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl space-y-8">
+        <PageHeader
+          title={`Podgląd: ${data.questionnaire.name}`}
+          description="Administracyjny podgląd kwestionariusza. Odpowiedzi nie są zapisywane."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <BrandButton
+                href={`/dashboard/questionnaires/editor/${data.version.id}`}
+                variant="secondary"
+              >
+                <Pencil size={16} />
                 Edytuj treść
-              </Link>
-            </Button>
+              </BrandButton>
 
-            <Button asChild variant="outline">
-              <Link href="/dashboard/questionnaires">Wróć do listy</Link>
-            </Button>
+              <BrandButton href="/dashboard/questionnaires" variant="secondary">
+                <ArrowLeft size={16} />
+                Wróć do listy
+              </BrandButton>
+            </div>
+          }
+        />
+
+        <section className="overflow-hidden rounded-[2rem] hv-brand-card">
+          <div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-end md:p-8 lg:p-10">
+            <div className="max-w-4xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
+                <Eye size={14} />
+                <span className="hv-brand-eyebrow text-[0.68rem]">
+                  Podgląd kwestionariusza
+                </span>
+              </div>
+
+              <h1 className="text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
+                {data.version.name}
+              </h1>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-black/10 bg-white/70 font-mono text-[#6b7280]"
+                >
+                  {data.questionnaire.code}
+                </Badge>
+
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-black/10 bg-white/70 text-[#6b7280]"
+                >
+                  wersja {data.version.version}
+                </Badge>
+
+                <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                  {data.version.status}
+                </Badge>
+
+                {data.version.isPublic ? (
+                  <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                    publiczna
+                  </Badge>
+                ) : null}
+              </div>
+
+              {data.version.description ? (
+                <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
+                  {data.version.description}
+                </p>
+              ) : data.questionnaire.description ? (
+                <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
+                  {data.questionnaire.description}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                  <ShieldCheck size={20} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-[#171717]">
+                    Tryb podglądu
+                  </p>
+                  <p className="mt-0.5 text-sm text-[#6b7280]">
+                    bez zapisu odpowiedzi
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        }
-      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{data.version.name}</CardTitle>
-        </CardHeader>
+          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-3 md:p-8">
+            <MetricCard
+              label="Strony"
+              value={data.pages.length}
+              icon={<FileText size={18} />}
+            />
 
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{data.questionnaire.code}</Badge>
-            <Badge variant="outline">wersja {data.version.version}</Badge>
-            <Badge variant="secondary">{data.version.status}</Badge>
+            <MetricCard
+              label="Pytania"
+              value={totalItems}
+              icon={<ListChecks size={18} />}
+            />
 
-            {data.version.isPublic ? (
-              <Badge variant="secondary">publiczna</Badge>
-            ) : null}
+            <MetricCard
+              label="Tryb"
+              value="Podgląd"
+              icon={<Eye size={18} />}
+            />
           </div>
+        </section>
 
-          {data.version.description ? (
-            <p className="text-sm text-muted-foreground">
-              {data.version.description}
-            </p>
-          ) : data.questionnaire.description ? (
-            <p className="text-sm text-muted-foreground">
-              {data.questionnaire.description}
-            </p>
-          ) : null}
-
-          <div className="grid gap-3 text-sm md:grid-cols-3">
-            <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs uppercase text-muted-foreground">
-                Strony
-              </div>
-              <div className="mt-1 text-lg font-semibold">
-                {data.pages.length}
-              </div>
-            </div>
-
-            <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs uppercase text-muted-foreground">
-                Pytania
-              </div>
-              <div className="mt-1 text-lg font-semibold">{totalItems}</div>
-            </div>
-
-            <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs uppercase text-muted-foreground">
-                Tryb
-              </div>
-              <div className="mt-1 text-lg font-semibold">Podgląd</div>
-            </div>
+        {data.pages.length === 0 && data.unpagedItems.length === 0 ? (
+          <div className="rounded-[2rem] border border-dashed border-black/10 bg-white/60 p-8 text-sm leading-6 text-[#6b7280] shadow-sm backdrop-blur">
+            Ta wersja nie ma jeszcze stron ani itemów.
           </div>
-        </CardContent>
-      </Card>
+        ) : null}
 
-      {data.pages.length === 0 && data.unpagedItems.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-sm text-muted-foreground">
-          Ta wersja nie ma jeszcze stron ani itemów.
-        </div>
-      ) : null}
+        {data.pages.map((page, pageIndex) => (
+          <section
+            key={page.id}
+            className="space-y-5 rounded-[2rem] hv-brand-card p-6"
+          >
+            <div className="flex gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-sm font-semibold text-[#171717]">
+                {pageIndex + 1}
+              </div>
 
-      {data.pages.map((page) => (
-        <section key={page.id} className="space-y-5 rounded-2xl border p-5">
-          <div>
-            <div className="text-xs font-medium uppercase text-muted-foreground">
-              {page.code}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7280]">
+                  {page.code}
+                </p>
+
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+                  {page.title}
+                </h2>
+
+                {page.description ? (
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6b7280]">
+                    {page.description}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
-            <h2 className="mt-1 text-xl font-semibold">{page.title}</h2>
+            {page.items.length === 0 ? (
+              <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-5 text-sm text-[#6b7280]">
+                Brak pytań na tej stronie.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {page.items.map((item, index) => (
+                  <PreviewItemCard key={item.id} item={item} index={index} />
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
 
-            {page.description ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {page.description}
+        {data.unpagedItems.length > 0 ? (
+          <section className="space-y-5 rounded-[2rem] hv-brand-card p-6">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+                Itemy bez strony
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                Te pytania nie są przypisane do konkretnej strony.
               </p>
-            ) : null}
-          </div>
-
-          {page.items.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-              Brak pytań na tej stronie.
             </div>
-          ) : (
+
             <div className="space-y-4">
-              {page.items.map((item, index) => (
+              {data.unpagedItems.map((item, index) => (
                 <PreviewItemCard key={item.id} item={item} index={index} />
               ))}
             </div>
-          )}
-        </section>
-      ))}
-
-      {data.unpagedItems.length > 0 ? (
-        <section className="space-y-5 rounded-2xl border p-5">
-          <div>
-            <h2 className="text-xl font-semibold">Itemy bez strony</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Te pytania nie są przypisane do konkretnej strony.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {data.unpagedItems.map((item, index) => (
-              <PreviewItemCard key={item.id} item={item} index={index} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -1,11 +1,21 @@
-
-import { listDashboardTenantActivity } from "@/features/dashboard/api/dashboard-tenant-activity.queries";
 import Link from "next/link";
+import {
+  Activity,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Database,
+  FileText,
+  Layers3,
+  ShieldCheck,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 
+import { listDashboardTenantActivity } from "@/features/dashboard/api/dashboard-tenant-activity.queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   questionnaireVersions,
   questionnaires,
@@ -17,21 +27,33 @@ import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { controlDb } from "@/server/db/control-db";
 import { PageHeader } from "@/shared/ui";
 
-function formatDateTime(value: Date | null) {
+function formatDateTime(value: unknown) {
   if (!value) return "—";
+
+  const date = value instanceof Date ? value : new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return "—";
 
   return new Intl.DateTimeFormat("pl-PL", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  }).format(date);
 }
 
-function statusBadgeVariant(status: string) {
+function statusBadgeVariant(
+  status: string | null | undefined,
+): "default" | "secondary" | "destructive" | "outline" {
   if (status === "active" || status === "success") return "default";
   if (status === "draft" || status === "pending") return "secondary";
   if (status === "archived" || status === "failed") return "destructive";
 
   return "outline";
+}
+
+function percent(value: number, total: number) {
+  if (total <= 0) return 0;
+
+  return Math.round((value / total) * 100);
 }
 
 async function getDashboardData() {
@@ -61,10 +83,7 @@ async function getDashboardData() {
       .from(tenants)
       .where(and(eq(tenants.status, "active"), isNull(tenants.deletedAt))),
 
-    controlDb
-      .select({ value: count() })
-      .from(users)
-      .where(isNull(users.deletedAt)),
+    controlDb.select({ value: count() }).from(users).where(isNull(users.deletedAt)),
 
     controlDb
       .select({ value: count() })
@@ -108,9 +127,7 @@ async function getDashboardData() {
         ),
       ),
 
-    controlDb
-      .select({ value: count() })
-      .from(tenantDatabaseConnections),
+    controlDb.select({ value: count() }).from(tenantDatabaseConnections),
 
     controlDb
       .select({ value: count() })
@@ -203,300 +220,496 @@ async function getDashboardData() {
   };
 }
 
+function BrandButton({
+  href,
+  children,
+  variant = "primary",
+}: {
+  href: string;
+  children: React.ReactNode;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <Button
+      asChild
+      variant={variant === "primary" ? "default" : "outline"}
+      className={
+        variant === "primary"
+          ? "rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
+          : "rounded-full border-black/10 bg-white/70 text-[#171717] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+      }
+    >
+      <Link href={href}>{children}</Link>
+    </Button>
+  );
+}
+
+function DashboardCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={[
+        "rounded-[2rem] border border-black/10 bg-white/80 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </section>
+  );
+}
+
+function SectionHeader({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:p-6">
+      <div className="flex gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+          {icon}
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+            {title}
+          </h2>
+
+          {description ? (
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6b7280]">
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  helper,
+  icon,
+  progress,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  icon: React.ReactNode;
+  progress?: number;
+}) {
+  return (
+    <article className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
+            {label}
+          </p>
+
+          <div className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-[#171717]">
+            {value}
+          </div>
+        </div>
+
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-[#171717]">
+          {icon}
+        </div>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-[#6b7280]">{helper}</p>
+
+      {typeof progress === "number" ? (
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-medium text-[#6b7280]">Udział aktywnych</span>
+            <span className="font-semibold text-[#171717]">{progress}%</span>
+          </div>
+
+          <div className="h-2 overflow-hidden rounded-full bg-[#f3f4f6]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]"
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function EmptyPanel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-6 text-sm leading-6 text-[#6b7280]">
+      {children}
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   await requireSuperAdmin();
 
   const [data, tenantActivity] = await Promise.all([
-  getDashboardData(),
-  listDashboardTenantActivity(),
-]);
+    getDashboardData(),
+    listDashboardTenantActivity(),
+  ]);
+
+  const readyTenantActivityCount = tenantActivity.filter(
+    (tenant) => tenant.ok,
+  ).length;
+
+  const totalProjects = tenantActivity.reduce(
+    (sum, tenant) => sum + (tenant.ok ? tenant.projectsCount : 0),
+    0,
+  );
+
+  const totalRespondents = tenantActivity.reduce(
+    (sum, tenant) => sum + (tenant.ok ? tenant.respondentsCount : 0),
+    0,
+  );
+
+  const totalSessions = tenantActivity.reduce(
+    (sum, tenant) => sum + (tenant.ok ? tenant.sessionsCount : 0),
+    0,
+  );
+
+  const totalCompletedSessions = tenantActivity.reduce(
+    (sum, tenant) => sum + (tenant.ok ? tenant.completedSessionsCount : 0),
+    0,
+  );
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description="Panel kontrolny HUMANET VALUES: tenanty, kwestionariusze, wersje publiczne i stan baz danych."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href="/dashboard/questionnaires">Kwestionariusze</Link>
-            </Button>
-
-            <Button asChild variant="outline">
-              <Link href="/dashboard/tenants">Tenanty</Link>
-            </Button>
-
-            <Button asChild>
-              <Link href="/my/assessment">Moje badania</Link>
-            </Button>
-          </div>
-        }
-      />
-
-      <main className="space-y-8">
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Tenanty
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">{data.tenants.total}</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aktywne: {data.tenants.active}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Użytkownicy
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">{data.users.total}</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aktywni: {data.users.active}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+    <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl space-y-8">
+        <PageHeader
+          title="Dashboard"
+          description="Panel kontrolny HUMANET VALUES: tenanty, kwestionariusze, wersje publiczne i stan baz danych."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <BrandButton href="/dashboard/questionnaires" variant="secondary">
                 Kwestionariusze
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">
-                {data.questionnaires.total}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aktywne: {data.questionnaires.active}
-              </p>
-            </CardContent>
-          </Card>
+              </BrandButton>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Wersje publiczne
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">
-                {data.questionnaireVersions.public}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aktywne wersje: {data.questionnaireVersions.active} /{" "}
-                {data.questionnaireVersions.total}
-              </p>
-            </CardContent>
-          </Card>
+              <BrandButton href="/dashboard/tenants" variant="secondary">
+                Tenanty
+              </BrandButton>
+
+              <BrandButton href="/my/assessment">
+                Moje badania
+                <ArrowRight size={16} />
+              </BrandButton>
+            </div>
+          }
+        />
+
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Partnerzy"
+            value={data.tenants.total}
+            helper={`Aktywne: ${data.tenants.active}`}
+            icon={<Building2 size={20} />}
+            progress={percent(data.tenants.active, data.tenants.total)}
+          />
+
+          <StatCard
+            label="Użytkownicy"
+            value={data.users.total}
+            helper={`Aktywni: ${data.users.active}`}
+            icon={<Users size={20} />}
+            progress={percent(data.users.active, data.users.total)}
+          />
+
+          <StatCard
+            label="Kwestionariusze"
+            value={data.questionnaires.total}
+            helper={`Aktywne: ${data.questionnaires.active}`}
+            icon={<FileText size={20} />}
+            progress={percent(data.questionnaires.active, data.questionnaires.total)}
+          />
+
+          <StatCard
+            label="Wersje publiczne"
+            value={data.questionnaireVersions.public}
+            helper={`Aktywne wersje: ${data.questionnaireVersions.active} / ${data.questionnaireVersions.total}`}
+            icon={<Layers3 size={20} />}
+            progress={percent(
+              data.questionnaireVersions.active,
+              data.questionnaireVersions.total,
+            )}
+          />
         </section>
-<section>
-  <Card>
-    <CardHeader>
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div>
-          <CardTitle>Aktywność tenantów</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Lekkie agregaty z baz tenantowych: projekty, respondenci i sesje badań.
-          </p>
-        </div>
 
-        <Badge variant="outline">
-          {tenantActivity.filter((tenant) => tenant.ok).length} /{" "}
-          {tenantActivity.length} baz gotowych
-        </Badge>
-      </div>
-    </CardHeader>
+        <section className="grid gap-4 md:grid-cols-4">
+          <DashboardCard className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+              Projekty
+            </p>
+            <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[#171717]">
+              {totalProjects}
+            </p>
+            <p className="mt-1 text-sm text-[#6b7280]">u partnerów</p>
+          </DashboardCard>
 
-    <CardContent>
-      {tenantActivity.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-          Brak aktywnych tenantów.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-3 font-medium">Tenant</th>
-                <th className="px-3 py-3 font-medium">Baza</th>
-                <th className="px-3 py-3 text-right font-medium">Projekty</th>
-                <th className="px-3 py-3 text-right font-medium">Respondenci</th>
-                <th className="px-3 py-3 text-right font-medium">Sesje</th>
-                <th className="px-3 py-3 text-right font-medium">W toku</th>
-                <th className="px-3 py-3 text-right font-medium">Zakończone</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
+          <DashboardCard className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+              Respondenci
+            </p>
+            <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[#171717]">
+              {totalRespondents}
+            </p>
+            <p className="mt-1 text-sm text-[#6b7280]">
+              zagregowani z baz partnerów
+            </p>
+          </DashboardCard>
 
-            <tbody>
-              {tenantActivity.map((tenant) => (
-                <tr key={tenant.tenantId} className="border-b last:border-0">
-                  <td className="px-3 py-3">
-                    <div className="font-medium">{tenant.tenantName}</div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {tenant.tenantSlug}
-                    </div>
-                  </td>
+          <DashboardCard className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+              Sesje
+            </p>
+            <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[#171717]">
+              {totalSessions}
+            </p>
+            <p className="mt-1 text-sm text-[#6b7280]">łącznie</p>
+          </DashboardCard>
 
-                  <td className="px-3 py-3">
-                    <div className="font-mono text-xs">
-                      {tenant.databaseName ?? "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      schema: {tenant.schemaVersion ?? "—"}
-                    </div>
-                  </td>
+          <DashboardCard className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+              Ukończone
+            </p>
+            <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[#171717]">
+              {totalCompletedSessions}
+            </p>
+            <p className="mt-1 text-sm text-[#6b7280]">zakończone sesje badań</p>
+          </DashboardCard>
+        </section>
 
-                  <td className="px-3 py-3 text-right">
-                    {tenant.ok ? tenant.projectsCount : "—"}
-                  </td>
+        <DashboardCard>
+          <SectionHeader
+            icon={<Activity size={20} />}
+            title="Aktywność partnerów"
+            description="Lekkie agregaty z baz tenantowych: projekty, respondenci i sesje badań. Awaria jednej bazy nie powinna blokować całego dashboardu."
+            action={
+              <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                {readyTenantActivityCount} / {tenantActivity.length} baz gotowych
+              </Badge>
+            }
+          />
 
-                  <td className="px-3 py-3 text-right">
-                    {tenant.ok ? tenant.respondentsCount : "—"}
-                  </td>
+          <div className="px-5 pb-5 md:px-6 md:pb-6">
+            {tenantActivity.length === 0 ? (
+              <EmptyPanel>Brak aktywnych partnerów.</EmptyPanel>
+            ) : (
+              <div className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white/70">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[980px] text-left text-sm">
+                    <thead className="border-b border-black/10 bg-[#f7f7f8] text-xs uppercase tracking-[0.12em] text-[#6b7280]">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Tenant</th>
+                        <th className="px-4 py-3 font-semibold">Baza</th>
+                        <th className="px-4 py-3 text-right font-semibold">
+                          Projekty
+                        </th>
+                        <th className="px-4 py-3 text-right font-semibold">
+                          Respondenci
+                        </th>
+                        <th className="px-4 py-3 text-right font-semibold">
+                          Sesje
+                        </th>
+                        <th className="px-4 py-3 text-right font-semibold">
+                          W toku
+                        </th>
+                        <th className="px-4 py-3 text-right font-semibold">
+                          Zakończone
+                        </th>
+                        <th className="px-4 py-3 font-semibold">Status</th>
+                      </tr>
+                    </thead>
 
-                  <td className="px-3 py-3 text-right">
-                    {tenant.ok ? tenant.sessionsCount : "—"}
-                  </td>
+                    <tbody>
+                      {tenantActivity.map((tenant) => (
+                        <tr
+                          key={tenant.tenantId}
+                          className="border-b border-black/10 last:border-0"
+                        >
+                          <td className="px-4 py-4">
+                            <div className="font-semibold text-[#171717]">
+                              {tenant.tenantName}
+                            </div>
+                            <div className="font-mono text-xs text-[#6b7280]">
+                              {tenant.tenantSlug}
+                            </div>
+                          </td>
 
-                  <td className="px-3 py-3 text-right">
-                    {tenant.ok ? tenant.inProgressSessionsCount : "—"}
-                  </td>
+                          <td className="px-4 py-4">
+                            <div className="font-mono text-xs text-[#171717]">
+                              {tenant.databaseName ?? "—"}
+                            </div>
+                            <div className="text-xs text-[#6b7280]">
+                              schema: {tenant.schemaVersion ?? "—"}
+                            </div>
+                          </td>
 
-                  <td className="px-3 py-3 text-right">
-                    {tenant.ok ? tenant.completedSessionsCount : "—"}
-                  </td>
+                          <td className="px-4 py-4 text-right text-[#171717]">
+                            {tenant.ok ? tenant.projectsCount : "—"}
+                          </td>
 
-                  <td className="px-3 py-3">
-                    {tenant.ok ? (
-                      <Badge variant="default">OK</Badge>
-                    ) : (
-                      <div className="space-y-1">
-                        <Badge variant="destructive">
-                          {tenant.migrationStatus ?? "brak bazy"}
-                        </Badge>
-                        <div className="max-w-[260px] text-xs text-muted-foreground">
-                          {tenant.errorMessage}
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </CardContent>
-  </Card>
-</section>
-        <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CardTitle>Ostatnio aktualizowane wersje</CardTitle>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Najnowsze zmiany w wersjach kwestionariuszy.
-                  </p>
+                          <td className="px-4 py-4 text-right text-[#171717]">
+                            {tenant.ok ? tenant.respondentsCount : "—"}
+                          </td>
+
+                          <td className="px-4 py-4 text-right text-[#171717]">
+                            {tenant.ok ? tenant.sessionsCount : "—"}
+                          </td>
+
+                          <td className="px-4 py-4 text-right text-[#171717]">
+                            {tenant.ok ? tenant.inProgressSessionsCount : "—"}
+                          </td>
+
+                          <td className="px-4 py-4 text-right text-[#171717]">
+                            {tenant.ok ? tenant.completedSessionsCount : "—"}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            {tenant.ok ? (
+                              <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                                OK
+                              </Badge>
+                            ) : (
+                              <div className="space-y-1">
+                                <Badge variant="destructive">
+                                  {tenant.migrationStatus ?? "brak bazy"}
+                                </Badge>
+                                <div className="max-w-[260px] text-xs leading-5 text-[#6b7280]">
+                                  {tenant.errorMessage}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/dashboard/questionnaires">Zarządzaj</Link>
-                </Button>
               </div>
-            </CardHeader>
+            )}
+          </div>
+        </DashboardCard>
 
-            <CardContent>
+        <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+          <DashboardCard>
+            <SectionHeader
+              icon={<FileText size={20} />}
+              title="Ostatnio aktualizowane wersje"
+              description="Najnowsze zmiany w wersjach kwestionariuszy."
+              action={
+                <BrandButton href="/dashboard/questionnaires" variant="secondary">
+                  Zarządzaj
+                </BrandButton>
+              }
+            />
+
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
               {data.recentQuestionnaireVersions.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                  Brak wersji kwestionariuszy.
-                </div>
+                <EmptyPanel>Brak wersji kwestionariuszy.</EmptyPanel>
               ) : (
                 <div className="space-y-3">
                   {data.recentQuestionnaireVersions.map((version) => (
-                    <div
+                    <article
                       key={version.id}
-                      className="flex flex-col gap-3 rounded-xl border p-4 md:flex-row md:items-center md:justify-between"
+                      className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm transition hover:border-black/20 hover:bg-white"
                     >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-medium">
-                            {version.questionnaireName}
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
+                              {version.questionnaireName}
+                            </h3>
+
+                            <Badge variant="outline">
+                              {version.questionnaireCode}
+                            </Badge>
+
+                            <Badge variant={statusBadgeVariant(version.status)}>
+                              {version.status}
+                            </Badge>
+
+                            {version.isPublic ? (
+                              <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                                publiczny
+                              </Badge>
+                            ) : null}
                           </div>
 
-                          <Badge variant="outline">
-                            {version.questionnaireCode}
-                          </Badge>
+                          <p className="mt-1 text-sm text-[#6b7280]">
+                            {version.name} · wersja {version.version}
+                          </p>
 
-                          <Badge variant={statusBadgeVariant(version.status)}>
-                            {version.status}
-                          </Badge>
-
-                          {version.isPublic ? (
-                            <Badge variant="secondary">publiczny</Badge>
-                          ) : null}
+                          <p className="mt-1 text-xs text-[#8b9099]">
+                            Aktualizacja: {formatDateTime(version.updatedAt)}
+                          </p>
                         </div>
 
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          {version.name} · wersja {version.version}
-                        </div>
-
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Aktualizacja: {formatDateTime(version.updatedAt)}
-                        </div>
-                      </div>
-
-                      <Button asChild size="sm" variant="outline">
-                        <Link
-                          href={`/dashboard/questionnaires/editor/${version.id}`}
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full border-black/10 bg-white/70"
                         >
-                          Edytuj
-                        </Link>
-                      </Button>
-                    </div>
+                          <Link
+                            href={`/dashboard/questionnaires/editor/${version.id}`}
+                          >
+                            Edytuj
+                          </Link>
+                        </Button>
+                      </div>
+                    </article>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Stan baz tenantów</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Gotowe migracje: {data.tenantDatabases.ready} /{" "}
-                {data.tenantDatabases.total}
-              </p>
-            </CardHeader>
+          <DashboardCard>
+            <SectionHeader
+              icon={<Database size={20} />}
+              title="Stan baz partnerów"
+              description={`Gotowe migracje: ${data.tenantDatabases.ready} / ${data.tenantDatabases.total}`}
+            />
 
-            <CardContent>
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
               {data.tenantDbConnections.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                  Brak skonfigurowanych baz tenantów.
-                </div>
+                <EmptyPanel>Brak skonfigurowanych baz partnerów.</EmptyPanel>
               ) : (
                 <div className="space-y-3">
                   {data.tenantDbConnections.map((connection) => (
-                    <div
+                    <article
                       key={`${connection.tenantId}:${connection.databaseName}`}
-                      className="rounded-xl border p-4"
+                      className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <div className="font-medium">
+                          <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
                             {connection.tenantName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
+                          </h3>
+                          <p className="mt-0.5 text-xs text-[#6b7280]">
                             {connection.tenantSlug} · {connection.databaseName}
-                          </div>
+                          </p>
                         </div>
 
                         <Badge
@@ -508,10 +721,10 @@ export default async function DashboardPage() {
                         </Badge>
                       </div>
 
-                      <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                      <div className="mt-4 grid gap-2 text-xs text-[#6b7280]">
                         <div>
                           Schema version:{" "}
-                          <span className="font-mono">
+                          <span className="font-mono text-[#171717]">
                             {connection.schemaVersion ?? "—"}
                           </span>
                         </div>
@@ -521,94 +734,103 @@ export default async function DashboardPage() {
                           {formatDateTime(connection.lastMigratedAt)}
                         </div>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ostatnio aktualizowane tenanty</CardTitle>
-            </CardHeader>
+          <DashboardCard>
+            <SectionHeader
+              icon={<Building2 size={20} />}
+              title="Ostatnio aktualizowane tenanty"
+            />
 
-            <CardContent>
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
               {data.recentTenants.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                  Brak tenantów.
-                </div>
+                <EmptyPanel>Brak partnerów.</EmptyPanel>
               ) : (
-                <div className="overflow-x-auto rounded-xl border">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-3 font-medium">Tenant</th>
-                        <th className="px-3 py-3 font-medium">Slug</th>
-                        <th className="px-3 py-3 font-medium">Status</th>
-                        <th className="px-3 py-3 font-medium">Aktualizacja</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {data.recentTenants.map((tenant) => (
-                        <tr key={tenant.id} className="border-b last:border-0">
-                          <td className="px-3 py-3 font-medium">
-                            {tenant.name}
-                          </td>
-                          <td className="px-3 py-3 font-mono text-xs">
-                            {tenant.slug}
-                          </td>
-                          <td className="px-3 py-3">
-                            <Badge variant={statusBadgeVariant(tenant.status)}>
-                              {tenant.status}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-3 text-muted-foreground">
-                            {formatDateTime(tenant.updatedAt)}
-                          </td>
+                <div className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white/70">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left text-sm">
+                      <thead className="border-b border-black/10 bg-[#f7f7f8] text-xs uppercase tracking-[0.12em] text-[#6b7280]">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Partner</th>
+                          <th className="px-4 py-3 font-semibold">Slug</th>
+                          <th className="px-4 py-3 font-semibold">Status</th>
+                          <th className="px-4 py-3 font-semibold">
+                            Aktualizacja
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+
+                      <tbody>
+                        {data.recentTenants.map((tenant) => (
+                          <tr
+                            key={tenant.id}
+                            className="border-b border-black/10 last:border-0"
+                          >
+                            <td className="px-4 py-4 font-semibold text-[#171717]">
+                              {tenant.name}
+                            </td>
+                            <td className="px-4 py-4 font-mono text-xs text-[#6b7280]">
+                              {tenant.slug}
+                            </td>
+                            <td className="px-4 py-4">
+                              <Badge variant={statusBadgeVariant(tenant.status)}>
+                                {tenant.status}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-4 text-[#6b7280]">
+                              {formatDateTime(tenant.updatedAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Najbliższy sensowny krok</CardTitle>
-            </CardHeader>
+          <DashboardCard>
+            <SectionHeader
+              icon={<Sparkles size={20} />}
+              title="Najbliższy sensowny krok"
+              description="Dashboard ma obraz control layer i lekkie agregaty tenantowe. Kolejnym krokiem powinno być przejście od obserwacji do kontroli operacyjnej."
+            />
 
-            <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <p>
-                Dashboard pokazuje teraz stan control layer. Kolejnym logicznym
-                krokiem jest dodanie lekkich agregatów tenantowych: liczby
-                projektów, respondentów, sesji zakończonych i sesji w toku.
-              </p>
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
+              <div className="space-y-4 text-sm leading-7 text-[#6b7280]">
+                <p>
+                  Warto dodać moduł health & activity summary z jasnym podziałem
+                  na partnerów gotowych, wymagających migracji oraz partnerów z
+                  błędem połączenia.
+                </p>
 
-              <p>
-                Najlepiej zrobić to jako osobną funkcję serwerową z defensywnym
-                try/catch per tenant, żeby awaria jednej bazy nie blokowała
-                całego dashboardu.
-              </p>
+                <p>
+                  Najlepiej utrzymać defensywny try/catch per partner, żeby awaria
+                  jednej bazy nie blokowała całego widoku administracyjnego.
+                </p>
 
-              <div className="rounded-xl border bg-muted/30 p-4">
-                <div className="font-medium text-foreground">
-                  Proponowany następny moduł:
-                </div>
-                <div className="mt-1">
-                  cross-tenant health & activity summary dla projektów
-                  badawczych.
+                <div className="rounded-[1.5rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] p-5">
+                  <div className="font-semibold text-[#171717]">
+                    Proponowany następny moduł
+                  </div>
+                  <div className="mt-1 text-[#0f766e]">
+                    Cross-tenant health & activity summary dla projektów
+                    badawczych.
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

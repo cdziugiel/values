@@ -8,6 +8,13 @@ export type MyAssessmentQuestionnaireStatus =
 
 export type MyAssessmentQuestionnaireSource = "public" | "invited";
 
+export type MyAssessmentQuestionnaireAccessType =
+  | "invitation"
+  | "organization"
+  | "public";
+
+
+
 export type MyAssessmentQuestionnaire = {
   id: string;
   code: string;
@@ -18,6 +25,9 @@ export type MyAssessmentQuestionnaire = {
 
   source: MyAssessmentQuestionnaireSource;
   actionHref: string | null;
+
+  accessType?: "invitation" | "organization" | "public";
+  accessLabel?: string;
 
   questionnaireId: string | null;
   questionnaireVersionId: string | null;

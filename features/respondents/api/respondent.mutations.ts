@@ -19,8 +19,13 @@ import {
   type UpdateRespondentInput,
 } from "../forms/respondent.schema";
 
-function normalizeOptional(value: string | undefined | null) {
-  const normalized = value?.trim().toLowerCase();;
+function normalizeOptionalText(value: string | undefined | null) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeOptionalEmail(value: string | undefined | null) {
+  const normalized = value?.trim().toLowerCase();
   return normalized ? normalized : null;
 }
 
@@ -147,7 +152,7 @@ export async function createRespondent({
   const [respondent] = await db
     .insert(respondents)
     .values({
-      externalCode: normalizeOptional(parsed.data.externalCode),
+      externalCode: normalizeOptionalText(parsed.data.externalCode),
       clientOrganizationId,
       clientUnitId,
       metadata: {},
@@ -160,10 +165,10 @@ export async function createRespondent({
     .insert(respondentIdentities)
     .values({
       respondentId: respondent.id,
-      email: normalizeOptional(parsed.data.email),
-      firstName: normalizeOptional(parsed.data.firstName),
-      lastName: normalizeOptional(parsed.data.lastName),
-      phone: normalizeOptional(parsed.data.phone),
+      email: normalizeOptionalEmail(parsed.data.email),
+      firstName: normalizeOptionalText(parsed.data.firstName),
+      lastName: normalizeOptionalText(parsed.data.lastName),
+      phone: normalizeOptionalText(parsed.data.phone),
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
     })
@@ -235,7 +240,7 @@ export async function updateRespondent({
   const [updatedRespondent] = await db
     .update(respondents)
     .set({
-      externalCode: normalizeOptional(parsed.data.externalCode),
+      externalCode: normalizeOptionalText(parsed.data.externalCode),
       clientOrganizationId,
       clientUnitId,
       updatedBy: ctx.userId,
@@ -250,10 +255,10 @@ export async function updateRespondent({
     await db
       .update(respondentIdentities)
       .set({
-        email: normalizeOptional(parsed.data.email),
-        firstName: normalizeOptional(parsed.data.firstName),
-        lastName: normalizeOptional(parsed.data.lastName),
-        phone: normalizeOptional(parsed.data.phone),
+        email: normalizeOptionalEmail(parsed.data.email),
+        firstName: normalizeOptionalText(parsed.data.firstName),
+        lastName: normalizeOptionalText(parsed.data.lastName),
+        phone: normalizeOptionalText(parsed.data.phone),
         updatedBy: ctx.userId,
         updatedAt: new Date(),
       })
@@ -261,10 +266,10 @@ export async function updateRespondent({
   } else {
     await db.insert(respondentIdentities).values({
       respondentId: updatedRespondent.id,
-      email: normalizeOptional(parsed.data.email),
-      firstName: normalizeOptional(parsed.data.firstName),
-      lastName: normalizeOptional(parsed.data.lastName),
-      phone: normalizeOptional(parsed.data.phone),
+      email: normalizeOptionalEmail(parsed.data.email),
+      firstName: normalizeOptionalText(parsed.data.firstName),
+      lastName: normalizeOptionalText(parsed.data.lastName),
+      phone: normalizeOptionalText(parsed.data.phone),
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
     });
@@ -284,10 +289,10 @@ export async function updateRespondent({
       },
       identity: existing.identity
         ? {
-            email: existing.identity.email,
-            firstName: existing.identity.firstName,
-            lastName: existing.identity.lastName,
-          }
+          email: existing.identity.email,
+          firstName: existing.identity.firstName,
+          lastName: existing.identity.lastName,
+        }
         : null,
     },
     after: {
@@ -297,9 +302,9 @@ export async function updateRespondent({
         clientUnitId: updatedRespondent.clientUnitId,
       },
       identity: {
-        email: normalizeOptional(parsed.data.email),
-        firstName: normalizeOptional(parsed.data.firstName),
-        lastName: normalizeOptional(parsed.data.lastName),
+        email: normalizeOptionalEmail(parsed.data.email),
+        firstName: normalizeOptionalText(parsed.data.firstName),
+        lastName: normalizeOptionalText(parsed.data.lastName),
       },
     },
   });
@@ -368,10 +373,10 @@ export async function archiveRespondent({
       },
       identity: existing.identity
         ? {
-            email: existing.identity.email,
-            firstName: existing.identity.firstName,
-            lastName: existing.identity.lastName,
-          }
+          email: existing.identity.email,
+          firstName: existing.identity.firstName,
+          lastName: existing.identity.lastName,
+        }
         : null,
     },
     after: {

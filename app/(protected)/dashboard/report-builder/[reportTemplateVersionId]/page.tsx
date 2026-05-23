@@ -34,7 +34,7 @@ export default async function ReportBuilderPage({ params }: PageProps) {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
+    <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-sm text-muted-foreground">
@@ -77,6 +77,6 @@ export default async function ReportBuilderPage({ params }: PageProps) {
       </div>
 
       <ReportTemplateVersionEditor reportTemplateVersion={reportTemplateVersion} />
-    </main>
+    </div>
   );
 }

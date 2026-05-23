@@ -41,7 +41,7 @@ export default async function PublicAssessmentSessionPage({
   const { data } = result;
 
   return (
-    <main className="mx-auto min-h-screen max-w-4xl px-6 py-10">
+    <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-8 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <PublicAssessmentSessionOverview
         token={token}
         sessionId={sessionId}
@@ -51,7 +51,7 @@ export default async function PublicAssessmentSessionPage({
         questionnaires={data.questionnaires}
         allRequiredCompleted={data.allRequiredCompleted}
       />
-    </main>
+    </div>
   );
 }
 

@@ -1,6 +1,9 @@
+// features/report-access/components/unlock-report-access-placeholder-form.tsx
+
 "use client";
 
 import { useActionState } from "react";
+import { CheckCircle2, CreditCard, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +16,37 @@ const initialState: UnlockReportAccessActionState = {
   status: "idle",
   message: "",
 };
+
+function ActionMessage({
+  status,
+  message,
+}: {
+  status: "idle" | "success" | "error";
+  message: string;
+}) {
+  if (status === "idle") return null;
+
+  return (
+    <div
+      className={[
+        "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
+        status === "success"
+          ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+          : "border-red-200 bg-red-50 text-red-700",
+      ].join(" ")}
+    >
+      <div className="flex gap-2">
+        {status === "success" ? (
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+        ) : (
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+        )}
+
+        <span>{message}</span>
+      </div>
+    </div>
+  );
+}
 
 export function UnlockReportAccessPlaceholderForm({
   tenantSlug,
@@ -31,23 +65,18 @@ export function UnlockReportAccessPlaceholderForm({
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="sessionId" value={sessionId} />
 
-      {state.status !== "idle" ? (
-        <div
-          className={
-            state.status === "success"
-              ? "rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
-              : "rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          }
-        >
-          {state.message}
-        </div>
-      ) : null}
-
-      <Button type="submit" disabled={isPending}>
+      <Button
+        type="submit"
+        disabled={isPending}
+        className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:w-auto"
+      >
+        <CreditCard size={16} />
         {isPending
           ? "Odblokowywanie raportu..."
           : "Symuluj płatność i odblokuj raport"}
       </Button>
+
+      <ActionMessage status={state.status} message={state.message} />
     </form>
   );
 }

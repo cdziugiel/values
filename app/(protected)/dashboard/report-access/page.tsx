@@ -12,8 +12,6 @@ export default async function ReportAccessDashboardPage() {
   const data = await getReportAccessAdminData();
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
       <ReportAccessAdminPage data={data} />
-    </main>
   );
 }

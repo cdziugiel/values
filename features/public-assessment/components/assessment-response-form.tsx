@@ -1,7 +1,18 @@
 // features/public-assessment/components/assessment-response-form.tsx
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  ListChecks,
+  MoveLeft,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { completeAssessmentSessionAction } from "../api/complete-assessment-session.actions";
 
 import { Input } from "@/components/ui/input";
@@ -9,6 +20,7 @@ import {
   saveAssessmentResponsesAction,
   type SaveAssessmentResponsesState,
 } from "../api/assessment-response.actions";
+import Link from "next/link";
 
 type AssessmentResponseFormOption = {
   value: string | number | boolean;
@@ -259,9 +271,9 @@ function getExistingValue(item: AssessmentResponseFormItem) {
 
     return [];
   }
-if (item.type === "current_desired") {
-  return normalizeCurrentDesiredAnswer(item.existingJsonValue);
-}
+  if (item.type === "current_desired") {
+    return normalizeCurrentDesiredAnswer(item.existingJsonValue);
+  }
   return "";
 }
 
@@ -332,27 +344,27 @@ function CurrentDesiredItemInput({
   }
 
   return (
-    <div className="mt-4 flex flex-wrap gap-4">
+    <div className="mt-4 flex flex-wrap gap-3">
       <input
         type="hidden"
         name={fieldName}
         value={JSON.stringify(answer)}
       />
 
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-[#171717] shadow-sm transition hover:bg-white focus-within:ring-2 focus-within:ring-[#2dd4bf]/40">
         <input
           type="checkbox"
-  name={`current-desired-ui:${item.id}:current`}
+          name={`current-desired-ui:${item.id}:current`}
           checked={answer.current}
           onChange={(event) => updateMarker("current", event.target.checked)}
         />
         <span>{currentLabel}</span>
       </label>
 
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-[#171717] shadow-sm transition hover:bg-white focus-within:ring-2 focus-within:ring-[#2dd4bf]/40">
         <input
           type="checkbox"
-  name={`current-desired-ui:${item.id}:desired`}
+          name={`current-desired-ui:${item.id}:desired`}
           checked={answer.desired}
           onChange={(event) => updateMarker("desired", event.target.checked)}
         />
@@ -381,7 +393,7 @@ function LikertScaleChoice({
   onChange?: (value: number) => void;
 }) {
   return (
-    <div className=" space-y-3">
+    <div className="space-y-3">
       <div className="w-full px-1 sm:px-2">
         <div
           className="grid w-full items-start gap-1.5 sm:gap-3"
@@ -416,12 +428,12 @@ function LikertScaleChoice({
                   onChange={() => onChange?.(value)}
                 />
 
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border bg-background transition hover:bg-muted peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary sm:h-10 sm:w-10">
-                  <span className="h-2.5 w-2.5 rounded-full bg-background sm:h-3 sm:w-3" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white transition hover:bg-[#f3f4f6] peer-checked:border-[#171717] peer-checked:bg-[#171717] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#2dd4bf] sm:h-10 sm:w-10">
+                  <span className="h-2.5 w-2.5 rounded-full bg-white sm:h-3 sm:w-3" />
                 </span>
 
                 {visibleValueLabel ? (
-                  <span className="max-w-[44px] text-center text-[10px] leading-tight text-muted-foreground sm:max-w-[72px] sm:text-xs">
+                  <span className="max-w-[44px] text-center text-[10px] leading-tight text-[#6b7280] sm:max-w-[72px] sm:text-xs">
                     {visibleValueLabel}
                   </span>
                 ) : null}
@@ -481,10 +493,10 @@ function LikertItemInput({
           step={step}
           required={htmlRequired}
           defaultValue={existingNumber ?? Math.round((scaleMin + scaleMax) / 2)}
-          className="w-full"
+          className="w-full accent-[#171717]"
         />
 
-        <div className="flex justify-between gap-4 text-xs text-muted-foreground">
+        <div className="flex justify-between gap-4 text-xs text-[#6b7280]">
           <span>{item.scaleMinLabel ?? ""}</span>
           <span>{item.scaleMaxLabel ?? ""}</span>
         </div>
@@ -504,9 +516,9 @@ function LikertItemInput({
         onChange={setSelectedLikertValue}
       />
 
-      <div className="min-h-6 text-center text-sm text-muted-foreground">
+      <div className="min-h-6 text-center text-sm text-[#6b7280]">
         {selectedLikertLabel ? (
-          <span className="inline-flex rounded-full border bg-green-50 px-3 py-1 text-sm font-medium text-green-800">
+          <span className="inline-flex rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-sm font-medium text-[#0f766e]">
             {selectedLikertLabel}
           </span>
         ) : showValueLabels ? null : (
@@ -551,16 +563,16 @@ function AssessmentItemInput({
       />
     );
   }
-if (item.type === "current_desired") {
-  return (
-    <CurrentDesiredItemInput
-      item={item}
-      fieldName={fieldName}
-      existingValue={existingValue}
-      responseConfig={responseConfig}
-    />
-  );
-}
+  if (item.type === "current_desired") {
+    return (
+      <CurrentDesiredItemInput
+        item={item}
+        fieldName={fieldName}
+        existingValue={existingValue}
+        responseConfig={responseConfig}
+      />
+    );
+  }
   if (item.type === "true_false") {
     const trueFalseOptions =
       options.length > 0
@@ -578,7 +590,7 @@ if (item.type === "current_desired") {
           return (
             <label
               key={value}
-              className="flex cursor-pointer items-center gap-2 rounded-md  px-2 py-2 text-sm hover:bg-muted"
+              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-[#171717] transition hover:bg-white focus-within:ring-2 focus-within:ring-[#2dd4bf]/40"
             >
               <input
                 type="radio"
@@ -604,7 +616,7 @@ if (item.type === "current_desired") {
           return (
             <label
               key={value}
-              className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-[#171717] transition hover:bg-white focus-within:ring-2 focus-within:ring-[#2dd4bf]/40"
             >
               <input
                 type="radio"
@@ -619,7 +631,7 @@ if (item.type === "current_desired") {
         })}
 
         {options.length === 0 ? (
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-red-700">
             Brak zdefiniowanych opcji odpowiedzi.
           </p>
         ) : null}
@@ -640,7 +652,7 @@ if (item.type === "current_desired") {
           return (
             <label
               key={value}
-              className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-[#171717] transition hover:bg-white focus-within:ring-2 focus-within:ring-[#2dd4bf]/40"
             >
               <input
                 type="checkbox"
@@ -654,13 +666,13 @@ if (item.type === "current_desired") {
         })}
 
         {options.length === 0 ? (
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-red-700">
             Brak zdefiniowanych opcji odpowiedzi.
           </p>
         ) : null}
 
         {item.required ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#6b7280]">
             To pytanie jest wymagane. Wybierz przynajmniej jedną odpowiedź przed
             zakończeniem badania.
           </p>
@@ -681,7 +693,7 @@ if (item.type === "current_desired") {
           required={htmlRequired}
           defaultValue={value}
           maxLength={maxLength}
-          className="mt-4 min-h-28 w-full rounded-md  bg-background px-2 py-2 text-sm"
+          className="mt-4 min-h-28 w-full rounded-2xl border border-black/10 bg-white px-3 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
           placeholder="Wpisz odpowiedź..."
         />
       );
@@ -693,7 +705,7 @@ if (item.type === "current_desired") {
         required={htmlRequired}
         defaultValue={value}
         maxLength={maxLength}
-        className="mt-4"
+        className="mt-4 rounded-2xl border-black/10 bg-white"
         placeholder="Wpisz odpowiedź..."
       />
     );
@@ -715,14 +727,14 @@ if (item.type === "current_desired") {
         min={typeof min === "number" ? min : undefined}
         max={typeof max === "number" ? max : undefined}
         step={step}
-        className="mt-4"
+        className="mt-4 rounded-2xl border-black/10 bg-white"
         placeholder="Wpisz liczbę..."
       />
     );
   }
 
   return (
-    <p className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+    <p className="mt-4 rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
       Nieobsługiwany typ pytania: {item.type}
     </p>
   );
@@ -808,22 +820,22 @@ function getRandomAnswerForItem(item: AssessmentResponseFormItem) {
   }
 
 
-if (item.type === "current_desired") {
-  const current = Math.random() >= 0.5;
-  const desired = Math.random() >= 0.5;
+  if (item.type === "current_desired") {
+    const current = Math.random() >= 0.5;
+    const desired = Math.random() >= 0.5;
 
-  if (!current && !desired) {
+    if (!current && !desired) {
+      return {
+        current: true,
+        desired: false,
+      };
+    }
+
     return {
-      current: true,
-      desired: false,
+      current,
+      desired,
     };
   }
-
-  return {
-    current,
-    desired,
-  };
-}
 
   if (item.type === "single_choice") {
     const selected = getRandomArrayItem(options);
@@ -885,36 +897,36 @@ function fillRandomAnswerForItem(
   }
 
 
-if (item.type === "current_desired") {
-  const currentDesiredAnswer = normalizeCurrentDesiredAnswer(answer);
+  if (item.type === "current_desired") {
+    const currentDesiredAnswer = normalizeCurrentDesiredAnswer(answer);
 
-  const hiddenControl = controls.find(
-    (control) =>
-      control instanceof HTMLInputElement &&
-      control.type === "hidden" &&
-      control.name === fieldName,
-  );
+    const hiddenControl = controls.find(
+      (control) =>
+        control instanceof HTMLInputElement &&
+        control.type === "hidden" &&
+        control.name === fieldName,
+    );
 
-  if (hiddenControl instanceof HTMLInputElement) {
-    hiddenControl.value = currentDesiredAnswerToInputValue(currentDesiredAnswer);
-    dispatchControlChange(hiddenControl);
+    if (hiddenControl instanceof HTMLInputElement) {
+      hiddenControl.value = currentDesiredAnswerToInputValue(currentDesiredAnswer);
+      dispatchControlChange(hiddenControl);
+    }
+
+    const uiControls = Array.from(
+      form.querySelectorAll<HTMLInputElement>(
+        `input[name="current-desired-ui:${item.id}:current"], input[name="current-desired-ui:${item.id}:desired"]`,
+      ),
+    );
+
+    uiControls.forEach((control) => {
+      const marker = control.name.endsWith(":current") ? "current" : "desired";
+
+      control.checked = currentDesiredAnswer[marker];
+      dispatchControlChange(control);
+    });
+
+    return;
   }
-
-  const uiControls = Array.from(
-    form.querySelectorAll<HTMLInputElement>(
-      `input[name="current-desired-ui:${item.id}:current"], input[name="current-desired-ui:${item.id}:desired"]`,
-    ),
-  );
-
-  uiControls.forEach((control) => {
-    const marker = control.name.endsWith(":current") ? "current" : "desired";
-
-    control.checked = currentDesiredAnswer[marker];
-    dispatchControlChange(control);
-  });
-
-  return;
-}
   const firstControl = controls[0];
 
   if (!firstControl) {
@@ -974,17 +986,102 @@ export function AssessmentResponseForm({
   projectQuestionnaireId,
   isSuperAdmin = false,
 }: AssessmentResponseFormProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const shouldScrollToTopRef = useRef(false);
 
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [state, setState] = useState<SaveAssessmentResponsesState>({
     status: "idle",
     message: "",
   });
-
+  const [answeredPageIndexes, setAnsweredPageIndexes] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [isPending, startTransition] = useTransition();
   const [isAutoFilling, setIsAutoFilling] = useState(false);
+  function hasInitialAnswer(item: AssessmentResponseFormItem) {
+    if (item.type === "likert" || item.type === "number") {
+      return typeof item.existingNumberValue === "number";
+    }
 
+    if (item.type === "text" || item.type === "single_choice") {
+      return Boolean(item.existingTextValue?.trim());
+    }
+
+    if (item.type === "true_false") {
+      return typeof item.existingBooleanValue === "boolean";
+    }
+
+    if (item.type === "multiple_choice") {
+      return Array.isArray(item.existingJsonValue) && item.existingJsonValue.length > 0;
+    }
+
+    if (item.type === "current_desired") {
+      const answer = normalizeCurrentDesiredAnswer(item.existingJsonValue);
+      return answer.current || answer.desired;
+    }
+
+    return false;
+  }
+
+  function hasFormAnswer(formData: FormData, item: AssessmentResponseFormItem) {
+    const fieldName = buildFieldName(item);
+
+    if (item.type === "multiple_choice") {
+      return formData.getAll(fieldName).some((value) => String(value).trim());
+    }
+
+    const value = formData.get(fieldName);
+
+    if (value === null) {
+      return false;
+    }
+
+    if (item.type === "current_desired") {
+      if (typeof value !== "string" || !value.trim()) {
+        return false;
+      }
+
+      try {
+        const answer = normalizeCurrentDesiredAnswer(JSON.parse(value));
+        return answer.current || answer.desired;
+      } catch {
+        return false;
+      }
+    }
+
+    return String(value).trim().length > 0;
+  }
+
+  function isPageAnsweredFromFormData(
+    formData: FormData | null,
+    page: (typeof pageGroups)[number],
+  ) {
+    const itemsToCheck = page.items.filter((item) => item.required);
+
+    const effectiveItems = itemsToCheck.length > 0 ? itemsToCheck : page.items;
+
+    return effectiveItems.every((item) =>
+      formData ? hasFormAnswer(formData, item) : hasInitialAnswer(item),
+    );
+  }
+
+  function calculateAnsweredPageIndexes(formData: FormData | null) {
+    const nextAnswered = new Set<number>();
+
+    pageGroups.forEach((page, pageIndex) => {
+      if (isPageAnsweredFromFormData(formData, page)) {
+        nextAnswered.add(pageIndex);
+      }
+    });
+
+    return nextAnswered;
+  }
+
+  function refreshAnsweredPageIndexes() {
+    setAnsweredPageIndexes(calculateAnsweredPageIndexes(getFormData()));
+  }
   const pageGroups = useMemo(() => {
     const itemsByVersion = items.reduce<
       Record<string, AssessmentResponseFormItem[]>
@@ -1070,6 +1167,126 @@ export function AssessmentResponseForm({
     return new FormData(formRef.current);
   }
 
+  const answeredPagesCount = answeredPageIndexes.size;
+
+  const answeredProgress =
+    pageGroups.length === 0
+      ? 0
+      : Math.round((answeredPagesCount / pageGroups.length) * 100);
+
+  const firstUnansweredPageIndex = pageGroups.findIndex(
+    (_page, pageIndex) => !answeredPageIndexes.has(pageIndex),
+  );
+
+  const fallbackUnansweredPageIndex =
+    firstUnansweredPageIndex === -1
+      ? Math.min(currentPageIndex, pageGroups.length - 1)
+      : firstUnansweredPageIndex;
+
+
+  function goToPageFromProgressClick(pageIndex: number) {
+    const safePageIndex = Math.max(
+      0,
+      Math.min(pageIndex, pageGroups.length - 1),
+    );
+
+    saveCurrentForm({
+      onSuccess: () => {
+        refreshAnsweredPageIndexes();
+        requestScrollToTop();
+        setCurrentPageIndex(safePageIndex);
+      },
+    });
+  }
+
+  function handleAnsweredProgressClick(
+    event: React.MouseEvent<HTMLButtonElement>,
+  ) {
+    if (pageGroups.length === 0) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const clickedPageIndex = Math.min(
+      pageGroups.length - 1,
+      Math.floor(ratio * pageGroups.length),
+    );
+
+    if (clickedPageIndex < answeredPagesCount) {
+      goToPageFromProgressClick(clickedPageIndex);
+      return;
+    }
+
+    goToPageFromProgressClick(fallbackUnansweredPageIndex);
+  }
+
+
+  function requestScrollToTop() {
+    shouldScrollToTopRef.current = true;
+  }
+
+  function findScrollParent(element: HTMLElement | null): HTMLElement | null {
+    let current = element?.parentElement ?? null;
+
+    while (current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+
+      const canScroll =
+        overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay";
+
+      if (canScroll && current.scrollHeight > current.clientHeight) {
+        return current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return null;
+  }
+
+  function scrollAssessmentViewToTop() {
+    const scrollParent = findScrollParent(rootRef.current);
+
+    if (scrollParent) {
+      scrollParent.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "smooth",
+      });
+
+      return;
+    }
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "smooth",
+    });
+  }
+
+  useEffect(() => {
+    if (!shouldScrollToTopRef.current) {
+      return;
+    }
+
+    shouldScrollToTopRef.current = false;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        scrollAssessmentViewToTop();
+      });
+    });
+  }, [currentPageIndex]);
+
+
+  useEffect(() => {
+    setAnsweredPageIndexes(calculateAnsweredPageIndexes(null));
+  }, [pageGroups]);
 
   async function saveFormData(formData: FormData) {
     const nextState = await saveAssessmentResponsesAction(
@@ -1112,10 +1329,10 @@ export function AssessmentResponseForm({
   }
 
   async function fillAllPagesRandomlyForSuperAdmin() {
-    if (!isSuperAdmin || isAutoFilling) {
+/*     if (!isSuperAdmin || isAutoFilling ) {
       return;
     }
-
+ */
     const form = formRef.current;
 
     if (!form) {
@@ -1134,6 +1351,7 @@ export function AssessmentResponseForm({
 
     try {
       for (let pageIndex = 0; pageIndex < pageGroups.length; pageIndex += 1) {
+        requestScrollToTop();
         setCurrentPageIndex(pageIndex);
         await waitForNextFrame();
 
@@ -1161,6 +1379,7 @@ export function AssessmentResponseForm({
         }
       }
 
+      requestScrollToTop();
       setCurrentPageIndex(pageGroups.length - 1);
 
       setState({
@@ -1169,7 +1388,6 @@ export function AssessmentResponseForm({
           "Losowe odpowiedzi zostały zaznaczone i zapisane na wszystkich stronach. Sprawdź je, a następnie świadomie kliknij „Zakończ badanie”.",
       });
 
-      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setIsAutoFilling(false);
     }
@@ -1178,94 +1396,95 @@ export function AssessmentResponseForm({
   function goToPreviousPage() {
     saveCurrentForm({
       onSuccess: () => {
+        refreshAnsweredPageIndexes();
+        requestScrollToTop();
         setCurrentPageIndex((previous) => Math.max(previous - 1, 0));
-        window.scrollTo({ top: 0, behavior: "smooth" });
       },
     });
   }
-
-function validateCurrentDesiredPage(page: typeof currentPage) {
-  if (!page) {
-    return true;
-  }
-
-  const currentDesiredItems = page.items.filter(
-    (item) => item.type === "current_desired",
-  );
-
-  if (currentDesiredItems.length === 0) {
-    return true;
-  }
-
-  const formData = getFormData();
-
-  if (!formData) {
-    setState({
-      status: "error",
-      message: "Nie udało się odczytać formularza.",
-    });
-
-    return false;
-  }
-
-  let currentCount = 0;
-  let desiredCount = 0;
-
-  for (const item of currentDesiredItems) {
-    const rawValue = formData.get(buildFieldName(item));
-
-    if (typeof rawValue !== "string" || !rawValue.trim()) {
-      continue;
+  function validateCurrentDesiredPage(page: typeof currentPage) {
+    if (!page) {
+      return true;
     }
 
-    try {
-      const parsed = JSON.parse(rawValue);
-      const answer = normalizeCurrentDesiredAnswer(parsed);
+    const currentDesiredItems = page.items.filter(
+      (item) => item.type === "current_desired",
+    );
 
-if (answer.current) {
-  currentCount += 1;
-}
-
-if (answer.desired) {
-  desiredCount += 1;
-}
-    } catch {
-      continue;
+    if (currentDesiredItems.length === 0) {
+      return true;
     }
+
+    const formData = getFormData();
+
+    if (!formData) {
+      setState({
+        status: "error",
+        message: "Nie udało się odczytać formularza.",
+      });
+
+      return false;
+    }
+
+    let currentCount = 0;
+    let desiredCount = 0;
+
+    for (const item of currentDesiredItems) {
+      const rawValue = formData.get(buildFieldName(item));
+
+      if (typeof rawValue !== "string" || !rawValue.trim()) {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue);
+        const answer = normalizeCurrentDesiredAnswer(parsed);
+
+        if (answer.current) {
+          currentCount += 1;
+        }
+
+        if (answer.desired) {
+          desiredCount += 1;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (currentCount < 1 || desiredCount < 1) {
+      setState({
+        status: "error",
+        message:
+          "Na tej stronie zaznacz co najmniej jedną odpowiedź w kolumnie „Tak jest” i co najmniej jedną w kolumnie „Chcę tak”.",
+      });
+
+      return false;
+    }
+
+    return true;
   }
-
-  if (currentCount < 1 || desiredCount < 1) {
-    setState({
-      status: "error",
-      message:
-        "Na tej stronie zaznacz co najmniej jedną odpowiedź w kolumnie „Tak jest” i co najmniej jedną w kolumnie „Chcę tak”.",
-    });
-
-    return false;
-  }
-
-  return true;
-}
 
 
 
   function goToNextPage() {
     const form = formRef.current;
 
-if (form && !form.reportValidity()) {
-  return;
-}
+    if (form && !form.reportValidity()) {
+      return;
+    }
 
-if (!validateCurrentDesiredPage(currentPage)) {
-  return;
-}
+    if (!validateCurrentDesiredPage(currentPage)) {
+      return;
+    }
 
     saveCurrentForm({
       onSuccess: () => {
+        refreshAnsweredPageIndexes();
+        requestScrollToTop();
         setCurrentPageIndex((previous) =>
           Math.min(previous + 1, pageGroups.length - 1),
         );
-        window.scrollTo({ top: 0, behavior: "smooth" });
       },
     });
   }
@@ -1273,13 +1492,13 @@ if (!validateCurrentDesiredPage(currentPage)) {
   function finishAssessment() {
     const form = formRef.current;
 
-if (form && !form.reportValidity()) {
-  return;
-}
+    if (form && !form.reportValidity()) {
+      return;
+    }
 
-if (!validateCurrentDesiredPage(currentPage)) {
-  return;
-}
+    if (!validateCurrentDesiredPage(currentPage)) {
+      return;
+    }
     const formData = getFormData();
 
     if (!formData) {
@@ -1323,18 +1542,37 @@ if (!validateCurrentDesiredPage(currentPage)) {
 
   if (pageGroups.length === 0 || !currentPage) {
     return (
-      <div className="rounded-2xl border bg-card p-6">
-        <h2 className="text-xl font-semibold">Brak pytań</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Ta sesja badania nie zawiera żadnych aktywnych pytań.
-        </p>
+      <div className="min-h-screen  px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-4xl rounded-[2rem] hv-brand-card p-6 md:p-8">
+          <div className="flex gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+              <FileText size={20} />
+            </div>
+
+            <div>
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+                Brak pytań
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                Ta sesja badania nie zawiera żadnych aktywnych pytań.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <form ref={formRef} className="space-y-8">
+    <div
+      ref={rootRef}
+      className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+
+      <form
+        ref={formRef}
+        onChangeCapture={refreshAnsweredPageIndexes}
+        className="mx-auto w-full max-w-5xl space-y-8"
+      >
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="sessionId" value={sessionId} />
         <input type="hidden" name="mode" value={mode} />
@@ -1346,53 +1584,68 @@ if (!validateCurrentDesiredPage(currentPage)) {
         />
 
 
-        <section className="rounded-2xl border bg-card p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <div className="text-sm text-muted-foreground">
+        <section className="sticky top-4 z-30 overflow-hidden rounded-[2rem] border border-black/10 bg-white/90 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur hv-brand-card">
+          <div className="border-t border-black/10 bg-white/35 p-4 md:p-6">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
+              <FileText size={14} />
+              <span className="hv-brand-eyebrow text-[0.68rem]">
                 {currentPage.questionnaireName}
-              </div>
+              </span>
+            </div>
 
-              <h2 className="mt-1 text-xl font-semibold">
+            <div className="mb-2 flex flex-wrap justify-between gap-3 text-xs text-[#6b7280]">
+              <span>{Math.round(((answeredPagesCount / pageGroups.length) * 100))}% ukończone</span>
+
+              <span>
+                {currentPage.items.length}{" "}
+                {currentPage.items.length === 1 ? "pytanie" : "pytań"} na tej stronie
+              </span>
+
+              <span>
+                Strona {currentPageIndex + 1} z {pageGroups.length}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleAnsweredProgressClick}
+                className="group relative h-3 w-full cursor-pointer overflow-hidden rounded-full bg-[#e5e7eb] text-left transition hover:bg-[#d1d5db] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50"
+                aria-label="Przejdź do strony badania według postępu odpowiedzi"
+              >
+                {/* Warstwa 1: faktycznie wypełnione strony */}
+                <span
+                  className="absolute inset-y-0 left-0 z-10 rounded-full bg-[#9ca3af] transition-all group-hover:bg-[#8b95a1]"
+                  style={{ width: `${answeredProgress}%` }}
+                />
+
+                {/* Warstwa 2: obecna strona / bieżąca pozycja */}
+                <span
+                  className="absolute inset-y-0 left-0 z-20 rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf] transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+
+
+              </button>
+
+            </div>
+          </div>
+
+          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:px-6 md:py-2 lg:px-7 lg:p-2 py-2">
+            <div className="max-w-4xl">
+              <h1 className="max-w-4xl text-2xl font-semibold leading-[1.08] tracking-[-0.045em] text-[#171717] md:text-4xl">
                 {currentPage.pageTitle}
-              </h2>
+              </h1>
 
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="my-3 text-sm font-medium text-[#6b7280]">
                 {currentPage.questionnaireVersionName}
               </p>
 
               {currentPage.pageDescription ? (
-                <p className="mt-3 text-sm text-muted-foreground">
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6b7280]">
                   {currentPage.pageDescription}
                 </p>
               ) : null}
-            </div>
-
-            <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
-              <div className="text-xs uppercase text-muted-foreground">
-                Postęp
-              </div>
-              <div className="mt-1 font-medium">
-                Strona {currentPageIndex + 1} z {pageGroups.length}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <div className="mb-2 flex justify-between text-xs text-muted-foreground">
-              <span>{progress}% ukończone</span>
-              <span>
-                {currentPage.items.length}{" "}
-                {currentPage.items.length === 1 ? "pytanie" : "pytań"} na tej
-                stronie
-              </span>
-            </div>
-
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
             </div>
           </div>
         </section>
@@ -1410,20 +1663,20 @@ if (!validateCurrentDesiredPage(currentPage)) {
                 {pageGroup.items.map((item, index) => (
                   <div
                     key={item.id}
-                    className="rounded-xl border bg-background p-4 transition-colors has-[input:checked]:border-green-500 has-[input:checked]:bg-green-50/30 sm:p-5"
+                    className="group relative overflow-hidden rounded-[1.75rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 has-[input:checked]:border-[rgba(45,212,191,0.42)] has-[input:checked]:bg-[rgba(45,212,191,0.08)] hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)] sm:p-6"
                   >
                     <div className="flex flex-col gap-3 md:grid md:grid-cols-[2rem_minmax(0,1fr)_auto] md:items-start md:gap-5">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
                         {index + 1}
                       </div>
 
                       <div className="min-w-0">
-                        <div className="text-[1.05rem] font-medium leading-snug sm:text-lg">
+                        <div className="text-[1.05rem] font-medium leading-snug tracking-[-0.01em] text-[#171717] sm:text-lg">
                           {item.text}
                         </div>
 
                         {item.helpText ? (
-                          <p className="mt-1 text-sm text-muted-foreground">
+                          <p className="mt-2 text-sm leading-6 text-[#6b7280]">
                             {item.helpText}
                           </p>
                         ) : null}
@@ -1445,34 +1698,44 @@ if (!validateCurrentDesiredPage(currentPage)) {
 
         {state.status !== "idle" ? (
           <div
-            className={
+            className={[
+              "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
               state.status === "success"
-                ? "rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
-                : "rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            }
+                ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+                : "border-red-200 bg-red-50 text-red-700",
+            ].join(" ")}
           >
-            {state.message}
+            <div className="flex gap-2">
+              {state.status === "success" ? (
+                <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+              ) : (
+                <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+              )}
+              <span>{state.message}</span>
+            </div>
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-[2rem] border border-black/10 bg-white/90 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.14)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             disabled={isFirstPage || isPending || isAutoFilling}
             onClick={goToPreviousPage}
-            className="inline-flex h-10 items-center justify-center rounded-md border bg-background px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 bg-white/70 px-5 text-sm font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <ArrowLeft size={16} />
             Wstecz
           </button>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {isSuperAdmin ? (
+            {isSuperAdmin || !isSuperAdmin ? (
               <button
                 type="button"
                 disabled={isPending || isAutoFilling}
                 onClick={fillAllPagesRandomlyForSuperAdmin}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-medium text-amber-900 disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
               >
+                <Sparkles size={16} />
                 {isAutoFilling
                   ? "Losowe uzupełnianie..."
                   : "Losowo uzupełnij wszystkie strony"}
@@ -1484,17 +1747,19 @@ if (!validateCurrentDesiredPage(currentPage)) {
                 type="button"
                 disabled={isPending || isAutoFilling}
                 onClick={goToNextPage}
-                className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
               >
                 {isPending ? "Zapisywanie..." : "Dalej"}
+                <ArrowRight size={16} />
               </button>
             ) : (
               <button
                 type="button"
                 disabled={isPending || isAutoFilling}
                 onClick={finishAssessment}
-                className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
               >
+                <ClipboardCheck size={16} />
                 {isPending ? "Zapisywanie..." : "Zakończ badanie"}
               </button>
             )}

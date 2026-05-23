@@ -10,12 +10,78 @@ import {
   addAssessmentProjectRespondent,
   archiveAssessmentProjectRespondent,
   updateAssessmentProjectRespondent,
+  bulkAddAssessmentProjectRespondents,
 } from "./assessment-project-respondent.mutations";
 import {
   addAssessmentProjectRespondentSchema,
   archiveAssessmentProjectRespondentSchema,
   updateAssessmentProjectRespondentSchema,
+  bulkAddAssessmentProjectRespondentsSchema,
 } from "../forms/assessment-project-respondent.schema";
+
+
+export async function bulkAddAssessmentProjectRespondentsAction(
+  _previousState: AssessmentProjectRespondentActionState,
+  formData: FormData,
+): Promise<AssessmentProjectRespondentActionState> {
+  const rawInput = {
+    tenantSlug: String(formData.get("tenantSlug") ?? ""),
+    assessmentProjectId: String(formData.get("assessmentProjectId") ?? ""),
+    clientOrganizationId: String(formData.get("clientOrganizationId") ?? ""),
+    clientUnitId: String(formData.get("clientUnitId") ?? ""),
+  };
+
+  const parsed =
+    bulkAddAssessmentProjectRespondentsSchema.safeParse(rawInput);
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: validationMessage(parsed.error.issues),
+    };
+  }
+
+  try {
+    const ctx = await requireTenantContext({
+      tenantSlug: parsed.data.tenantSlug,
+    });
+
+    requirePermission(ctx, "assessment_project_respondent:create");
+
+    const db = await getTenantDb(ctx);
+
+    const result = await bulkAddAssessmentProjectRespondents({
+      db,
+      ctx,
+      input: parsed.data,
+    });
+
+    revalidatePath(
+      `/t/${ctx.tenantSlug}/assessment-projects/${parsed.data.assessmentProjectId}/respondents`,
+    );
+
+    if (result.totalMatchedCount === 0) {
+      return {
+        status: "success",
+        message:
+          "Nie znaleziono respondentów spełniających wybrane kryteria.",
+      };
+    }
+
+    return {
+      status: "success",
+      message: `Znaleziono ${result.totalMatchedCount} respondentów. Dodano ${result.createdCount}, przywrócono ${result.restoredCount}, pominięto ${result.skippedCount} już przypisanych.`,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nie udało się masowo dodać respondentów do projektu.",
+    };
+  }
+}
 
 export type AssessmentProjectRespondentActionState = {
   status: "idle" | "success" | "error";

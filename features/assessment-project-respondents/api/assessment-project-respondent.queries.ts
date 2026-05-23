@@ -11,10 +11,46 @@ import {
 } from "@/drizzle/schema/tenant-schema";
 import type { TenantDb } from "@/server/db/tenant-db";
 
+import { buildAssessmentAccessUrl } from "@/features/assessment-access-links/lib/assessment-access-link-url";
+
 import type {
   AssessmentProjectRespondentListItem,
   AssessmentProjectRespondentOption,
+  AssessmentProjectRespondentOrganizationOption,
+  AssessmentProjectRespondentUnitOption,
 } from "../types/assessment-project-respondent.types";
+
+export async function listAssessmentProjectRespondentOrganizationOptions({
+  db,
+}: {
+  db: TenantDb;
+}): Promise<AssessmentProjectRespondentOrganizationOption[]> {
+  return db
+    .select({
+      id: clientOrganizations.id,
+      name: clientOrganizations.name,
+    })
+    .from(clientOrganizations)
+    .where(isNull(clientOrganizations.deletedAt))
+    .orderBy(asc(clientOrganizations.name));
+}
+
+export async function listAssessmentProjectRespondentUnitOptions({
+  db,
+}: {
+  db: TenantDb;
+}): Promise<AssessmentProjectRespondentUnitOption[]> {
+  return db
+    .select({
+      id: clientUnits.id,
+      name: clientUnits.name,
+      clientOrganizationId: clientUnits.clientOrganizationId,
+    })
+    .from(clientUnits)
+    .where(isNull(clientUnits.deletedAt))
+    .orderBy(asc(clientUnits.name));
+}
+
 
 export async function listAssessmentProjectRespondents({
   db,
@@ -46,6 +82,7 @@ export async function listAssessmentProjectRespondents({
       sessionStatus: assessmentSessions.status,
       sessionStartedAt: assessmentSessions.startedAt,
       sessionCompletedAt: assessmentSessions.completedAt,
+      
     })
     .from(assessmentProjectRespondents)
     .innerJoin(

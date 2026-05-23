@@ -1,11 +1,12 @@
 // features/assessment-project-respondents/api/assessment-project-respondent.mutations.ts
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
   assessmentProjectRespondents,
   assessmentProjects,
   respondents,
   assessmentSessions,
+  clientUnits,
 } from "@/drizzle/schema/tenant-schema";
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantDb } from "@/server/db/tenant-db";
@@ -15,10 +16,187 @@ import {
   addAssessmentProjectRespondentSchema,
   archiveAssessmentProjectRespondentSchema,
   updateAssessmentProjectRespondentSchema,
+  bulkAddAssessmentProjectRespondentsSchema,
+  type BulkAddAssessmentProjectRespondentsInput,
   type AddAssessmentProjectRespondentInput,
   type ArchiveAssessmentProjectRespondentInput,
   type UpdateAssessmentProjectRespondentInput,
 } from "../forms/assessment-project-respondent.schema";
+
+
+export async function bulkAddAssessmentProjectRespondents({
+  db,
+  ctx,
+  input,
+}: {
+  db: TenantDb;
+  ctx: TenantContext;
+  input: BulkAddAssessmentProjectRespondentsInput;
+}) {
+  const parsed = bulkAddAssessmentProjectRespondentsSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new Error("Invalid bulk project respondent input.");
+  }
+
+  await ensureProjectExists({
+    db,
+    assessmentProjectId: parsed.data.assessmentProjectId,
+  });
+
+  const clientUnitId =
+    parsed.data.clientUnitId && parsed.data.clientUnitId.length > 0
+      ? parsed.data.clientUnitId
+      : null;
+
+  if (clientUnitId) {
+    const unit = await db.query.clientUnits.findFirst({
+      where: and(
+        eq(clientUnits.id, clientUnitId),
+        eq(clientUnits.clientOrganizationId, parsed.data.clientOrganizationId),
+        isNull(clientUnits.deletedAt),
+      ),
+      columns: {
+        id: true,
+      },
+    });
+
+    if (!unit) {
+      throw new Error("Wybrana jednostka nie należy do wskazanej organizacji.");
+    }
+  }
+
+  const respondentRows = await db.query.respondents.findMany({
+    where: and(
+      eq(respondents.clientOrganizationId, parsed.data.clientOrganizationId),
+      clientUnitId ? eq(respondents.clientUnitId, clientUnitId) : undefined,
+      isNull(respondents.deletedAt),
+    ),
+    columns: {
+      id: true,
+    },
+  });
+
+  if (respondentRows.length === 0) {
+    return {
+      createdCount: 0,
+      restoredCount: 0,
+      skippedCount: 0,
+      totalMatchedCount: 0,
+    };
+  }
+
+  const respondentIds = respondentRows.map((respondent) => respondent.id);
+
+  const existingRows = await db.query.assessmentProjectRespondents.findMany({
+    where: and(
+      eq(
+        assessmentProjectRespondents.assessmentProjectId,
+        parsed.data.assessmentProjectId,
+      ),
+      inArray(assessmentProjectRespondents.respondentId, respondentIds),
+    ),
+  });
+
+  const existingByRespondentId = new Map(
+    existingRows.map((row) => [row.respondentId, row]),
+  );
+
+  const now = new Date();
+
+  let createdCount = 0;
+  let restoredCount = 0;
+  let skippedCount = 0;
+
+  const touchedProjectRespondentIds: string[] = [];
+
+  await db.transaction(async (tx) => {
+    for (const respondent of respondentRows) {
+      const existing = existingByRespondentId.get(respondent.id);
+
+      if (existing && !existing.deletedAt) {
+        skippedCount += 1;
+        continue;
+      }
+
+      if (existing && existing.deletedAt) {
+        const [restored] = await tx
+          .update(assessmentProjectRespondents)
+          .set({
+            status: "invited",
+            invitedAt: now,
+            startedAt: null,
+            completedAt: null,
+            deletedAt: null,
+            updatedBy: ctx.userId,
+            updatedAt: now,
+          })
+          .where(eq(assessmentProjectRespondents.id, existing.id))
+          .returning();
+
+        if (!restored) {
+          throw new Error("Nie udało się przywrócić uczestnika projektu.");
+        }
+
+        restoredCount += 1;
+        touchedProjectRespondentIds.push(restored.id);
+        continue;
+      }
+
+      const [created] = await tx
+        .insert(assessmentProjectRespondents)
+        .values({
+          assessmentProjectId: parsed.data.assessmentProjectId,
+          respondentId: respondent.id,
+          status: "invited",
+          invitedAt: now,
+          createdBy: ctx.userId,
+          updatedBy: ctx.userId,
+        })
+        .returning();
+
+      if (!created) {
+        throw new Error("Nie udało się dodać uczestnika projektu.");
+      }
+
+      createdCount += 1;
+      touchedProjectRespondentIds.push(created.id);
+    }
+  });
+
+  for (const projectRespondentId of touchedProjectRespondentIds) {
+    await syncAssessmentInvitationIndexForProjectRespondent({
+      db,
+      ctx,
+      projectRespondentId,
+    });
+  }
+
+  await writeTenantAuditLog({
+    db,
+    ctx,
+    action: "assessment_project_respondents_bulk_added",
+    entityType: "assessment_project",
+    entityId: parsed.data.assessmentProjectId,
+    after: {
+      assessmentProjectId: parsed.data.assessmentProjectId,
+      clientOrganizationId: parsed.data.clientOrganizationId,
+      clientUnitId,
+      totalMatchedCount: respondentRows.length,
+      createdCount,
+      restoredCount,
+      skippedCount,
+    },
+  });
+
+  return {
+    createdCount,
+    restoredCount,
+    skippedCount,
+    totalMatchedCount: respondentRows.length,
+  };
+}
+
 
 async function ensureProjectExists({
   db,

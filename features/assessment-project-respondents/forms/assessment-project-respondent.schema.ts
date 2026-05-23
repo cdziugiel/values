@@ -27,6 +27,17 @@ export const archiveAssessmentProjectRespondentSchema = z.object({
   assessmentProjectId: z.string().uuid(),
 });
 
+export const bulkAddAssessmentProjectRespondentsSchema = z.object({
+  tenantSlug: z.string().min(2),
+  assessmentProjectId: z.string().uuid(),
+  clientOrganizationId: z.string().uuid(),
+  clientUnitId: z.string().uuid().optional().or(z.literal("")),
+});
+
+export type BulkAddAssessmentProjectRespondentsInput = z.infer<
+  typeof bulkAddAssessmentProjectRespondentsSchema
+>;
+
 export type AssessmentProjectRespondentStatus = z.infer<
   typeof assessmentProjectRespondentStatusSchema
 >;

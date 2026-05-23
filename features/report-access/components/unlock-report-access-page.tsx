@@ -1,8 +1,19 @@
 // features/report-access/components/unlock-report-access-page.tsx
-import Link from "next/link";
 
-import { requireSession } from "@/server/auth/require-session";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  LockKeyhole,
+  ReceiptText,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { requireSession } from "@/server/auth/require-session";
 
 import {
   getActiveReportAccessGrantForSession,
@@ -75,6 +86,96 @@ function formatQuestionnaireLabel(reportVersion: ExtendedReportVersion) {
   return name ?? versionName ?? version ?? "—";
 }
 
+function BrandLinkButton({
+  href,
+  children,
+  variant = "primary",
+}: {
+  href: string;
+  children: React.ReactNode;
+  variant?: "primary" | "secondary";
+}) {
+  const className =
+    variant === "primary"
+      ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50"
+      : "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-black/10 bg-white/70 px-5 text-sm font-semibold text-[#171717] shadow-sm transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50";
+
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+function InfoCard({
+  label,
+  value,
+  helper,
+  icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  helper?: React.ReactNode;
+  icon: React.ReactNode;
+}) {
+  return (
+    <article className="rounded-[1.5rem] border border-black/10 bg-white/65 p-5 shadow-sm backdrop-blur">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+            {label}
+          </p>
+
+          <div className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[#171717]">
+            {value}
+          </div>
+
+          {helper ? (
+            <div className="mt-1 text-xs leading-5 text-[#6b7280]">{helper}</div>
+          ) : null}
+        </div>
+
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-[#171717]">
+          {icon}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CenteredState({
+  icon,
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  eyebrow: string;
+  title: string;
+  description: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <main className="flex min-h-screen items-center justify-center hv-brand-surface px-4 py-10 sm:px-6 lg:px-8">
+      <section className="w-full max-w-2xl rounded-[2rem] hv-brand-card p-6 md:p-8">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
+          {icon}
+          <span className="hv-brand-eyebrow text-[0.68rem]">{eyebrow}</span>
+        </div>
+
+        <h1 className="text-3xl font-semibold leading-tight tracking-[-0.045em] text-[#171717] md:text-4xl">
+          {title}
+        </h1>
+
+        <p className="mt-4 text-sm leading-7 text-[#6b7280]">{description}</p>
+
+        <div className="mt-6 flex flex-wrap gap-2">{children}</div>
+      </section>
+    </main>
+  );
+}
+
 export async function UnlockReportAccessPage({
   tenantSlug,
   sessionId,
@@ -88,23 +189,17 @@ export async function UnlockReportAccessPage({
 
   if (!offer.ok) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
-        <section className="rounded-2xl border bg-card p-8">
-          <div className="text-sm font-medium text-muted-foreground">
-            HUMANET VALUES
-          </div>
-
-          <h1 className="mt-4 text-3xl font-semibold">
-            Nie można odblokować raportu
-          </h1>
-
-          <p className="mt-4 text-muted-foreground">{offer.message}</p>
-
-          <Button asChild variant="outline" className="mt-6">
-            <Link href="/my/assessment">Wróć do moich badań</Link>
-          </Button>
-        </section>
-      </main>
+      <CenteredState
+        icon={<TriangleAlert size={14} />}
+        eyebrow="HUMANET VALUES"
+        title="Nie można odblokować raportu"
+        description={offer.message}
+      >
+        <BrandLinkButton href="/my/assessment" variant="secondary">
+          <ArrowLeft size={16} />
+          Wróć do moich badań
+        </BrandLinkButton>
+      </CenteredState>
     );
   }
 
@@ -121,144 +216,147 @@ export async function UnlockReportAccessPage({
 
   if (existingGrant) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
-        <section className="rounded-2xl border bg-card p-8">
-          <div className="text-sm font-medium text-muted-foreground">
-            HUMANET VALUES
-          </div>
+      <CenteredState
+        icon={<CheckCircle2 size={14} />}
+        eyebrow="HUMANET VALUES"
+        title="Raport jest już odblokowany"
+        description="Masz aktywny dostęp do tego raportu. Możesz przejść bezpośrednio do podglądu albo wrócić do wyniku badania."
+      >
+        <BrandLinkButton
+          href={`/my/assessment/sessions/${sessionId}/report/${existingGrant.reportTemplateVersionId}?tenant=${tenantSlug}`}
+        >
+          <FileText size={16} />
+          Zobacz raport
+        </BrandLinkButton>
 
-          <h1 className="mt-4 text-3xl font-semibold">
-            Raport jest już odblokowany
-          </h1>
-
-          <p className="mt-4 text-muted-foreground">
-            Masz aktywny dostęp do tego raportu. Możesz przejść bezpośrednio do
-            podglądu.
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button asChild>
-              <Link
-                href={`/my/assessment/sessions/${sessionId}/report/${existingGrant.reportTemplateVersionId}?tenant=${tenantSlug}`}
-              >
-                Zobacz raport
-              </Link>
-            </Button>
-
-            <Button asChild variant="outline">
-              <Link
-                href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
-              >
-                Wróć do wyniku
-              </Link>
-            </Button>
-          </div>
-        </section>
-      </main>
+        <BrandLinkButton
+          href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
+          variant="secondary"
+        >
+          <ArrowLeft size={16} />
+          Wróć do wyniku
+        </BrandLinkButton>
+      </CenteredState>
     );
   }
 
   const product = offer.product;
 
   return (
-    <main className="mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <section className="rounded-2xl border bg-card p-6 md:p-8">
-        <div className="text-sm font-medium text-muted-foreground">
-          HUMANET VALUES
-        </div>
-
-        <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold">Odblokuj raport</h1>
-
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              Ten raport wymaga aktywnego dostępu. Na tym etapie używamy
-              placeholdera płatności — kliknięcie przycisku zasymuluje opłacenie
-              dostępu i zapisze dostęp do tej konkretnej wersji raportu.
-            </p>
-          </div>
-
-          <Button asChild variant="outline">
-            <Link
-              href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
-            >
-              Wróć do wyniku
-            </Link>
-          </Button>
-        </div>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <div className="text-xs uppercase text-muted-foreground">
-              Raport
-            </div>
-
-            <div className="mt-1 font-medium">
-              {reportVersion.reportTemplateName ??
-                reportVersion.reportTemplateVersionName ??
-                "Raport"}
-            </div>
-
-            <div className="mt-1 text-xs text-muted-foreground">
-              Wersja: {formatReportVersionLabel(reportVersion)}
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <div className="text-xs uppercase text-muted-foreground">
-              Kwestionariusz
-            </div>
-
-            <div className="mt-1 font-medium">
-              {formatQuestionnaireLabel(reportVersion)}
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <div className="text-xs uppercase text-muted-foreground">
-              Cena
-            </div>
-
-            <div className="mt-1 text-2xl font-semibold">
-              {product
-                ? formatMoney({
-                    amount: product.priceGross,
-                    currency: product.currency,
-                  })
-                : "—"}
-            </div>
-
-            {product ? (
-              <div className="mt-1 text-xs text-muted-foreground">
-                Brutto, VAT {product.vatRate ?? "—"}%
+    <main className="min-h-screen hv-brand-surface px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-5xl space-y-8">
+        <section className="overflow-hidden rounded-[2rem] hv-brand-card">
+          <div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-start md:p-8 lg:p-10">
+            <div className="max-w-3xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
+                <LockKeyhole size={14} />
+                <span className="hv-brand-eyebrow text-[0.68rem]">
+                  HUMANET VALUES
+                </span>
               </div>
-            ) : null}
+
+              <h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
+                Odblokuj raport.
+              </h1>
+
+              <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
+                Ten raport wymaga aktywnego dostępu. Na tym etapie używany jest
+                placeholder płatności — kliknięcie przycisku zasymuluje
+                opłacenie dostępu i zapisze dostęp do tej konkretnej wersji
+                raportu.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 md:min-w-56">
+              <BrandLinkButton
+                href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
+                variant="secondary"
+              >
+                <ArrowLeft size={16} />
+                Wróć do wyniku
+              </BrandLinkButton>
+            </div>
           </div>
-        </div>
+
+          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-3 md:p-8">
+            <InfoCard
+              label="Raport"
+              value={
+                reportVersion.reportTemplateName ??
+                reportVersion.reportTemplateVersionName ??
+                "Raport"
+              }
+              helper={`Wersja: ${formatReportVersionLabel(reportVersion)}`}
+              icon={<FileText size={18} />}
+            />
+
+            <InfoCard
+              label="Kwestionariusz"
+              value={formatQuestionnaireLabel(reportVersion)}
+              icon={<ShieldCheck size={18} />}
+            />
+
+            <InfoCard
+              label="Cena"
+              value={
+                product
+                  ? formatMoney({
+                      amount: product.priceGross,
+                      currency: product.currency,
+                    })
+                  : "—"
+              }
+              helper={product ? `Brutto, VAT ${product.vatRate ?? "—"}%` : null}
+              icon={<ReceiptText size={18} />}
+            />
+          </div>
+        </section>
 
         {!product ? (
-          <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            Dla tego raportu nie ma jeszcze aktywnego produktu sprzedażowego.
-            Utwórz produkt raportowy w panelu administracyjnym i ustaw jego
-            status na active.
-          </div>
+          <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-sm leading-6 text-amber-900 shadow-sm">
+            <div className="flex gap-3">
+              <TriangleAlert size={20} className="mt-0.5 shrink-0" />
+              <div>
+                <h2 className="font-semibold">Brak produktu sprzedażowego</h2>
+                <p className="mt-1">
+                  Dla tego raportu nie ma jeszcze aktywnego produktu
+                  sprzedażowego. Utwórz produkt raportowy w panelu
+                  administracyjnym i ustaw jego status na active.
+                </p>
+              </div>
+            </div>
+          </section>
         ) : (
-          <div className="mt-8 rounded-2xl border bg-background p-5">
-            <h2 className="text-lg font-semibold">Placeholder płatności</h2>
+          <section className="rounded-[2rem] hv-brand-card p-6 md:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                <CreditCard size={19} />
+              </div>
 
-            <p className="mt-2 text-sm text-muted-foreground">
-              Docelowo tutaj pojawi się integracja z bramką płatniczą oraz dane
-              do faktury. Na teraz przycisk poniżej tworzy opłacone zamówienie i
-              aktywny dostęp do raportu.
-            </p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
+                  Placeholder płatności
+                </p>
+
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+                  Symulacja zakupu dostępu
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
+                  Docelowo tutaj pojawi się integracja z bramką płatniczą oraz
+                  dane do faktury. Na teraz przycisk poniżej tworzy opłacone
+                  zamówienie i aktywny dostęp do raportu.
+                </p>
+              </div>
+            </div>
 
             <UnlockReportAccessPlaceholderForm
               tenantSlug={tenantSlug}
               sessionId={sessionId}
             />
-          </div>
+          </section>
         )}
-      </section>
+      </div>
     </main>
   );
 }

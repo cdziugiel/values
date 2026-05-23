@@ -1,6 +1,9 @@
+// features/report-templates/components/report-template-archive-button.tsx
+
 "use client";
 
 import { useActionState } from "react";
+import { Archive, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -27,7 +30,7 @@ export function ReportTemplateArchiveButton({
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <form
         action={formAction}
         onSubmit={(event) => {
@@ -46,13 +49,24 @@ export function ReportTemplateArchiveButton({
           value={reportTemplateId}
         />
 
-        <Button type="submit" variant="destructive" disabled={isPending}>
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={isPending}
+          className="rounded-full border-red-200 bg-red-50 text-red-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-800"
+        >
+          <Archive size={14} />
           {isPending ? "Archiwizowanie..." : "Archiwizuj template"}
         </Button>
       </form>
 
       {state.status === "error" ? (
-        <p className="text-xs text-destructive">{state.message}</p>
+        <div className="rounded-[1rem] border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+          <div className="flex gap-2">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+            <span>{state.message}</span>
+          </div>
+        </div>
       ) : null}
     </div>
   );

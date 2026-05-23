@@ -10,7 +10,7 @@ type PageProps = {
   }>;
 };
 
-export default async function PartnerAssessmentProjectPage({
+export default async function Page({
   params,
 }: PageProps) {
   const { tenantSlug, projectId } = await params;

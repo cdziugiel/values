@@ -52,7 +52,8 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   if (!result.ok) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
+      
+    <div className="mx-auto flex  flex-col justify-center px-6 py-8">
         <div className="rounded-2xl border bg-card p-8">
           <div className="text-sm font-medium text-muted-foreground">
             HUMANET VALUES
@@ -71,37 +72,17 @@ export default async function Page({ params, searchParams }: PageProps) {
             Wróć do moich badań
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   const { data } = result;
 
   return (
-    <main className="mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <div className="space-y-8">
-        <section className="rounded-2xl border bg-card p-8">
-          <div className="text-sm font-medium text-muted-foreground">
-            HUMANET VALUES
-          </div>
+    
+      <div className="mx-auto w-full ">
+      <div className="">
 
-          <h1 className="mt-4 text-3xl font-semibold">
-            {data.questionnaire.questionnaireName}
-          </h1>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            {data.questionnaire.questionnaireVersionName}
-          </p>
-
-          <div className="mt-6">
-            <Link
-              href="/my/assessment"
-              className="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium"
-            >
-              Wróć do moich badań
-            </Link>
-          </div>
-        </section>
 
         <AssessmentResponseForm
           mode="my-assessment"
@@ -113,6 +94,6 @@ export default async function Page({ params, searchParams }: PageProps) {
           isSuperAdmin={isSuperAdmin}
         />
       </div>
-    </main>
+    </div>
   );
 }

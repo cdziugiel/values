@@ -14,7 +14,7 @@ type PageProps = {
   }>;
 };
 
-export default async function MyAssessmentUnlockReportPage({
+export default async function Page({
   params,
   searchParams,
 }: PageProps) {

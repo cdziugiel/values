@@ -22,10 +22,23 @@ export type AssessmentProjectRespondentListItem = {
   sessionStatus: string | null;
   sessionStartedAt: Date | null;
   sessionCompletedAt: Date | null;
+  activeAccessUrl: string | null;
 };
 
 export type AssessmentProjectRespondentOption = {
   id: string;
   label: string;
   email: string | null;
+};
+
+
+export type AssessmentProjectRespondentOrganizationOption = {
+  id: string;
+  name: string;
+};
+
+export type AssessmentProjectRespondentUnitOption = {
+  id: string;
+  name: string;
+  clientOrganizationId: string;
 };

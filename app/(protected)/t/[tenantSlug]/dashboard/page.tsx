@@ -1,8 +1,24 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  ClipboardList,
+  CreditCard,
+  FileText,
+  KeyRound,
+  Layers3,
+  PackageCheck,
+  ShieldCheck,
+  ShoppingCart,
+  Users,
+} from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/shared/ui";
 
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
@@ -16,10 +32,7 @@ import {
   respondents,
 } from "@/drizzle/schema/tenant-schema";
 
-import {
-  reportAccessCodes,
-  reportAccessOrders,
-} from "@/drizzle/schema";
+import { reportAccessCodes, reportAccessOrders } from "@/drizzle/schema";
 
 type TenantDashboardPageProps = {
   params: Promise<{
@@ -97,18 +110,24 @@ function getOrderStatusLabel(status: string | null) {
 
 function getStatusBadgeClass(status: string | null) {
   if (status === "completed" || status === "paid") {
-    return "border-green-200 bg-green-50 text-green-800";
+    return "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]";
   }
 
   if (status === "in_progress" || status === "pending_payment") {
-    return "border-blue-200 bg-blue-50 text-blue-800";
+    return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
   if (status === "cancelled" || status === "failed" || status === "refunded") {
-    return "border-muted bg-muted text-muted-foreground";
+    return "border-red-200 bg-red-50 text-red-700";
   }
 
-  return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function percent(value: number, total: number) {
+  if (total <= 0) return 0;
+
+  return Math.round((value / total) * 100);
 }
 
 async function getTenantDashboardData(tenantSlug: string) {
@@ -317,6 +336,191 @@ async function getTenantDashboardData(tenantSlug: string) {
   };
 }
 
+function BrandButton({
+  href,
+  children,
+  variant = "primary",
+}: {
+  href: string;
+  children: ReactNode;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <Button
+      asChild
+      variant={variant === "primary" ? "default" : "outline"}
+      className={
+        variant === "primary"
+          ? "rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
+          : "rounded-full border-black/10 bg-white/70 text-[#171717] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+      }
+    >
+      <Link href={href}>{children}</Link>
+    </Button>
+  );
+}
+
+function DashboardCard({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={[
+        "rounded-[2rem] border border-black/10 bg-white/80 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </section>
+  );
+}
+
+function SectionHeader({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:p-6">
+      <div className="flex gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+          {icon}
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+            {title}
+          </h2>
+
+          {description ? (
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6b7280]">
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  helper,
+  icon,
+  progress,
+}: {
+  label: string;
+  value: number | string;
+  helper: string;
+  icon: ReactNode;
+  progress?: number;
+}) {
+  return (
+    <article className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
+            {label}
+          </p>
+
+          <div className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-[#171717]">
+            {value}
+          </div>
+        </div>
+
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-[#171717]">
+          {icon}
+        </div>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-[#6b7280]">{helper}</p>
+
+      {typeof progress === "number" ? (
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-medium text-[#6b7280]">Udział</span>
+            <span className="font-semibold text-[#171717]">{progress}%</span>
+          </div>
+
+          <div className="h-2 overflow-hidden rounded-full bg-[#f3f4f6]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]"
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function MiniMetric({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: number | string;
+  helper?: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6b7280]">
+        {label}
+      </p>
+
+      <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+        {value}
+      </div>
+
+      {helper ? (
+        <p className="mt-1 text-xs leading-5 text-[#6b7280]">{helper}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusPill({
+  status,
+  children,
+}: {
+  status: string | null;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+        status,
+      )}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function EmptyPanel({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-6 text-sm leading-6 text-[#6b7280]">
+      {children}
+    </div>
+  );
+}
+
 export default async function TenantDashboardPage({
   params,
 }: TenantDashboardPageProps) {
@@ -330,218 +534,196 @@ export default async function TenantDashboardPage({
       ? Math.round((data.sessionStatus.completed / data.counts.sessions) * 100)
       : 0;
 
+  const accessUseRate = percent(
+    data.accessCodes.redeemed,
+    data.accessCodes.total,
+  );
+
+  const paidOrderRate = percent(data.orders.paid, data.orders.total);
+
   return (
-    <>
-      <PageHeader
-        title={`Tenant: ${ctx.tenantName}`}
-        description="Operacyjny dashboard badań, respondentów, sesji i dostępów raportowych."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/t/${ctx.tenantSlug}/assessment-projects`}>
+    <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl space-y-8">
+        <PageHeader
+          title={ctx.tenantName}
+          description="Operacyjny dashboard badań, respondentów, sesji i dostępów raportowych."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <BrandButton
+                href={`/t/${ctx.tenantSlug}/assessment-projects`}
+                variant="secondary"
+              >
                 Projekty badawcze
-              </Link>
-            </Button>
+              </BrandButton>
 
-            <Button asChild variant="outline">
-              <Link href={`/t/${ctx.tenantSlug}/report-access`}>
+              <BrandButton
+                href={`/t/${ctx.tenantSlug}/report-access`}
+                variant="secondary"
+              >
                 Dostępy raportowe
-              </Link>
-            </Button>
-          </div>
-        }
-      />
+              </BrandButton>
 
-      <main className="space-y-8">
+              <BrandButton href={`/t/${ctx.tenantSlug}/members`} variant="secondary">
+                Zespół
+              </BrandButton>
+            </div>
+          }
+        />
+
+        
+
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Projekty badawcze
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">
-                {data.counts.projects}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aktywne i historyczne projekty tenanta.
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Projekty"
+            value={data.counts.projects}
+            helper="Aktywne i historyczne projekty badawcze."
+            icon={<ClipboardList size={20} />}
+          />
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Respondenci
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">
-                {data.counts.respondents}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Osoby zarejestrowane w badaniach tenanta.
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Respondenci"
+            value={data.counts.respondents}
+            helper="Osoby zarejestrowane w badaniach partnera."
+            icon={<Users size={20} />}
+          />
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Sesje badawcze
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">
-                {data.counts.sessions}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Wszystkie rozpoczęte i zakończone wypełnienia.
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Sesje"
+            value={data.counts.sessions}
+            helper="Wszystkie rozpoczęte i zakończone wypełnienia."
+            icon={<BarChart3 size={20} />}
+            progress={completionRate}
+          />
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Ukończenie
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold">{completionRate}%</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Udział sesji zakończonych wśród wszystkich sesji.
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Snapshoty"
+            value={data.counts.snapshots}
+            helper="Zamrożone wyniki gotowe do raportowania."
+            icon={<PackageCheck size={20} />}
+          />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Status sesji badawczych</CardTitle>
-            </CardHeader>
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+          <DashboardCard>
+            <SectionHeader
+              icon={<BarChart3 size={20} />}
+              title="Status sesji badawczych"
+              description="Szybki podgląd tego, ile sesji jest w toku, ile zostało zakończonych i ile nadal czeka na start."
+            />
 
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <div className="text-xs uppercase text-muted-foreground">
-                    W trakcie
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.sessionStatus.inProgress}
-                  </div>
-                </div>
+            <div className="grid gap-3 px-5 pb-5 md:grid-cols-4 md:px-6 md:pb-6">
+              <MiniMetric
+                label="W trakcie"
+                value={data.sessionStatus.inProgress}
+              />
 
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <div className="text-xs uppercase text-muted-foreground">
-                    Zakończone
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.sessionStatus.completed}
-                  </div>
-                </div>
+              <MiniMetric
+                label="Zakończone"
+                value={data.sessionStatus.completed}
+              />
 
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <div className="text-xs uppercase text-muted-foreground">
-                    Nierozpoczęte
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.sessionStatus.notStarted}
-                  </div>
-                </div>
+              <MiniMetric
+                label="Nierozpoczęte"
+                value={data.sessionStatus.notStarted}
+              />
 
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <div className="text-xs uppercase text-muted-foreground">
-                    Snapshoty
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.counts.snapshots}
-                  </div>
-                </div>
+              <MiniMetric label="Anulowane" value={data.sessionStatus.cancelled} />
+            </div>
+          </DashboardCard>
+
+          <DashboardCard>
+            <SectionHeader
+              icon={<KeyRound size={20} />}
+              title="Dostępy raportowe"
+              description="Pula kodów i dostępów używanych do odblokowywania raportów."
+              action={
+                <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                  {accessUseRate}% wykorzystania
+                </Badge>
+              }
+            />
+
+            <div className="space-y-4 px-5 pb-5 md:px-6 md:pb-6">
+              <div className="grid grid-cols-2 gap-3">
+                <MiniMetric label="Wolne" value={data.accessCodes.available} />
+                <MiniMetric label="Zużyte" value={data.accessCodes.redeemed} />
+                <MiniMetric label="Przypisane" value={data.accessCodes.assigned} />
+                <MiniMetric label="Łącznie" value={data.accessCodes.total} />
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Dostępy raportowe</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Wolne</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.accessCodes.available}
-                  </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="font-medium text-[#6b7280]">Zużycie puli</span>
+                  <span className="font-semibold text-[#171717]">
+                    {accessUseRate}%
+                  </span>
                 </div>
 
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Zużyte</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.accessCodes.redeemed}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Przypisane</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.accessCodes.assigned}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Łącznie</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.accessCodes.total}
-                  </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[#f3f4f6]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]"
+                    style={{ width: `${Math.max(0, Math.min(100, accessUseRate))}%` }}
+                  />
                 </div>
               </div>
 
-              <Button asChild variant="outline" className="mt-4 w-full">
-                <Link href={`/t/${ctx.tenantSlug}/report-access`}>
-                  Zarządzaj dostępami i zakupami
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+              <BrandButton href={`/t/${ctx.tenantSlug}/report-access`}>
+                Zarządzaj dostępami
+                <ArrowRight size={16} />
+              </BrandButton>
+            </div>
+          </DashboardCard>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <CardTitle>Ostatnie projekty</CardTitle>
-
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/t/${ctx.tenantSlug}/assessment-projects`}>
+          <DashboardCard>
+            <SectionHeader
+              icon={<FileText size={20} />}
+              title="Ostatnie projekty"
+              description="Najświeżej aktualizowane projekty badawcze partnera."
+              action={
+                <BrandButton
+                  href={`/t/${ctx.tenantSlug}/assessment-projects`}
+                  variant="secondary"
+                >
                   Wszystkie
-                </Link>
-              </Button>
-            </CardHeader>
+                </BrandButton>
+              }
+            />
 
-            <CardContent>
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
               {data.recentProjects.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                  Brak projektów badawczych.
-                </div>
+                <EmptyPanel>Brak projektów badawczych.</EmptyPanel>
               ) : (
                 <div className="space-y-3">
                   {data.recentProjects.map((project) => (
-                    <div
+                    <article
                       key={project.id}
-                      className="rounded-xl border bg-muted/20 p-4"
+                      className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm transition hover:border-black/20 hover:bg-white"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
-                          <div className="font-medium">{project.name}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
+                            {project.name}
+                          </h3>
+
+                          {project.description ? (
+                            <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#6b7280]">
+                              {project.description}
+                            </p>
+                          ) : null}
+
+                          <p className="mt-2 text-xs text-[#8b9099]">
                             Aktualizacja: {formatDateTime(project.updatedAt)}
-                          </div>
+                          </p>
                         </div>
 
-                        <Button asChild size="sm" variant="outline">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full border-black/10 bg-white/70 text-[#171717]"
+                        >
                           <Link
                             href={`/dashboard/partner-assessment/${ctx.tenantSlug}/projects/${project.id}`}
                           >
@@ -549,170 +731,163 @@ export default async function TenantDashboardPage({
                           </Link>
                         </Button>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Ostatnie sesje</CardTitle>
-            </CardHeader>
+          <DashboardCard>
+            <SectionHeader
+              icon={<Activity size={20} />}
+              title="Ostatnie sesje"
+              description="Najnowsza aktywność respondentów w sesjach badawczych."
+            />
 
-            <CardContent>
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
               {data.recentSessions.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                  Brak sesji badawczych.
-                </div>
+                <EmptyPanel>Brak sesji badawczych.</EmptyPanel>
               ) : (
                 <div className="space-y-3">
                   {data.recentSessions.map((session) => (
-                    <div
+                    <article
                       key={session.id}
-                      className="flex items-start justify-between gap-3 rounded-xl border bg-muted/20 p-4"
+                      className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm"
                     >
-                      <div className="min-w-0">
-                        <div className="font-mono text-xs text-muted-foreground">
-                          {session.id}
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <p className="truncate font-mono text-xs text-[#8b9099]">
+                            {session.id}
+                          </p>
+
+                          <div className="mt-2">
+                            <StatusPill status={session.status}>
+                              {getSessionStatusLabel(session.status)}
+                            </StatusPill>
+                          </div>
+
+                          <p className="mt-2 text-xs text-[#6b7280]">
+                            Aktualizacja: {formatDateTime(session.updatedAt)}
+                          </p>
                         </div>
 
-                        <div className="mt-2">
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
-                              session.status,
-                            )}`}
+                        {session.status === "completed" ? (
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="rounded-full border-black/10 bg-white/70 text-[#171717]"
                           >
-                            {getSessionStatusLabel(session.status)}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          Aktualizacja: {formatDateTime(session.updatedAt)}
-                        </div>
+                            <Link
+                              href={`/t/${ctx.tenantSlug}/assessment-sessions/${session.id}/results`}
+                            >
+                              Wynik
+                            </Link>
+                          </Button>
+                        ) : null}
                       </div>
-
-                      {session.status === "completed" ? (
-                        <Button asChild size="sm" variant="outline">
-                          <Link
-                            href={`/t/${ctx.tenantSlug}/assessment-sessions/${session.id}/results`}
-                          >
-                            Wynik
-                          </Link>
-                        </Button>
-                      ) : null}
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Zamówienia dostępów</CardTitle>
-            </CardHeader>
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+          <DashboardCard>
+            <SectionHeader
+              icon={<ShoppingCart size={20} />}
+              title="Zamówienia dostępów"
+              description="Agregat statusów zamówień raportowych partnera."
+              action={
+                <Badge className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                  {paidOrderRate}% opłaconych
+                </Badge>
+              }
+            />
 
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Opłacone</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.orders.paid}
-                  </div>
-                </div>
+            <div className="grid grid-cols-2 gap-3 px-5 pb-5 md:px-6 md:pb-6">
+              <MiniMetric label="Opłacone" value={data.orders.paid} />
+              <MiniMetric
+                label="Oczekujące"
+                value={data.orders.pendingPayment}
+              />
+              <MiniMetric label="Anulowane" value={data.orders.cancelled} />
+              <MiniMetric label="Łącznie" value={data.orders.total} />
+            </div>
+          </DashboardCard>
 
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">
-                    Oczekujące
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.orders.pendingPayment}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Anulowane</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.orders.cancelled}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Łącznie</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {data.orders.total}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <CardTitle>Ostatnie zakupy</CardTitle>
-
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/t/${ctx.tenantSlug}/report-access`}>
+          <DashboardCard>
+            <SectionHeader
+              icon={<CreditCard size={20} />}
+              title="Ostatnie zakupy"
+              description="Najnowsze zamówienia dostępów raportowych."
+              action={
+                <BrandButton
+                  href={`/t/${ctx.tenantSlug}/report-access`}
+                  variant="secondary"
+                >
                   Historia
-                </Link>
-              </Button>
-            </CardHeader>
+                </BrandButton>
+              }
+            />
 
-            <CardContent>
+            <div className="px-5 pb-5 md:px-6 md:pb-6">
               {data.recentOrders.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                  Brak zamówień dostępów raportowych.
-                </div>
+                <EmptyPanel>Brak zamówień dostępów raportowych.</EmptyPanel>
               ) : (
                 <div className="space-y-3">
                   {data.recentOrders.map((order) => (
-                    <div
+                    <article
                       key={order.id}
-                      className="rounded-xl border bg-muted/20 p-4"
+                      className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-mono text-xs text-muted-foreground">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="truncate font-mono text-xs text-[#8b9099]">
                             {order.id}
-                          </div>
+                          </p>
 
                           <div className="mt-2">
-                            <span
-                              className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
-                                order.status,
-                              )}`}
-                            >
+                            <StatusPill status={order.status}>
                               {getOrderStatusLabel(order.status)}
-                            </span>
+                            </StatusPill>
                           </div>
 
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {formatDateTime(order.createdAt)}
-                          </div>
+                          <p className="mt-2 text-xs text-[#6b7280]">
+                            Utworzono: {formatDateTime(order.createdAt)}
+                          </p>
+
+                          {order.paidAt ? (
+                            <p className="mt-1 text-xs text-[#6b7280]">
+                              Opłacono: {formatDateTime(order.paidAt)}
+                            </p>
+                          ) : null}
                         </div>
 
-                        <div className="text-right">
-                          <div className="font-semibold">
-                            {formatMoney(order.totalGross, order.currency)}
+                        <div className="shrink-0 text-right">
+                          <div className="font-semibold text-[#171717]">
+                            {formatMoney(
+                              order.totalGross,
+                              order.currency ?? "PLN",
+                            )}
                           </div>
 
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <div className="mt-1 text-xs text-[#6b7280]">
                             {order.paymentProvider ?? "—"}
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardCard>
         </section>
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

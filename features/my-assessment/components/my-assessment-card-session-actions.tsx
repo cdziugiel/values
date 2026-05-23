@@ -1,4 +1,5 @@
 // features/my-assessment/components/my-assessment-card-session-actions.tsx
+
 "use client";
 
 import { useActionState } from "react";
@@ -50,14 +51,14 @@ export function MyAssessmentCardSessionActions({
   }
 
   return (
-    <div className="space-y-2 border-t pt-2">
+      <div className="space-y-2">
       {canCancel ? (
         <form
           action={cancelAction}
           onSubmit={(event) => {
-          const confirmed = window.confirm(
-            "Anulować rozpoczęte badanie? Dotychczasowa sesja zostanie zamknięta, a zaproszenie wróci na listę tak, aby można było rozpocząć badanie od początku.",
-          );
+            const confirmed = window.confirm(
+              "Anulować rozpoczęte badanie? Dotychczasowa sesja zostanie zamknięta, a zaproszenie wróci na listę tak, aby można było rozpocząć badanie od początku.",
+            );
 
             if (!confirmed) {
               event.preventDefault();
@@ -77,11 +78,12 @@ export function MyAssessmentCardSessionActions({
 
           <Button
             type="submit"
-            variant="outline"
-            className="w-full gap-2"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
             disabled={isCancelPending}
           >
-            <XCircle size={15} />
+            <XCircle size={14} className="mr-1.5" />
             {isCancelPending ? "Anulowanie..." : "Anuluj badanie"}
           </Button>
 
@@ -116,24 +118,21 @@ export function MyAssessmentCardSessionActions({
             name="sessionId"
             value={questionnaire.sessionId ?? ""}
           />
-<input
-  type="hidden"
-  name="source"
-  value={questionnaire.source}
-/>
+          <input type="hidden" name="source" value={questionnaire.source} />
+          <input
+            type="hidden"
+            name="projectQuestionnaireId"
+            value={questionnaire.projectQuestionnaireId ?? ""}
+          />
 
-<input
-  type="hidden"
-  name="projectQuestionnaireId"
-  value={questionnaire.projectQuestionnaireId ?? ""}
-/>
           <Button
             type="submit"
-            variant="outline"
-            className="w-full gap-2"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-muted-foreground"
             disabled={isArchivePending}
           >
-            <Archive size={15} />
+            <Archive size={14} className="mr-1.5" />
             {isArchivePending ? "Archiwizowanie..." : "Archiwizuj"}
           </Button>
 

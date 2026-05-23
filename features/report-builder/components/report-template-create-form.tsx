@@ -1,6 +1,15 @@
+// features/report-templates/components/report-template-create-form.tsx
+
 "use client";
 
 import { useActionState } from "react";
+import {
+  CheckCircle2,
+  FileText,
+  PlusCircle,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +33,36 @@ type ReportTemplateCreateFormProps = {
   }[];
 };
 
+function ActionMessage({
+  status,
+  message,
+}: {
+  status: "idle" | "success" | "error";
+  message: string;
+}) {
+  if (status === "idle") return null;
+
+  return (
+    <div
+      className={[
+        "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
+        status === "success"
+          ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+          : "border-red-200 bg-red-50 text-red-700",
+      ].join(" ")}
+    >
+      <div className="flex gap-2">
+        {status === "success" ? (
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+        ) : (
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+        )}
+        <span>{message}</span>
+      </div>
+    </div>
+  );
+}
+
 export function ReportTemplateCreateForm({
   questionnaires,
 }: ReportTemplateCreateFormProps) {
@@ -33,67 +72,135 @@ export function ReportTemplateCreateForm({
   );
 
   return (
-    <form action={formAction} className="space-y-5 rounded-2xl border bg-card p-5">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium">Kwestionariusz</span>
-          <select
-            name="questionnaireId"
-            required
-            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-          >
-            <option value="">Wybierz kwestionariusz</option>
-            {questionnaires.map((questionnaire) => (
-              <option key={questionnaire.id} value={questionnaire.id}>
-                {questionnaire.name} ({questionnaire.code})
-              </option>
-            ))}
-          </select>
-        </label>
+    <section className="rounded-[2rem] hv-brand-card">
+      <form
+        action={formAction}
+        className="grid gap-6 p-5 md:p-6 lg:grid-cols-[0.85fr_1.15fr]"
+      >
+        <div className="space-y-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+            <PlusCircle size={20} />
+          </div>
 
-        <label className="space-y-2">
-          <span className="text-sm font-medium">Kod</span>
-          <Input
-            name="code"
-            required
-            placeholder="HUMANET_VALUES_DEFAULT"
-          />
-        </label>
-      </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
+              Nowy template raportu
+            </p>
 
-      <label className="space-y-2 block">
-        <span className="text-sm font-medium">Nazwa</span>
-        <Input
-          name="name"
-          required
-          placeholder="Raport HUMANET Values"
-        />
-      </label>
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+              Utwórz bazową definicję raportu.
+            </h2>
 
-      <label className="space-y-2 block">
-        <span className="text-sm font-medium">Opis</span>
-        <textarea
-          name="description"
-          className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder="Opis template’u raportu..."
-        />
-      </label>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[#6b7280]">
+              Template raportu jest kontenerem dla wersji raportu. Konkretne
+              układy, strony i konfiguracje edytujesz później w builderze.
+            </p>
+          </div>
 
-      {state.status !== "idle" ? (
-        <p
-          className={
-            state.status === "success"
-              ? "text-sm text-green-700"
-              : "text-sm text-destructive"
-          }
-        >
-          {state.message}
-        </p>
-      ) : null}
+          <div className="rounded-[1.5rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] p-4">
+            <div className="flex gap-3">
+              <ShieldCheck
+                size={18}
+                className="mt-0.5 shrink-0 text-[#0f766e]"
+              />
 
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Tworzenie..." : "Utwórz template raportu"}
-      </Button>
-    </form>
+              <p className="text-sm leading-6 text-[#0f766e]">
+                Template powinien być powiązany z kwestionariuszem, aby raporty
+                można było stabilnie przypisywać do wersji narzędzi badawczych.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
+          {questionnaires.length === 0 ? (
+            <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-5 text-sm leading-6 text-[#6b7280]">
+              Brak kwestionariuszy. Najpierw utwórz kwestionariusz, aby móc
+              przygotować dla niego template raportu.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-[#171717]">
+                    Kwestionariusz
+                  </span>
+
+                  <select
+                    name="questionnaireId"
+                    required
+                    className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+                  >
+                    <option value="">Wybierz kwestionariusz</option>
+                    {questionnaires.map((questionnaire) => (
+                      <option key={questionnaire.id} value={questionnaire.id}>
+                        {questionnaire.name} ({questionnaire.code})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-[#171717]">
+                    Kod
+                  </span>
+                  <Input
+                    name="code"
+                    required
+                    placeholder="HUMANET_VALUES_DEFAULT"
+                    className="rounded-2xl border-black/10 bg-white font-mono text-sm"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-5 block space-y-2">
+                <span className="text-sm font-medium text-[#171717]">
+                  Nazwa
+                </span>
+                <Input
+                  name="name"
+                  required
+                  placeholder="Raport HUMANET Values"
+                  className="rounded-2xl border-black/10 bg-white"
+                />
+              </label>
+
+              <label className="mt-5 block space-y-2">
+                <span className="text-sm font-medium text-[#171717]">
+                  Opis
+                </span>
+                <textarea
+                  name="description"
+                  className="min-h-24 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+                  placeholder="Opis template’u raportu..."
+                />
+              </label>
+
+              {state.status !== "idle" ? (
+                <div className="mt-5">
+                  <ActionMessage status={state.status} message={state.message} />
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-xs text-[#6b7280]">
+                  <FileText size={14} />
+                  Wersje i układ raportu utworzysz po zapisaniu template’u.
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  className="rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
+                >
+                  <PlusCircle size={16} />
+                  {isPending ? "Tworzenie..." : "Utwórz template raportu"}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </form>
+    </section>
   );
 }

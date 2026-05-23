@@ -8,6 +8,8 @@ import {
   questionnairePages,
   questionnaires,
   questionnaireVersions,
+  questionnaireDimensions,
+  questionnaireItemDimensionScores
 } from "@/drizzle/schema";
 import {
   assessmentDimensionScores,
@@ -21,6 +23,14 @@ import {
 import { controlDb } from "@/server/db/control-db";
 import { getTenantDb } from "@/server/db/tenant-db";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
+
+
+export type AssessmentProjectDimensionCategoryAssignment = {
+  categoryCode: string;
+  categoryName: string;
+  valueCode: string;
+  valueName: string;
+};
 
 type OptionWithOptionalScore = {
   value: string | number | boolean;
@@ -37,6 +47,36 @@ export type AssessmentProjectDimensionAggregate = {
   dimensionCode: string;
   dimensionName: string;
   sessionsCount: number;
+  averageRawScore: number | null;
+  averageWeightedScore: number | null;
+  averageMeanScore: number | null;
+  averageWeightedMeanScore: number | null;
+  averageCompleteness: number | null;
+  categories: AssessmentProjectDimensionCategoryAssignment[];
+};
+export type AssessmentProjectCrossCategoryResult = {
+  questionnaireId: string;
+  questionnaireVersionId: string;
+  questionnaireName: string;
+  questionnaireVersionName: string;
+
+  xCategoryCode: string;
+  xCategoryName: string;
+  xDimensionId: string;
+  xDimensionCode: string;
+  xDimensionName: string;
+
+  yCategoryCode: string;
+  yCategoryName: string;
+  yDimensionId: string;
+  yDimensionCode: string;
+  yDimensionName: string;
+
+  itemsCount: number;
+  sessionsCount: number;
+  answeredCount: number;
+  expectedCount: number;
+
   averageRawScore: number | null;
   averageWeightedScore: number | null;
   averageMeanScore: number | null;
@@ -113,7 +153,9 @@ export type AssessmentProjectResultsData = {
   dimensionAggregates: AssessmentProjectDimensionAggregate[];
   categoricalAggregates: AssessmentProjectCategoricalAggregate[];
   respondentResults: AssessmentProjectRespondentResult[];
+  crossCategoryResults: AssessmentProjectCrossCategoryResult[];
 };
+
 
 function getRespondentDisplayName(input: {
   firstName: string | null;
@@ -204,6 +246,156 @@ function itemIsCategoricalWithoutScore(item: {
   return !options.some(optionHasScore);
 }
 
+
+type ResponseValue = {
+  valueType: string;
+  numberValue: number | null;
+  textValue: string | null;
+  booleanValue: boolean | null;
+  jsonValue: unknown | null;
+};
+
+type ScoringItemForResults = {
+  id: string;
+  questionnaireVersionId: string;
+  type: string;
+  scaleMin: number | null;
+  scaleMax: number | null;
+  options: unknown;
+};
+
+function getResponseNumericScore({
+  item,
+  response,
+}: {
+  item: {
+    type: string;
+    options: unknown;
+  };
+  response: ResponseValue | undefined;
+}) {
+  if (!response) {
+    return null;
+  }
+
+  if (item.type === "likert" || item.type === "number") {
+    return typeof response.numberValue === "number" ? response.numberValue : null;
+  }
+
+  if (item.type === "true_false") {
+    if (typeof response.booleanValue !== "boolean") {
+      return null;
+    }
+
+    return response.booleanValue ? 1 : 0;
+  }
+
+  if (item.type === "single_choice") {
+    if (!response.textValue) {
+      return null;
+    }
+
+    const options = normalizeOptions(item.options);
+    const selected = options.find(
+      (option) => optionValueToString(option.value) === response.textValue,
+    );
+
+    if (typeof selected?.score === "number") {
+      return selected.score;
+    }
+
+    if (typeof selected?.score === "string" && selected.score.trim() !== "") {
+      const parsed = Number(selected.score);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  }
+
+  if (item.type === "multiple_choice") {
+    if (!Array.isArray(response.jsonValue)) {
+      return null;
+    }
+
+    const selectedValues = response.jsonValue.map(String);
+    const options = normalizeOptions(item.options);
+
+    const scores = selectedValues
+      .map((selectedValue) => {
+        const option = options.find(
+          (candidate) =>
+            optionValueToString(candidate.value) === selectedValue,
+        );
+
+        if (typeof option?.score === "number") {
+          return option.score;
+        }
+
+        if (typeof option?.score === "string" && option.score.trim() !== "") {
+          const parsed = Number(option.score);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        return null;
+      })
+      .filter((score): score is number => typeof score === "number");
+
+    if (scores.length === 0) {
+      return null;
+    }
+
+    return scores.reduce((acc, score) => acc + score, 0) / scores.length;
+  }
+
+  return null;
+}
+
+function reverseScore({
+  score,
+  item,
+}: {
+  score: number;
+  item: {
+    type: string;
+    scaleMin: number | null;
+    scaleMax: number | null;
+  };
+}) {
+  if (item.type === "likert") {
+    const min = item.scaleMin ?? 1;
+    const max = item.scaleMax ?? 5;
+
+    return max + min - score;
+  }
+
+  if (item.type === "true_false") {
+    return score === 1 ? 0 : 1;
+  }
+
+  return -score;
+}
+
+function itemCanContributeNumericScore(item: ScoringItemForResults) {
+  if (item.type === "likert") {
+    return true;
+  }
+
+  if (item.type === "number") {
+    return true;
+  }
+
+  if (item.type === "true_false") {
+    return true;
+  }
+
+  if (item.type === "single_choice" || item.type === "multiple_choice") {
+    return normalizeOptions(item.options).some(optionHasScore);
+  }
+
+  return false;
+}
+
+
 function getOptionLabel({
   options,
   value,
@@ -226,6 +418,28 @@ function average(values: number[]) {
   }
 
   return round4(values.reduce((acc, value) => acc + value, 0) / values.length);
+}
+
+
+function normalizeDimensionCategories(input: {
+  code: string;
+  name: string;
+  category: string | null;
+}): AssessmentProjectDimensionCategoryAssignment[] {
+  const categoryCode = input.category?.trim();
+
+  if (!categoryCode) {
+    return [];
+  }
+
+  return [
+    {
+      categoryCode,
+      categoryName: categoryCode,
+      valueCode: input.code,
+      valueName: input.name,
+    },
+  ];
 }
 
 export async function getAssessmentProjectResults({
@@ -312,13 +526,65 @@ export async function getAssessmentProjectResults({
     )
     .orderBy(asc(assessmentProjectQuestionnaires.orderIndex));
 
+
   const questionnaireVersionIds = projectQuestionnaires.map(
     (item) => item.questionnaireVersionId,
   );
 
+  const dimensionDefinitionRows =
+    questionnaireVersionIds.length > 0
+      ? await controlDb
+        .select({
+          id: questionnaireDimensions.id,
+          questionnaireVersionId:
+            questionnaireDimensions.questionnaireVersionId,
+          code: questionnaireDimensions.code,
+          name: questionnaireDimensions.name,
+          category: questionnaireDimensions.category,
+        })
+        .from(questionnaireDimensions)
+        .where(
+          and(
+            inArray(
+              questionnaireDimensions.questionnaireVersionId,
+              questionnaireVersionIds,
+            ),
+            isNull(questionnaireDimensions.deletedAt),
+          ),
+        )
+      : [];
+
+  const categoriesByDimensionId = new Map<
+    string,
+    AssessmentProjectDimensionCategoryAssignment[]
+  >();
+
+  const categoriesByDimensionKey = new Map<
+    string,
+    AssessmentProjectDimensionCategoryAssignment[]
+  >();
+
+  for (const row of dimensionDefinitionRows) {
+    const categories = normalizeDimensionCategories({
+      code: row.code,
+      name: row.name,
+      category: row.category,
+    });
+
+    categoriesByDimensionId.set(row.id, categories);
+
+    categoriesByDimensionKey.set(
+      `${row.questionnaireVersionId}:${row.code}`,
+      categories,
+    );
+  }
+const dimensionDefinitionById = new Map(
+  dimensionDefinitionRows.map((row) => [row.id, row]),
+);
+
   let dimensionAggregates: AssessmentProjectDimensionAggregate[] = [];
   let categoricalAggregates: AssessmentProjectCategoricalAggregate[] = [];
-
+let crossCategoryResults: AssessmentProjectCrossCategoryResult[] = [];
 
   let scoreRows: {
     questionnaireId: string;
@@ -394,7 +660,388 @@ export async function getAssessmentProjectResults({
   const versionMetaById = new Map(
     versionMetaRows.map((row) => [row.questionnaireVersionId, row]),
   );
+if (questionnaireVersionIds.length > 0 && completedSessionIds.length > 0) {
+  const scoringItems = await controlDb
+    .select({
+      id: questionnaireItems.id,
+      questionnaireVersionId: questionnaireItems.questionnaireVersionId,
+      type: questionnaireItems.type,
+      scaleMin: questionnaireItems.scaleMin,
+      scaleMax: questionnaireItems.scaleMax,
+      options: questionnaireItems.options,
+    })
+    .from(questionnaireItems)
+    .where(
+      and(
+        inArray(questionnaireItems.questionnaireVersionId, questionnaireVersionIds),
+        isNull(questionnaireItems.deletedAt),
+      ),
+    );
 
+  const numericScoringItems: ScoringItemForResults[] = scoringItems.filter(
+    itemCanContributeNumericScore,
+  );
+
+  const scoringItemIds = numericScoringItems.map((item) => item.id);
+
+  const itemById = new Map(
+    numericScoringItems.map((item) => [item.id, item]),
+  );
+
+  const itemDimensionScoreRows =
+    scoringItemIds.length > 0
+      ? await controlDb
+          .select({
+            itemId: questionnaireItemDimensionScores.questionnaireItemId,
+            dimensionId:
+              questionnaireItemDimensionScores.questionnaireDimensionId,
+            weight: questionnaireItemDimensionScores.weight,
+            reverseScored: questionnaireItemDimensionScores.reverseScored,
+          })
+          .from(questionnaireItemDimensionScores)
+          .where(
+            and(
+              inArray(
+                questionnaireItemDimensionScores.questionnaireItemId,
+                scoringItemIds,
+              ),
+              isNull(questionnaireItemDimensionScores.deletedAt),
+            ),
+          )
+      : [];
+
+  const itemDimensionScoresByItemId = new Map<
+    string,
+    {
+      itemId: string;
+      dimensionId: string;
+      weight: string | number;
+      reverseScored: boolean;
+    }[]
+  >();
+
+  for (const row of itemDimensionScoreRows) {
+    const existing = itemDimensionScoresByItemId.get(row.itemId) ?? [];
+    existing.push(row);
+    itemDimensionScoresByItemId.set(row.itemId, existing);
+  }
+
+  type CrossPairDefinition = {
+    itemId: string;
+    questionnaireVersionId: string;
+
+    xDimensionId: string;
+    xDimensionCode: string;
+    xDimensionName: string;
+    xCategoryCode: string;
+    xCategoryName: string;
+    xWeight: number;
+    xReverseScored: boolean;
+
+    yDimensionId: string;
+    yDimensionCode: string;
+    yDimensionName: string;
+    yCategoryCode: string;
+    yCategoryName: string;
+    yWeight: number;
+    yReverseScored: boolean;
+  };
+
+  const crossPairDefinitions: CrossPairDefinition[] = [];
+
+  for (const item of numericScoringItems) {
+    const scoreConfigs = itemDimensionScoresByItemId.get(item.id) ?? [];
+
+    for (const xConfig of scoreConfigs) {
+      const xDimension = dimensionDefinitionById.get(xConfig.dimensionId);
+      const xCategoryCode = xDimension?.category?.trim();
+
+      if (!xDimension || !xCategoryCode) {
+        continue;
+      }
+
+      for (const yConfig of scoreConfigs) {
+        if (xConfig.dimensionId === yConfig.dimensionId) {
+          continue;
+        }
+
+        const yDimension = dimensionDefinitionById.get(yConfig.dimensionId);
+        const yCategoryCode = yDimension?.category?.trim();
+
+        if (!yDimension || !yCategoryCode) {
+          continue;
+        }
+
+        if (xCategoryCode === yCategoryCode) {
+          continue;
+        }
+
+        const xWeight = Number(xConfig.weight ?? 1);
+        const yWeight = Number(yConfig.weight ?? 1);
+
+        crossPairDefinitions.push({
+          itemId: item.id,
+          questionnaireVersionId: item.questionnaireVersionId,
+
+          xDimensionId: xDimension.id,
+          xDimensionCode: xDimension.code,
+          xDimensionName: xDimension.name,
+          xCategoryCode,
+          xCategoryName: xCategoryCode,
+          xWeight: Number.isFinite(xWeight) ? xWeight : 1,
+          xReverseScored: xConfig.reverseScored,
+
+          yDimensionId: yDimension.id,
+          yDimensionCode: yDimension.code,
+          yDimensionName: yDimension.name,
+          yCategoryCode,
+          yCategoryName: yCategoryCode,
+          yWeight: Number.isFinite(yWeight) ? yWeight : 1,
+          yReverseScored: yConfig.reverseScored,
+        });
+      }
+    }
+  }
+
+  const crossItemIds = Array.from(
+    new Set(crossPairDefinitions.map((pair) => pair.itemId)),
+  );
+
+  const crossResponseRows =
+    crossItemIds.length > 0
+      ? await db
+          .select({
+            assessmentSessionId: assessmentResponses.assessmentSessionId,
+            questionnaireItemId: assessmentResponses.questionnaireItemId,
+            valueType: assessmentResponses.valueType,
+            numberValue: assessmentResponses.numberValue,
+            textValue: assessmentResponses.textValue,
+            booleanValue: assessmentResponses.booleanValue,
+            jsonValue: assessmentResponses.jsonValue,
+          })
+          .from(assessmentResponses)
+          .where(
+            and(
+              inArray(assessmentResponses.assessmentSessionId, completedSessionIds),
+              inArray(assessmentResponses.questionnaireItemId, crossItemIds),
+              isNull(assessmentResponses.deletedAt),
+            ),
+          )
+      : [];
+
+  const responseBySessionAndItemId = new Map<string, ResponseValue>();
+
+  for (const response of crossResponseRows) {
+    responseBySessionAndItemId.set(
+      `${response.assessmentSessionId}:${response.questionnaireItemId}`,
+      {
+        valueType: response.valueType,
+        numberValue: response.numberValue,
+        textValue: response.textValue,
+        booleanValue: response.booleanValue,
+        jsonValue: response.jsonValue,
+      },
+    );
+  }
+
+  type CrossAggregateBuilder = {
+    questionnaireId: string;
+    questionnaireVersionId: string;
+    questionnaireName: string;
+    questionnaireVersionName: string;
+
+    xCategoryCode: string;
+    xCategoryName: string;
+    xDimensionId: string;
+    xDimensionCode: string;
+    xDimensionName: string;
+
+    yCategoryCode: string;
+    yCategoryName: string;
+    yDimensionId: string;
+    yDimensionCode: string;
+    yDimensionName: string;
+
+    itemIds: Set<string>;
+    sessionIds: Set<string>;
+
+    rawValues: number[];
+    weightedValues: number[];
+    weightedNumerator: number;
+    weightedDenominator: number;
+
+    answeredCount: number;
+    expectedCount: number;
+  };
+
+  const crossAggregateMap = new Map<string, CrossAggregateBuilder>();
+
+  for (const pair of crossPairDefinitions) {
+    const versionMeta = versionMetaById.get(pair.questionnaireVersionId);
+
+    if (!versionMeta) {
+      continue;
+    }
+
+    const key = [
+      pair.questionnaireVersionId,
+      pair.xCategoryCode,
+      pair.xDimensionId,
+      pair.yCategoryCode,
+      pair.yDimensionId,
+    ].join("::");
+
+    const aggregate =
+      crossAggregateMap.get(key) ??
+      {
+        questionnaireId: versionMeta.questionnaireId,
+        questionnaireVersionId: pair.questionnaireVersionId,
+        questionnaireName: versionMeta.questionnaireName,
+        questionnaireVersionName: versionMeta.questionnaireVersionName,
+
+        xCategoryCode: pair.xCategoryCode,
+        xCategoryName: pair.xCategoryName,
+        xDimensionId: pair.xDimensionId,
+        xDimensionCode: pair.xDimensionCode,
+        xDimensionName: pair.xDimensionName,
+
+        yCategoryCode: pair.yCategoryCode,
+        yCategoryName: pair.yCategoryName,
+        yDimensionId: pair.yDimensionId,
+        yDimensionCode: pair.yDimensionCode,
+        yDimensionName: pair.yDimensionName,
+
+        itemIds: new Set<string>(),
+        sessionIds: new Set<string>(),
+
+        rawValues: [],
+        weightedValues: [],
+        weightedNumerator: 0,
+        weightedDenominator: 0,
+
+        answeredCount: 0,
+        expectedCount: 0,
+      };
+
+    aggregate.itemIds.add(pair.itemId);
+    aggregate.expectedCount += completedSessionIds.length;
+
+    const item = itemById.get(pair.itemId);
+
+    if (!item) {
+      continue;
+    }
+
+    for (const sessionId of completedSessionIds) {
+      const response = responseBySessionAndItemId.get(
+        `${sessionId}:${pair.itemId}`,
+      );
+
+      let xScore = getResponseNumericScore({
+        item,
+        response,
+      });
+
+      let yScore = getResponseNumericScore({
+        item,
+        response,
+      });
+
+      if (xScore === null || yScore === null) {
+        continue;
+      }
+
+      if (pair.xReverseScored) {
+        xScore = reverseScore({
+          score: xScore,
+          item,
+        });
+      }
+
+      if (pair.yReverseScored) {
+        yScore = reverseScore({
+          score: yScore,
+          item,
+        });
+      }
+
+      const rawPairValue = (xScore + yScore) / 2;
+      const weightedNumerator =
+        xScore * pair.xWeight + yScore * pair.yWeight;
+      const weightedDenominator = pair.xWeight + pair.yWeight;
+
+      if (weightedDenominator <= 0) {
+        continue;
+      }
+
+      const weightedPairValue = weightedNumerator / weightedDenominator;
+
+      aggregate.rawValues.push(rawPairValue);
+      aggregate.weightedValues.push(weightedPairValue);
+      aggregate.weightedNumerator += weightedNumerator;
+      aggregate.weightedDenominator += weightedDenominator;
+      aggregate.answeredCount += 1;
+      aggregate.sessionIds.add(sessionId);
+    }
+
+    crossAggregateMap.set(key, aggregate);
+  }
+
+  crossCategoryResults = Array.from(crossAggregateMap.values())
+    .map((aggregate) => ({
+      questionnaireId: aggregate.questionnaireId,
+      questionnaireVersionId: aggregate.questionnaireVersionId,
+      questionnaireName: aggregate.questionnaireName,
+      questionnaireVersionName: aggregate.questionnaireVersionName,
+
+      xCategoryCode: aggregate.xCategoryCode,
+      xCategoryName: aggregate.xCategoryName,
+      xDimensionId: aggregate.xDimensionId,
+      xDimensionCode: aggregate.xDimensionCode,
+      xDimensionName: aggregate.xDimensionName,
+
+      yCategoryCode: aggregate.yCategoryCode,
+      yCategoryName: aggregate.yCategoryName,
+      yDimensionId: aggregate.yDimensionId,
+      yDimensionCode: aggregate.yDimensionCode,
+      yDimensionName: aggregate.yDimensionName,
+
+      itemsCount: aggregate.itemIds.size,
+      sessionsCount: aggregate.sessionIds.size,
+      answeredCount: aggregate.answeredCount,
+      expectedCount: aggregate.expectedCount,
+
+      averageRawScore: average(aggregate.rawValues),
+      averageWeightedScore: average(aggregate.weightedValues),
+      averageMeanScore: average(aggregate.rawValues),
+      averageWeightedMeanScore:
+        aggregate.weightedDenominator > 0
+          ? round4(aggregate.weightedNumerator / aggregate.weightedDenominator)
+          : null,
+      averageCompleteness:
+        aggregate.expectedCount > 0
+          ? round4(aggregate.answeredCount / aggregate.expectedCount)
+          : null,
+    }))
+    .sort((a, b) => {
+      const questionnaireCompare = a.questionnaireName.localeCompare(
+        b.questionnaireName,
+        "pl",
+      );
+
+      if (questionnaireCompare !== 0) {
+        return questionnaireCompare;
+      }
+
+      const xCompare = a.xDimensionName.localeCompare(b.xDimensionName, "pl");
+
+      if (xCompare !== 0) {
+        return xCompare;
+      }
+
+      return a.yDimensionName.localeCompare(b.yDimensionName, "pl");
+    });
+}
   if (completedSessionIds.length > 0) {
 
     const dimensionMap = new Map<
@@ -463,6 +1110,12 @@ export async function getAssessmentProjectResults({
         averageMeanScore: average(aggregate.meanScores),
         averageWeightedMeanScore: average(aggregate.weightedMeanScores),
         averageCompleteness: average(aggregate.completenessValues),
+        categories:
+          categoriesByDimensionId.get(aggregate.dimensionId) ??
+          categoriesByDimensionKey.get(
+            `${aggregate.questionnaireVersionId}:${aggregate.dimensionCode}`,
+          ) ??
+          [],
       }))
       .sort((a, b) => {
         const questionnaireCompare = a.questionnaireName.localeCompare(
@@ -707,6 +1360,7 @@ export async function getAssessmentProjectResults({
           ? String(tenantContext.tenantName ?? "")
           : null,
     },
+    crossCategoryResults,
     project: {
       id: project.id,
       name: project.name,

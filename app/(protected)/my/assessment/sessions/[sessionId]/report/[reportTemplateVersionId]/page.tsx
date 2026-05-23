@@ -50,7 +50,7 @@ export function ReportPdfDownloadButton({
 }
 
 
-export default async function MyAssessmentReportPage({
+export default async function Page({
   params,
   searchParams,
 }: PageProps) {
@@ -129,7 +129,7 @@ export default async function MyAssessmentReportPage({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <ReportPdfDownloadButton
             tenantSlug={tenant}
             sessionId={sessionId}
