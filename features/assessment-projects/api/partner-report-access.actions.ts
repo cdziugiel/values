@@ -1,19 +1,24 @@
 "use server";
 
 import crypto from "crypto";
-import { and, eq, isNull, inArray, or } from "drizzle-orm";
+import { and, desc, eq, isNull, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
-    reportAccessCodes,
-    reportAccessGrants,
-    reportAccessOrderItems,
-    reportAccessOrders,
-    reportAccessProducts,
-    billingProfiles,
+  reportAccessCodes,
+  reportAccessGrants,
+  reportAccessOrderItems,
+  reportAccessOrders,
+  reportAccessProducts,
+  reportTemplateVersions,
+  billingProfiles,
 } from "@/drizzle/schema";
 
-import { assessmentProjects, assessmentSessions } from "@/drizzle/schema/tenant-schema";
+import {
+  assessmentProjects,
+  assessmentResponses,
+  assessmentSessions,
+} from "@/drizzle/schema/tenant-schema";
 
 import { requireSession } from "@/server/auth/require-session";
 import { controlDb } from "@/server/db/control-db";
@@ -21,7 +26,7 @@ import { getTenantDb } from "@/server/db/tenant-db";
 import { requirePermission } from "@/server/permissions/require-permission";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 
-import { autoGrantReportAccessForCompletedSession } from "@/features/report-access/api/report-access-auto-grant.mutations";
+/* import { autoGrantReportAccessForCompletedSession } from "@/features/report-access/api/report-access-auto-grant.mutations"; */
 
 function nullableString(value: FormDataEntryValue | null) {
     const normalized = String(value ?? "").trim();
@@ -170,90 +175,192 @@ async function createUniqueAccessCode() {
     };
 }
 
+
+type TenantDb = any;
+
+function uniqueNonEmpty(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
+async function resolveCompletedSessionQuestionnaireVersionId({
+  db,
+  sessionId,
+}: {
+  db: TenantDb;
+  sessionId: string;
+}) {
+  const rows = await db
+    .select({
+      questionnaireVersionId: assessmentResponses.questionnaireVersionId,
+    })
+    .from(assessmentResponses)
+    .where(
+      and(
+        eq(assessmentResponses.assessmentSessionId, sessionId),
+        isNull(assessmentResponses.deletedAt),
+      ),
+    );
+
+  const questionnaireVersionIds = uniqueNonEmpty(
+    rows.map((row: any) => row.questionnaireVersionId),
+  );
+
+  if (questionnaireVersionIds.length === 0) {
+    return {
+      ok: false as const,
+      message:
+        "Nie znaleziono odpowiedzi powiązanych z wersją kwestionariusza.",
+    };
+  }
+
+  if (questionnaireVersionIds.length > 1) {
+    return {
+      ok: false as const,
+      message:
+        "Sesja zawiera odpowiedzi z więcej niż jednej wersji kwestionariusza. Nie można bezpiecznie nadać raportu.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    questionnaireVersionId: questionnaireVersionIds[0],
+  };
+}
 export async function grantReportAccessToCompletedSessionAction(
-    _previousState: PartnerGrantReportAccessState,
-    formData: FormData,
+  _previousState: PartnerGrantReportAccessState,
+  formData: FormData,
 ): Promise<PartnerGrantReportAccessState> {
-    const tenantSlug = normalizeString(formData.get("tenantSlug"));
-    const sessionId = normalizeString(formData.get("sessionId"));
-    const productId = normalizeString(formData.get("productId"));
+  const tenantSlug = normalizeString(formData.get("tenantSlug"));
+  const sessionId = normalizeString(formData.get("sessionId"));
+  const productId = normalizeString(formData.get("productId"));
 
-    if (!tenantSlug || !sessionId || !productId) {
-        return fail("Brakuje tenanta, sesji albo produktu dostępu.");
-    }
+  if (!tenantSlug || !sessionId || !productId) {
+    return fail("Brakuje tenanta, sesji albo produktu dostępu.");
+  }
 
-    const authSession = await requireSession();
+  const authSession = await requireSession();
 
-    const ctx = await requireTenantContext({ tenantSlug });
-    requirePermission(ctx, "assessment_project:update");
+  const ctx = await requireTenantContext({ tenantSlug });
+  requirePermission(ctx, "assessment_project:update");
 
-    const db = await getTenantDb(ctx);
+  const db = await getTenantDb(ctx);
 
-    const session = await db.query.assessmentSessions.findFirst({
-        where: and(
-            eq(assessmentSessions.id, sessionId),
-            isNull(assessmentSessions.deletedAt),
-        ),
-        columns: {
-            id: true,
-            status: true,
-            assessmentProjectId: true,
-            accessLinkId: true,
-        },
+  const session = await db.query.assessmentSessions.findFirst({
+    where: and(
+      eq(assessmentSessions.id, sessionId),
+      isNull(assessmentSessions.deletedAt),
+    ),
+    columns: {
+      id: true,
+      status: true,
+      assessmentProjectId: true,
+      accessLinkId: true,
+    },
+  });
+
+  if (!session) {
+    return fail("Nie znaleziono sesji badania.");
+  }
+
+  if (session.status !== "completed") {
+    return fail("Dostęp do raportu można nadać dopiero po zakończeniu sesji.");
+  }
+
+  const completedQuestionnaire =
+    await resolveCompletedSessionQuestionnaireVersionId({
+      db,
+      sessionId: session.id,
     });
 
-    if (!session) {
-        return fail("Nie znaleziono sesji badania.");
-    }
+  if (!completedQuestionnaire.ok) {
+    return fail(completedQuestionnaire.message);
+  }
 
-    if (session.status !== "completed") {
-        return fail("Dostęp do raportu można nadać dopiero po zakończeniu sesji.");
-    }
+  const completedQuestionnaireVersionId =
+    completedQuestionnaire.questionnaireVersionId;
 
-    const product = await controlDb.query.reportAccessProducts.findFirst({
-        where: and(
-            eq(reportAccessProducts.id, productId),
-            eq(reportAccessProducts.status, "active"),
-            isNull(reportAccessProducts.deletedAt),
-        ),
-    });
+  const product = await controlDb.query.reportAccessProducts.findFirst({
+    where: and(
+      eq(reportAccessProducts.id, productId),
+      eq(reportAccessProducts.status, "active"),
+      isNull(reportAccessProducts.deletedAt),
+    ),
+  });
 
-    if (!product) {
-        return fail("Nie znaleziono aktywnego produktu dostępu.");
-    }
+  if (!product) {
+    return fail("Nie znaleziono aktywnego produktu dostępu.");
+  }
 
-    const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
-        where: and(
-            eq(reportAccessGrants.tenantSlug, tenantSlug),
-            eq(reportAccessGrants.assessmentSessionId, sessionId),
-            eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
-            eq(reportAccessGrants.status, "active"),
-            isNull(reportAccessGrants.deletedAt),
-        ),
-    });
+  const reportVersion = await controlDb.query.reportTemplateVersions.findFirst({
+    where: and(
+      eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
+      eq(
+        reportTemplateVersions.questionnaireVersionId,
+        completedQuestionnaireVersionId,
+      ),
+      eq(reportTemplateVersions.status, "active"),
+      isNull(reportTemplateVersions.deletedAt),
+    ),
+    orderBy: desc(reportTemplateVersions.updatedAt),
+  });
 
-    if (existingGrant) {
-        revalidatePath(`/dashboard/partner-assessment/${tenantSlug}/projects/${session.assessmentProjectId}`);
+  if (!reportVersion) {
+    return fail(
+      "Nie znaleziono aktywnej wersji raportu pasującej do ukończonego kwestionariusza. Dostęp nie został zużyty.",
+    );
+  }
 
-        return success("Ta sesja ma już aktywny dostęp do tego typu raportu.");
-    }
+  const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
+    where: and(
+      eq(reportAccessGrants.tenantSlug, tenantSlug),
+      eq(reportAccessGrants.assessmentSessionId, session.id),
+      eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
+      eq(reportAccessGrants.status, "active"),
+      isNull(reportAccessGrants.deletedAt),
+    ),
+  });
 
-    const now = new Date();
+  if (existingGrant) {
+    revalidatePath(
+      `/dashboard/partner-assessment/${tenantSlug}/projects/${session.assessmentProjectId}`,
+    );
 
-    const validUntil =
-        typeof product.validityDays === "number" && product.validityDays > 0
-            ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
-            : null;
+    return success("Ta sesja ma już aktywny dostęp do tego typu raportu.");
+  }
 
-    const availableCode = await controlDb.query.reportAccessCodes.findFirst({
-        where: and(
+  const now = new Date();
+
+  const grantValidUntil =
+    typeof product.validityDays === "number" && product.validityDays > 0
+      ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+      : null;
+
+  try {
+    const result = await controlDb.transaction(async (tx) => {
+      const availableCodeRows = await tx
+        .select({
+          id: reportAccessCodes.id,
+          metadata: reportAccessCodes.metadata,
+        })
+        .from(reportAccessCodes)
+        .where(
+          and(
             eq(reportAccessCodes.tenantSlug, tenantSlug),
             eq(reportAccessCodes.productId, product.id),
             eq(reportAccessCodes.status, "available"),
 
             or(
-                isNull(reportAccessCodes.assessmentProjectId),
-                eq(reportAccessCodes.assessmentProjectId, session.assessmentProjectId),
+              isNull(reportAccessCodes.assessmentProjectId),
+              eq(
+                reportAccessCodes.assessmentProjectId,
+                session.assessmentProjectId,
+              ),
             ),
 
             isNull(reportAccessCodes.assessmentSessionId),
@@ -261,241 +368,433 @@ export async function grantReportAccessToCompletedSessionAction(
             isNull(reportAccessCodes.assignedToEmail),
             isNull(reportAccessCodes.assignedToUserId),
             isNull(reportAccessCodes.deletedAt),
-        ),
-        orderBy: (codes, { asc }) => [asc(codes.createdAt)],
-    });
+          ),
+        )
+        .orderBy(reportAccessCodes.createdAt)
+        .limit(1);
 
-    if (!availableCode) {
-        return fail(
-            "Brak dostępnych dostępów w puli dla tego produktu. Najpierw wygeneruj lub kup dostęp dla tenanta.",
+      const availableCode = availableCodeRows[0] ?? null;
+
+      if (!availableCode) {
+        throw new Error(
+          "Brak dostępnych dostępów w puli dla tego produktu. Najpierw wygeneruj lub kup dostęp dla tenanta.",
         );
-    }
+      }
 
-    await controlDb
+      const [grant] = await tx
+        .insert(reportAccessGrants)
+        .values({
+          source: "admin_grant",
+          status: "active",
+
+          productId: product.id,
+          accessCodeId: availableCode.id,
+
+          reportTemplateId: product.reportTemplateId,
+          reportTemplateVersionId: reportVersion.id,
+
+          tenantSlug,
+          userId: null,
+          email: null,
+
+          assessmentProjectId: session.assessmentProjectId,
+          assessmentSessionId: session.id,
+          assessmentAccessLinkId: session.accessLinkId,
+
+          validFrom: now,
+          validUntil: grantValidUntil,
+
+          metadata: {
+            manuallyGranted: true,
+            accessCodeId: availableCode.id,
+            productCode: product.code,
+            productName: product.name,
+            questionnaireVersionId: completedQuestionnaireVersionId,
+            grantedByUserId: authSession.user.id,
+            grantedAt: now.toISOString(),
+          },
+
+          createdAt: now,
+          updatedAt: now,
+          createdBy: authSession.user.id,
+          updatedBy: authSession.user.id,
+        })
+        .returning({
+          id: reportAccessGrants.id,
+          reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+        });
+
+      await tx
         .update(reportAccessCodes)
         .set({
-            status: "assigned",
+          status: "redeemed",
 
-            assessmentProjectId: session.assessmentProjectId,
-            assessmentSessionId: session.id,
-            assessmentAccessLinkId: session.accessLinkId,
+          assessmentProjectId: session.assessmentProjectId,
+          assessmentSessionId: session.id,
+          assessmentAccessLinkId: session.accessLinkId,
+
+          redeemedByUserId: authSession.user.id,
+          redeemedAt: now,
+
+          metadata: {
+            ...(typeof availableCode.metadata === "object" &&
+            availableCode.metadata !== null &&
+            !Array.isArray(availableCode.metadata)
+              ? availableCode.metadata
+              : {}),
+            redeemedFrom: "partner_assessment_project_session",
+            redeemedByUserId: authSession.user.id,
+            redeemedAt: now.toISOString(),
+            grantId: grant.id,
+            questionnaireVersionId: completedQuestionnaireVersionId,
+          },
+
+          updatedAt: now,
+          updatedBy: authSession.user.id,
+        })
+        .where(
+          and(
+            eq(reportAccessCodes.id, availableCode.id),
+            eq(reportAccessCodes.status, "available"),
+          ),
+        );
+
+      return {
+        grantId: grant.id,
+        reportTemplateVersionId: grant.reportTemplateVersionId,
+        accessCodeId: availableCode.id,
+      };
+    });
+
+    revalidatePath(
+      `/dashboard/partner-assessment/${tenantSlug}/projects/${session.assessmentProjectId}`,
+    );
+
+    return success("Nadano dostęp do raportu dla tej sesji.");
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Nie udało się nadać dostępu do raportu.";
+
+    return fail(message);
+  }
+}
+
+export async function bulkGrantReportAccessToCompletedSessionsAction(
+  _previousState: PartnerGrantReportAccessState,
+  formData: FormData,
+): Promise<PartnerGrantReportAccessState> {
+  const tenantSlug = normalizeString(formData.get("tenantSlug"));
+  const projectId = normalizeString(formData.get("projectId"));
+  const productId = normalizeString(formData.get("productId"));
+
+  const rawSessionIds = formData.getAll("sessionIds");
+  const sessionIds = Array.from(
+    new Set(
+      rawSessionIds
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (!tenantSlug || !projectId || !productId) {
+    return fail("Brakuje tenanta, projektu albo produktu dostępu.");
+  }
+
+  if (sessionIds.length === 0) {
+    return fail("Nie zaznaczono żadnej sesji.");
+  }
+
+  const authSession = await requireSession();
+
+  const ctx = await requireTenantContext({ tenantSlug });
+  requirePermission(ctx, "assessment_project:update");
+
+  const db = await getTenantDb(ctx);
+
+  const product = await controlDb.query.reportAccessProducts.findFirst({
+    where: and(
+      eq(reportAccessProducts.id, productId),
+      eq(reportAccessProducts.status, "active"),
+      isNull(reportAccessProducts.deletedAt),
+    ),
+  });
+
+  if (!product) {
+    return fail("Nie znaleziono aktywnego produktu dostępu.");
+  }
+
+  const sessions = await db.query.assessmentSessions.findMany({
+    where: and(
+      inArray(assessmentSessions.id, sessionIds),
+      eq(assessmentSessions.assessmentProjectId, projectId),
+      eq(assessmentSessions.status, "completed"),
+      isNull(assessmentSessions.deletedAt),
+    ),
+    columns: {
+      id: true,
+      status: true,
+      assessmentProjectId: true,
+      accessLinkId: true,
+    },
+  });
+
+  if (sessions.length === 0) {
+    return fail("Nie znaleziono zakończonych sesji do nadania dostępu.");
+  }
+
+  if (sessions.length !== sessionIds.length) {
+    return fail(
+      "Część zaznaczonych sesji nie istnieje, nie należy do projektu albo nie jest zakończona.",
+    );
+  }
+
+  type EligibleSession = {
+    session: (typeof sessions)[number];
+    questionnaireVersionId: string;
+    reportTemplateVersionId: string;
+  };
+
+  const eligibleSessions: EligibleSession[] = [];
+  let skippedExistingGrantCount = 0;
+  let skippedIncompatibleReportCount = 0;
+  let skippedInvalidQuestionnaireCount = 0;
+
+  const errors: string[] = [];
+
+  for (const session of sessions) {
+    const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
+      where: and(
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.assessmentSessionId, session.id),
+        eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    });
+
+    if (existingGrant) {
+      skippedExistingGrantCount += 1;
+      continue;
+    }
+
+    const completedQuestionnaire =
+      await resolveCompletedSessionQuestionnaireVersionId({
+        db,
+        sessionId: session.id,
+      });
+
+    if (!completedQuestionnaire.ok) {
+      skippedInvalidQuestionnaireCount += 1;
+      errors.push(`Sesja ${session.id}: ${completedQuestionnaire.message}`);
+      continue;
+    }
+
+    const reportVersion =
+      await controlDb.query.reportTemplateVersions.findFirst({
+        where: and(
+          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
+          eq(
+            reportTemplateVersions.questionnaireVersionId,
+            completedQuestionnaire.questionnaireVersionId,
+          ),
+          eq(reportTemplateVersions.status, "active"),
+          isNull(reportTemplateVersions.deletedAt),
+        ),
+        orderBy: desc(reportTemplateVersions.updatedAt),
+      });
+
+    if (!reportVersion) {
+      skippedIncompatibleReportCount += 1;
+      continue;
+    }
+
+    eligibleSessions.push({
+      session,
+      questionnaireVersionId: completedQuestionnaire.questionnaireVersionId,
+      reportTemplateVersionId: reportVersion.id,
+    });
+  }
+
+  if (eligibleSessions.length === 0) {
+    return fail(
+      [
+        "Nie znaleziono żadnej sesji, dla której można bezpiecznie nadać wybrany raport.",
+        `Pominięto istniejące dostępy: ${skippedExistingGrantCount}.`,
+        `Pominięto niepasujący raport: ${skippedIncompatibleReportCount}.`,
+        `Pominięto błędne/niejednoznaczne sesje: ${skippedInvalidQuestionnaireCount}.`,
+        errors.length > 0 ? `Szczegóły: ${errors.slice(0, 3).join("; ")}` : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+
+  const availableCodes = await controlDb.query.reportAccessCodes.findMany({
+    where: and(
+      eq(reportAccessCodes.tenantSlug, tenantSlug),
+      eq(reportAccessCodes.productId, product.id),
+      eq(reportAccessCodes.status, "available"),
+
+      or(
+        isNull(reportAccessCodes.assessmentProjectId),
+        eq(reportAccessCodes.assessmentProjectId, projectId),
+      ),
+
+      isNull(reportAccessCodes.assessmentSessionId),
+      isNull(reportAccessCodes.assessmentAccessLinkId),
+      isNull(reportAccessCodes.assignedToEmail),
+      isNull(reportAccessCodes.assignedToUserId),
+      isNull(reportAccessCodes.deletedAt),
+    ),
+    orderBy: (codes, { asc }) => [asc(codes.createdAt)],
+    limit: eligibleSessions.length,
+  });
+
+  if (availableCodes.length < eligibleSessions.length) {
+    return fail(
+      `Brakuje wolnych dostępów w puli dla sesji zgodnych z wybranym raportem. Potrzebne: ${eligibleSessions.length}, dostępne: ${availableCodes.length}. Dostępy nie zostały zużyte.`,
+    );
+  }
+
+  const now = new Date();
+
+  const grantValidUntil =
+    typeof product.validityDays === "number" && product.validityDays > 0
+      ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+      : null;
+
+  try {
+    const result = await controlDb.transaction(async (tx) => {
+      let grantedCount = 0;
+
+      for (let index = 0; index < eligibleSessions.length; index += 1) {
+        const eligible = eligibleSessions[index];
+        const availableCode = availableCodes[index];
+
+        const [grant] = await tx
+          .insert(reportAccessGrants)
+          .values({
+            source: "admin_bulk_grant",
+            status: "active",
+
+            productId: product.id,
+            accessCodeId: availableCode.id,
+
+            reportTemplateId: product.reportTemplateId,
+            reportTemplateVersionId: eligible.reportTemplateVersionId,
+
+            tenantSlug,
+            userId: null,
+            email: null,
+
+            assessmentProjectId: eligible.session.assessmentProjectId,
+            assessmentSessionId: eligible.session.id,
+            assessmentAccessLinkId: eligible.session.accessLinkId,
+
+            validFrom: now,
+            validUntil: grantValidUntil,
 
             metadata: {
-                ...(typeof availableCode.metadata === "object" &&
-                    availableCode.metadata !== null &&
-                    !Array.isArray(availableCode.metadata)
-                    ? availableCode.metadata
-                    : {}),
-                assignedFrom: "partner_assessment_project_session",
-                assignedByUserId: authSession.user.id,
-                assignedAt: now.toISOString(),
-                autoGrantImmediately: true,
+              manuallyGranted: true,
+              bulkGranted: true,
+              accessCodeId: availableCode.id,
+              productCode: product.code,
+              productName: product.name,
+              questionnaireVersionId: eligible.questionnaireVersionId,
+              grantedByUserId: authSession.user.id,
+              grantedAt: now.toISOString(),
+            },
+
+            createdAt: now,
+            updatedAt: now,
+            createdBy: authSession.user.id,
+            updatedBy: authSession.user.id,
+          })
+          .returning({
+            id: reportAccessGrants.id,
+            reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+          });
+
+        await tx
+          .update(reportAccessCodes)
+          .set({
+            status: "redeemed",
+
+            assessmentProjectId: eligible.session.assessmentProjectId,
+            assessmentSessionId: eligible.session.id,
+            assessmentAccessLinkId: eligible.session.accessLinkId,
+
+            redeemedByUserId: authSession.user.id,
+            redeemedAt: now,
+
+            metadata: {
+              ...(typeof availableCode.metadata === "object" &&
+              availableCode.metadata !== null &&
+              !Array.isArray(availableCode.metadata)
+                ? availableCode.metadata
+                : {}),
+              redeemedFrom: "partner_assessment_project_bulk",
+              redeemedByUserId: authSession.user.id,
+              redeemedAt: now.toISOString(),
+              grantId: grant.id,
+              questionnaireVersionId: eligible.questionnaireVersionId,
             },
 
             updatedAt: now,
             updatedBy: authSession.user.id,
-        })
-        .where(eq(reportAccessCodes.id, availableCode.id));
+          })
+          .where(
+            and(
+              eq(reportAccessCodes.id, availableCode.id),
+              eq(reportAccessCodes.status, "available"),
+            ),
+          );
 
-    const autoGrantResult = await autoGrantReportAccessForCompletedSession({
-        db,
-        tenantSlug,
-        sessionId: session.id,
-        actorUserId: authSession.user.id,
-        actorEmail: authSession.user.email ?? null,
+        grantedCount += 1;
+      }
+
+      return {
+        grantedCount,
+      };
     });
 
     revalidatePath(
-        `/dashboard/partner-assessment/${tenantSlug}/projects/${session.assessmentProjectId}`,
+      `/dashboard/partner-assessment/${tenantSlug}/projects/${projectId}`,
     );
 
-    if (!autoGrantResult.ok) {
-        return fail(autoGrantResult.message);
-    }
-
-    if (!autoGrantResult.granted) {
-        return success(autoGrantResult.message);
-    }
-
-    return success("Nadano dostęp do raportu dla tej sesji.");
-}
-
-export async function bulkGrantReportAccessToCompletedSessionsAction(
-    _previousState: PartnerGrantReportAccessState,
-    formData: FormData,
-): Promise<PartnerGrantReportAccessState> {
-    const tenantSlug = normalizeString(formData.get("tenantSlug"));
-    const projectId = normalizeString(formData.get("projectId"));
-    const productId = normalizeString(formData.get("productId"));
-
-    const rawSessionIds = formData.getAll("sessionIds");
-    const sessionIds = rawSessionIds
-        .map((value) => String(value ?? "").trim())
-        .filter(Boolean);
-
-    if (!tenantSlug || !projectId || !productId) {
-        return fail("Brakuje tenanta, projektu albo produktu dostępu.");
-    }
-
-    if (sessionIds.length === 0) {
-        return fail("Nie zaznaczono żadnej sesji.");
-    }
-
-    const authSession = await requireSession();
-
-    const ctx = await requireTenantContext({ tenantSlug });
-    requirePermission(ctx, "assessment_project:update");
-
-    const db = await getTenantDb(ctx);
-
-    const product = await controlDb.query.reportAccessProducts.findFirst({
-        where: and(
-            eq(reportAccessProducts.id, productId),
-            eq(reportAccessProducts.status, "active"),
-            isNull(reportAccessProducts.deletedAt),
-        ),
-    });
-
-    if (!product) {
-        return fail("Nie znaleziono aktywnego produktu dostępu.");
-    }
-
-    const availableCodes = await controlDb.query.reportAccessCodes.findMany({
-        where: and(
-            eq(reportAccessCodes.tenantSlug, tenantSlug),
-            eq(reportAccessCodes.productId, product.id),
-            eq(reportAccessCodes.status, "available"),
-
-            or(
-                isNull(reportAccessCodes.assessmentProjectId),
-                eq(reportAccessCodes.assessmentProjectId, projectId),
-            ),
-
-            isNull(reportAccessCodes.assessmentSessionId),
-            isNull(reportAccessCodes.assessmentAccessLinkId),
-            isNull(reportAccessCodes.assignedToEmail),
-            isNull(reportAccessCodes.assignedToUserId),
-            isNull(reportAccessCodes.deletedAt),
-        ),
-        orderBy: (codes, { asc }) => [asc(codes.createdAt)],
-        limit: sessionIds.length,
-    });
-    if (availableCodes.length < sessionIds.length) {
-        return fail(
-            `Brakuje wolnych dostępów w puli. Zaznaczono ${sessionIds.length}, dostępnych jest ${availableCodes.length}.`,
-        );
-    }
-
-    const sessions = await db.query.assessmentSessions.findMany({
-        where: and(
-            inArray(assessmentSessions.id, sessionIds),
-            eq(assessmentSessions.assessmentProjectId, projectId),
-            eq(assessmentSessions.status, "completed"),
-            isNull(assessmentSessions.deletedAt),
-        ),
-        columns: {
-            id: true,
-            status: true,
-            assessmentProjectId: true,
-            accessLinkId: true,
-        },
-    });
-
-    if (sessions.length === 0) {
-        return fail("Nie znaleziono zakończonych sesji do nadania dostępu.");
-    }
-
-    if (sessions.length !== sessionIds.length) {
-        return fail(
-            "Część zaznaczonych sesji nie istnieje, nie należy do projektu albo nie jest zakończona.",
-        );
-    }
-
-    let grantedCount = 0;
-    let skippedCount = 0;
-    const errors: string[] = [];
-
-    const now = new Date();
-
-    for (let index = 0; index < sessions.length; index += 1) {
-        const session = sessions[index];
-        const availableCode = availableCodes[index];
-
-        const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
-            where: and(
-                eq(reportAccessGrants.tenantSlug, tenantSlug),
-                eq(reportAccessGrants.assessmentSessionId, session.id),
-                eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
-                eq(reportAccessGrants.status, "active"),
-                isNull(reportAccessGrants.deletedAt),
-            ),
-        });
-
-        if (existingGrant) {
-            skippedCount += 1;
-            continue;
-        }
-
-        await controlDb
-            .update(reportAccessCodes)
-            .set({
-                status: "assigned",
-
-                assessmentProjectId: session.assessmentProjectId,
-                assessmentSessionId: session.id,
-                assessmentAccessLinkId: session.accessLinkId,
-
-                metadata: {
-                    ...(typeof availableCode.metadata === "object" &&
-                        availableCode.metadata !== null &&
-                        !Array.isArray(availableCode.metadata)
-                        ? availableCode.metadata
-                        : {}),
-                    assignedFrom: "partner_assessment_project_bulk",
-                    assignedByUserId: authSession.user.id,
-                    assignedAt: now.toISOString(),
-                    autoGrantImmediately: true,
-                },
-
-                updatedAt: now,
-                updatedBy: authSession.user.id,
-            })
-            .where(eq(reportAccessCodes.id, availableCode.id));
-
-        const autoGrantResult = await autoGrantReportAccessForCompletedSession({
-            db,
-            tenantSlug,
-            sessionId: session.id,
-            actorUserId: authSession.user.id,
-            actorEmail: authSession.user.email ?? null,
-        });
-
-        if (autoGrantResult.ok && autoGrantResult.granted) {
-            grantedCount += 1;
-            continue;
-        }
-
-        if (autoGrantResult.ok && !autoGrantResult.granted) {
-            skippedCount += 1;
-            continue;
-        }
-
-        errors.push(autoGrantResult.message);
-    }
-
-    revalidatePath(`/dashboard/partner-assessment/${tenantSlug}/projects/${projectId}`);
-
-    if (errors.length > 0) {
-        return fail(
-            `Nadano dostęp: ${grantedCount}. Pominięto: ${skippedCount}. Błędy: ${errors.join("; ")}`,
-        );
-    }
+    const skippedCount =
+      skippedExistingGrantCount +
+      skippedIncompatibleReportCount +
+      skippedInvalidQuestionnaireCount;
 
     return success(
-        `Nadano dostęp do raportu dla ${grantedCount} sesji. Pominięto: ${skippedCount}.`,
+      [
+        `Nadano dostęp do raportu dla ${result.grantedCount} sesji.`,
+        `Pominięto: ${skippedCount}.`,
+        skippedExistingGrantCount > 0
+          ? `Istniejący dostęp: ${skippedExistingGrantCount}.`
+          : null,
+        skippedIncompatibleReportCount > 0
+          ? `Raport niepasujący do ukończonego kwestionariusza: ${skippedIncompatibleReportCount}.`
+          : null,
+        skippedInvalidQuestionnaireCount > 0
+          ? `Sesje niejednoznaczne lub bez odpowiedzi: ${skippedInvalidQuestionnaireCount}.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
     );
-}
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Nie udało się masowo nadać dostępu do raportu.";
 
+    return fail(message);
+  }
+}
 
 
 

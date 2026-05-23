@@ -207,16 +207,16 @@ async function resolveMyAssessmentSessionForCompletion({
     };
   }
 
-return {
-  ok: true as const,
-  db: tenant.db,
-  tenantId: tenant.tenantId,
-  tenantSlug: tenant.tenantSlug,
-  tenantName: tenant.tenantName,
-  actorUserId: authSession.user.id,
-  actorEmail: authSession.user.email ?? null,
-  session,
-};
+  return {
+    ok: true as const,
+    db: tenant.db,
+    tenantId: tenant.tenantId,
+    tenantSlug: tenant.tenantSlug,
+    tenantName: tenant.tenantName,
+    actorUserId: authSession.user.id,
+    actorEmail: authSession.user.email ?? null,
+    session,
+  };
 }
 
 export async function completeAssessmentSessionAction(
@@ -238,10 +238,10 @@ export async function completeAssessmentSessionAction(
     };
   }
 
-if (mode === "my-assessment") {
-  let step = "start";
+  if (mode === "my-assessment") {
+    let step = "start";
 
-  try {
+    try {
       if (!tenantSlug) {
         return {
           status: "error",
@@ -255,7 +255,7 @@ if (mode === "my-assessment") {
           message: "Brakuje identyfikatora kwestionariusza.",
         };
       }
-step = "resolve-session";
+      step = "resolve-session";
       const resolved = await resolveMyAssessmentSessionForCompletion({
         tenantSlug,
         sessionId,
@@ -282,8 +282,15 @@ step = "resolve-session";
           message: "Ta sesja nie jest aktywna.",
         };
       }
-step = "load-current-project-questionnaire";
-      const projectQuestionnaires = await db
+      step = "load-current-project-questionnaire";
+      if (!projectQuestionnaireId) {
+        return {
+          status: "error",
+          message: "Brakuje identyfikatora kwestionariusza.",
+        };
+      }
+
+      const projectQuestionnaireRows = await db
         .select({
           projectQuestionnaireId: assessmentProjectQuestionnaires.id,
           questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
@@ -301,9 +308,10 @@ step = "load-current-project-questionnaire";
             eq(assessmentProjectQuestionnaires.status, "active"),
             isNull(assessmentProjectQuestionnaires.deletedAt),
           ),
-        );
+        )
+        .limit(1);
 
-      const currentProjectQuestionnaire = projectQuestionnaires[0] ?? null;
+      const currentProjectQuestionnaire = projectQuestionnaireRows[0] ?? null;
 
       if (!currentProjectQuestionnaire) {
         return {
@@ -311,7 +319,7 @@ step = "load-current-project-questionnaire";
           message: "Nie znaleziono aktywnego kwestionariusza dla tej sesji.",
         };
       }
-step = "load-required-items";
+      step = "load-required-items";
       const requiredItems = await controlDb
         .select({
           id: questionnaireItems.id,
@@ -327,7 +335,7 @@ step = "load-required-items";
             isNull(questionnaireItems.deletedAt),
           ),
         );
-step = "load-responses";
+      step = "load-responses";
       const responses = await db
         .select({
           questionnaireItemId: assessmentResponses.questionnaireItemId,
@@ -344,7 +352,7 @@ step = "load-responses";
             isNull(assessmentResponses.deletedAt),
           ),
         );
-step = "validate-completeness";
+      step = "validate-completeness";
       const filledResponseItemIds = new Set(
         responses
           .filter((response) => isResponseFilled(response))
@@ -363,46 +371,46 @@ step = "validate-completeness";
       }
 
       const now = new Date();
-step = "check-existing-invitation-index";
+      step = "check-existing-invitation-index";
 
-const existingInvitationIndexRows = await controlDb
-  .select({
-    id: assessmentInvitationIndex.id,
-  })
-  .from(assessmentInvitationIndex)
-  .where(
-    and(
-      eq(assessmentInvitationIndex.tenantId, resolved.tenantId),
-      eq(
-        assessmentInvitationIndex.tenantProjectRespondentId,
-        session.projectRespondentId,
-      ),
-      eq(
-        assessmentInvitationIndex.tenantProjectQuestionnaireId,
-        currentProjectQuestionnaire.projectQuestionnaireId,
-      ),
-      isNull(assessmentInvitationIndex.deletedAt),
-    ),
-  )
-  .limit(1);
+      const existingInvitationIndexRows = await controlDb
+        .select({
+          id: assessmentInvitationIndex.id,
+        })
+        .from(assessmentInvitationIndex)
+        .where(
+          and(
+            eq(assessmentInvitationIndex.tenantId, resolved.tenantId),
+            eq(
+              assessmentInvitationIndex.tenantProjectRespondentId,
+              session.projectRespondentId,
+            ),
+            eq(
+              assessmentInvitationIndex.tenantProjectQuestionnaireId,
+              currentProjectQuestionnaire.projectQuestionnaireId,
+            ),
+            isNull(assessmentInvitationIndex.deletedAt),
+          ),
+        )
+        .limit(1);
 
-const hasExistingInvitationIndex = existingInvitationIndexRows.length > 0;
+      const hasExistingInvitationIndex = existingInvitationIndexRows.length > 0;
 
-if (hasExistingInvitationIndex) {
-  step = "mark-current-questionnaire-completed";
+      if (hasExistingInvitationIndex) {
+        step = "mark-current-questionnaire-completed";
 
-  await markAssessmentInvitationIndexSession({
-    tenantId: resolved.tenantId,
-    tenantProjectRespondentId: session.projectRespondentId,
-    tenantProjectQuestionnaireId:
-      currentProjectQuestionnaire.projectQuestionnaireId,
-    tenantSessionId: session.sessionId,
-    status: "completed",
-    userId: actorUserId,
-  });
-}
+        await markAssessmentInvitationIndexSession({
+          tenantId: resolved.tenantId,
+          tenantProjectRespondentId: session.projectRespondentId,
+          tenantProjectQuestionnaireId:
+            currentProjectQuestionnaire.projectQuestionnaireId,
+          tenantSessionId: session.sessionId,
+          status: "completed",
+          userId: actorUserId,
+        });
+      }
 
-step = "update-assessment-session";
+      step = "update-assessment-session";
       /**
        * Na tym etapie kończymy całą assessment_session, bo w aktualnym modelu
        * sesja zawiera odpowiedzi dla jednego wypełnianego kwestionariusza.
@@ -436,27 +444,31 @@ step = "update-assessment-session";
         })
         .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
 
-step = "calculate-scores";
+      step = "calculate-scores";
       const scoringResult = await calculateAssessmentSessionScores({
         db,
         sessionId: session.sessionId,
       });
-step = "create-result-snapshot";
-      await createAssessmentResultSnapshot({
-        db,
-        tenantSlug,
-        sessionId: session.sessionId,
-        actorUserId,
-      });
-step = "auto-grant-report-access";
+      step = "create-result-snapshot";
+await createAssessmentResultSnapshot({
+  db,
+  tenantSlug,
+  sessionId: session.sessionId,
+  actorUserId,
+  projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
+  questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
+});
+      step = "auto-grant-report-access";
       const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
         db,
         tenantSlug,
         sessionId: session.sessionId,
         actorUserId,
         actorEmail,
+        projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
+        questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
       });
-step = "insert-audit-log";
+      step = "insert-audit-log";
       await db.insert(tenantAuditLog).values({
         actorUserId,
         actorRole: "RESPONDENT",
@@ -597,47 +609,58 @@ step = "insert-audit-log";
       };
     }
 
-    const projectQuestionnaires = await db
-      .select({
-        questionnaireVersionId:
-          assessmentProjectQuestionnaires.questionnaireVersionId,
-      })
-      .from(assessmentProjectQuestionnaires)
-      .where(
-        and(
-          eq(
-            assessmentProjectQuestionnaires.assessmentProjectId,
-            session.assessmentProjectId,
-          ),
-          eq(assessmentProjectQuestionnaires.status, "active"),
-          isNull(assessmentProjectQuestionnaires.deletedAt),
-        ),
-      );
+   if (!projectQuestionnaireId) {
+  return {
+    status: "error",
+    message: "Brakuje identyfikatora kwestionariusza.",
+  };
+}
 
-    const questionnaireVersionIds = projectQuestionnaires.map(
-      (item) => item.questionnaireVersionId,
-    );
+const projectQuestionnaireRows = await db
+  .select({
+    projectQuestionnaireId: assessmentProjectQuestionnaires.id,
+    questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
+    questionnaireVersionId:
+      assessmentProjectQuestionnaires.questionnaireVersionId,
+  })
+  .from(assessmentProjectQuestionnaires)
+  .where(
+    and(
+      eq(assessmentProjectQuestionnaires.id, projectQuestionnaireId),
+      eq(
+        assessmentProjectQuestionnaires.assessmentProjectId,
+        session.assessmentProjectId,
+      ),
+      eq(assessmentProjectQuestionnaires.status, "active"),
+      isNull(assessmentProjectQuestionnaires.deletedAt),
+    ),
+  )
+  .limit(1);
 
-    if (questionnaireVersionIds.length === 0) {
-      return {
-        status: "error",
-        message: "Projekt nie ma przypisanych aktywnych kwestionariuszy.",
-      };
-    }
+const currentProjectQuestionnaire = projectQuestionnaireRows[0] ?? null;
 
-    const requiredItems = await controlDb
-      .select({
-        id: questionnaireItems.id,
-      })
-      .from(questionnaireItems)
-      .where(
-        and(
-          inArray(questionnaireItems.questionnaireVersionId, questionnaireVersionIds),
-          eq(questionnaireItems.required, true),
-          isNull(questionnaireItems.deletedAt),
-        ),
-      );
+if (!currentProjectQuestionnaire) {
+  return {
+    status: "error",
+    message: "Nie znaleziono aktywnego kwestionariusza dla tej sesji.",
+  };
+}
 
+const requiredItems = await controlDb
+  .select({
+    id: questionnaireItems.id,
+  })
+  .from(questionnaireItems)
+  .where(
+    and(
+      eq(
+        questionnaireItems.questionnaireVersionId,
+        currentProjectQuestionnaire.questionnaireVersionId,
+      ),
+      eq(questionnaireItems.required, true),
+      isNull(questionnaireItems.deletedAt),
+    ),
+  );
     const responses = await db
       .select({
         questionnaireItemId: assessmentResponses.questionnaireItemId,
@@ -687,12 +710,14 @@ step = "insert-audit-log";
       db,
       sessionId: session.sessionId,
     });
-    await createAssessmentResultSnapshot({
-      db,
-      tenantSlug: connection.tenantSlug,
-      sessionId: session.sessionId,
-      actorUserId: null,
-    });
+await createAssessmentResultSnapshot({
+  db,
+  tenantSlug: connection.tenantSlug,
+  sessionId: session.sessionId,
+  actorUserId: null,
+  projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
+  questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
+});
 
     const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
       db,
@@ -700,6 +725,8 @@ step = "insert-audit-log";
       sessionId: session.sessionId,
       actorUserId: null,
       actorEmail: session.respondentEmail ?? null,
+      projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
+      questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
     });
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
@@ -711,6 +738,11 @@ step = "insert-audit-log";
         completedAt: now.toISOString(),
         scoring: scoringResult,
         autoGrant: autoGrantResult,
+        mode: "token",
+        projectQuestionnaireId:
+          currentProjectQuestionnaire.projectQuestionnaireId,
+        questionnaireVersionId:
+          currentProjectQuestionnaire.questionnaireVersionId,
       },
     });
 
@@ -730,6 +762,8 @@ async function safeAutoGrantReportAccessForCompletedSession(input: {
   sessionId: string;
   actorUserId: string | null;
   actorEmail?: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
   try {
     return await autoGrantReportAccessForCompletedSession(input);

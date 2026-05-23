@@ -27,6 +27,8 @@ type CreateAssessmentResultSnapshotInput = {
   tenantSlug: string;
   sessionId: string;
   actorUserId: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 };
 
 type ResponseValueRow = {
@@ -337,11 +339,24 @@ function buildAnalytics({
   };
 }
 
+
+function uniqueNonEmpty(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
 export async function createAssessmentResultSnapshot({
   db,
   tenantSlug,
   sessionId,
   actorUserId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
 }: CreateAssessmentResultSnapshotInput) {
   const session = await db.query.assessmentSessions.findFirst({
     where: and(
@@ -376,31 +391,52 @@ export async function createAssessmentResultSnapshot({
   });
 
 
-  const projectQuestionnaireRows = await db
-    .select({
-      questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
-      questionnaireVersionId: assessmentProjectQuestionnaires.questionnaireVersionId,
-    })
-    .from(assessmentProjectQuestionnaires)
-    .where(
-      and(
-        eq(
-          assessmentProjectQuestionnaires.assessmentProjectId,
-          session.assessmentProjectId,
-        ),
-        eq(assessmentProjectQuestionnaires.status, "active"),
-        isNull(assessmentProjectQuestionnaires.deletedAt),
-      ),
-    );
+ const projectQuestionnaireConditions = [
+  eq(
+    assessmentProjectQuestionnaires.assessmentProjectId,
+    session.assessmentProjectId,
+  ),
+  eq(assessmentProjectQuestionnaires.status, "active"),
+  isNull(assessmentProjectQuestionnaires.deletedAt),
+];
 
-
-  const questionnaireVersionIds = projectQuestionnaireRows.map(
-    (row: any) => row.questionnaireVersionId,
+if (projectQuestionnaireId) {
+  projectQuestionnaireConditions.push(
+    eq(assessmentProjectQuestionnaires.id, projectQuestionnaireId),
   );
+}
 
-  if (questionnaireVersionIds.length === 0) {
-    throw new Error("Projekt nie ma aktywnych kwestionariuszy do snapshotu.");
-  }
+if (questionnaireVersionId) {
+  projectQuestionnaireConditions.push(
+    eq(
+      assessmentProjectQuestionnaires.questionnaireVersionId,
+      questionnaireVersionId,
+    ),
+  );
+}
+
+const projectQuestionnaireRows = await db
+  .select({
+    questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
+    questionnaireVersionId:
+      assessmentProjectQuestionnaires.questionnaireVersionId,
+  })
+  .from(assessmentProjectQuestionnaires)
+  .where(and(...projectQuestionnaireConditions));
+
+const questionnaireVersionIds = uniqueNonEmpty(
+  projectQuestionnaireRows.map((row: any) => row.questionnaireVersionId),
+);
+
+if (questionnaireVersionIds.length === 0) {
+  throw new Error("Nie znaleziono aktywnego kwestionariusza do snapshotu.");
+}
+
+if (questionnaireVersionIds.length > 1) {
+  throw new Error(
+    "Snapshot został zablokowany, bo wskazano więcej niż jedną wersję kwestionariusza.",
+  );
+}
 
   const questionnaireRows = await controlDb
     .select({

@@ -9,6 +9,7 @@ import {
 
 import {
   assessmentProjectQuestionnaires,
+  assessmentResponses,
   assessmentSessions,
 } from "@/drizzle/schema/tenant-schema";
 
@@ -22,6 +23,19 @@ type AutoGrantReportAccessInput = {
   sessionId: string;
   actorUserId: string | null;
   actorEmail?: string | null;
+
+  /**
+   * Wersja kwestionariusza kończona w tym requestcie.
+   * Nie jest źródłem prawdy dla auto-grantu, ale służy do dodatkowej walidacji
+   * względem zapisanych odpowiedzi.
+   */
+  questionnaireVersionId?: string | null;
+
+  /**
+   * Projektowe przypisanie kwestionariusza kończone w tym requestcie.
+   * Służy do sprawdzenia, czy wersja kwestionariusza należy do projektu.
+   */
+  projectQuestionnaireId?: string | null;
 };
 
 type AutoGrantReportAccessResult =
@@ -60,7 +74,77 @@ function isCodeCurrentlyValid(code: {
 
   return true;
 }
+function uniqueNonEmpty(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
 
+async function resolveCompletedQuestionnaireVersionId({
+  db,
+  sessionId,
+  expectedQuestionnaireVersionId,
+}: {
+  db: TenantDb;
+  sessionId: string;
+  expectedQuestionnaireVersionId?: string | null;
+}) {
+  const responseRows = await db
+    .select({
+      questionnaireVersionId: assessmentResponses.questionnaireVersionId,
+    })
+    .from(assessmentResponses)
+    .where(
+      and(
+        eq(assessmentResponses.assessmentSessionId, sessionId),
+        isNull(assessmentResponses.deletedAt),
+      ),
+    );
+
+  const responseQuestionnaireVersionIds = uniqueNonEmpty(
+    responseRows.map((row: any) => row.questionnaireVersionId),
+  );
+
+  if (responseQuestionnaireVersionIds.length === 0) {
+    return {
+      ok: false as const,
+      message:
+        "Nie znaleziono odpowiedzi przypisanych do wersji kwestionariusza.",
+    };
+  }
+
+  if (responseQuestionnaireVersionIds.length > 1) {
+    return {
+      ok: false as const,
+      message:
+        "Sesja zawiera odpowiedzi z więcej niż jednej wersji kwestionariusza. Auto-grant raportu został zablokowany.",
+      questionnaireVersionIds: responseQuestionnaireVersionIds,
+    };
+  }
+
+  const completedQuestionnaireVersionId = responseQuestionnaireVersionIds[0];
+
+  if (
+    expectedQuestionnaireVersionId &&
+    completedQuestionnaireVersionId !== expectedQuestionnaireVersionId
+  ) {
+    return {
+      ok: false as const,
+      message:
+        "Wersja kwestionariusza z formularza nie zgadza się z wersją zapisaną w odpowiedziach. Auto-grant raportu został zablokowany.",
+      questionnaireVersionIds: responseQuestionnaireVersionIds,
+    };
+  }
+
+  return {
+    ok: true as const,
+    questionnaireVersionId: completedQuestionnaireVersionId,
+  };
+}
 function buildCodeScopeConditions({
   tenantSlug,
   sessionId,
@@ -107,6 +191,8 @@ export async function autoGrantReportAccessForCompletedSession({
   sessionId,
   actorUserId,
   actorEmail,
+  questionnaireVersionId,
+  projectQuestionnaireId,
 }: AutoGrantReportAccessInput): Promise<AutoGrantReportAccessResult> {
   if (!tenantSlug || !sessionId) {
     return {
@@ -147,35 +233,63 @@ export async function autoGrantReportAccessForCompletedSession({
     };
   }
 
-  const projectQuestionnaires = await db
+  const completedQuestionnaire = await resolveCompletedQuestionnaireVersionId({
+    db,
+    sessionId,
+    expectedQuestionnaireVersionId: questionnaireVersionId,
+  });
+
+  if (!completedQuestionnaire.ok) {
+    return {
+      ok: false,
+      granted: false,
+      message: completedQuestionnaire.message,
+    };
+  }
+
+  const completedQuestionnaireVersionId =
+    completedQuestionnaire.questionnaireVersionId;
+
+  const activeProjectQuestionnaireConditions = [
+    eq(
+      assessmentProjectQuestionnaires.assessmentProjectId,
+      session.assessmentProjectId,
+    ),
+    eq(
+      assessmentProjectQuestionnaires.questionnaireVersionId,
+      completedQuestionnaireVersionId,
+    ),
+    eq(assessmentProjectQuestionnaires.status, "active"),
+    isNull(assessmentProjectQuestionnaires.deletedAt),
+  ];
+
+  if (projectQuestionnaireId) {
+    activeProjectQuestionnaireConditions.push(
+      eq(assessmentProjectQuestionnaires.id, projectQuestionnaireId),
+    );
+  }
+
+  const activeProjectQuestionnaireRows = await db
     .select({
+      id: assessmentProjectQuestionnaires.id,
       questionnaireVersionId:
         assessmentProjectQuestionnaires.questionnaireVersionId,
     })
     .from(assessmentProjectQuestionnaires)
-    .where(
-      and(
-        eq(
-          assessmentProjectQuestionnaires.assessmentProjectId,
-          session.assessmentProjectId,
-        ),
-        eq(assessmentProjectQuestionnaires.status, "active"),
-        isNull(assessmentProjectQuestionnaires.deletedAt),
-      ),
-    );
+    .where(and(...activeProjectQuestionnaireConditions))
+    .limit(1);
 
-  const questionnaireVersionIds = projectQuestionnaires
-    .map((row: any) => row.questionnaireVersionId)
-    .filter(Boolean);
+  const activeProjectQuestionnaire = activeProjectQuestionnaireRows[0] ?? null;
 
-  if (questionnaireVersionIds.length === 0) {
+  if (!activeProjectQuestionnaire) {
     return {
       ok: false,
       granted: false,
-      message: "Projekt nie ma aktywnych kwestionariuszy.",
+      message:
+        "Wersja kwestionariusza z odpowiedzi nie jest aktywnym kwestionariuszem tego projektu.",
     };
   }
-
+  
   const codeCandidates = await controlDb
     .select({
       id: reportAccessCodes.id,
@@ -234,9 +348,31 @@ export async function autoGrantReportAccessForCompletedSession({
     }
 
     return true;
+  });  const validCodeCandidates = codeCandidates.filter((code) => {
+    if (!isCodeCurrentlyValid(code)) {
+      return false;
+    }
+
+    if (
+      code.assignedToEmail &&
+      normalizedEmail &&
+      normalizeEmail(code.assignedToEmail) !== normalizedEmail
+    ) {
+      return false;
+    }
+
+    if (
+      code.assignedToUserId &&
+      actorUserId &&
+      code.assignedToUserId !== actorUserId
+    ) {
+      return false;
+    }
+
+    return true;
   });
 
-  if (!validCode) {
+  if (validCodeCandidates.length === 0) {
     return {
       ok: true,
       granted: false,
@@ -244,126 +380,133 @@ export async function autoGrantReportAccessForCompletedSession({
     };
   }
 
-  const product = await controlDb.query.reportAccessProducts.findFirst({
-    where: and(
-      eq(reportAccessProducts.id, validCode.productId),
-      eq(reportAccessProducts.status, "active"),
-      isNull(reportAccessProducts.deletedAt),
-    ),
-  });
-
-  if (!product) {
-    return {
-      ok: false,
-      granted: false,
-      message: "Produkt powiązany z kodem nie jest aktywny.",
-    };
-  }
-
-  const reportVersion = await controlDb.query.reportTemplateVersions.findFirst({
-    where: and(
-      eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
-      inArray(reportTemplateVersions.questionnaireVersionId, questionnaireVersionIds),
-      eq(reportTemplateVersions.status, "active"),
-      isNull(reportTemplateVersions.deletedAt),
-    ),
-    orderBy: desc(reportTemplateVersions.updatedAt),
-  });
-
-  if (!reportVersion) {
-    return {
-      ok: false,
-      granted: false,
-      message: "Nie znaleziono aktywnej wersji raportu dla produktu.",
-    };
-  }
-
-  const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
-    where: and(
-      eq(reportAccessGrants.tenantSlug, tenantSlug),
-      eq(reportAccessGrants.assessmentSessionId, sessionId),
-      eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
-      eq(reportAccessGrants.status, "active"),
-      isNull(reportAccessGrants.deletedAt),
-    ),
-  });
-
-  if (existingGrant) {
-    return {
-      ok: true,
-      granted: false,
-      message: "Dostęp do tego typu raportu już istnieje.",
-      grantId: existingGrant.id,
-      reportTemplateVersionId: existingGrant.reportTemplateVersionId,
-      accessCodeId: validCode.id,
-    };
-  }
-
-  const now = new Date();
-
-  const grantValidUntil =
-    typeof product.validityDays === "number" && product.validityDays > 0
-      ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
-      : null;
-
-  const [grant] = await controlDb
-    .insert(reportAccessGrants)
-    .values({
-      source: "invitation",
-      status: "active",
-
-      productId: product.id,
-      accessCodeId: validCode.id,
-
-      reportTemplateId: product.reportTemplateId,
-      reportTemplateVersionId: reportVersion.id,
-
-      tenantSlug,
-      userId: actorUserId,
-      email: normalizedEmail,
-
-      assessmentProjectId: session.assessmentProjectId,
-      assessmentSessionId: sessionId,
-      assessmentAccessLinkId: session.accessLinkId,
-
-      validFrom: now,
-      validUntil: grantValidUntil,
-
-      metadata: {
-        autoGranted: true,
-        accessCodeId: validCode.id,
-        productCode: product.code,
-        productName: product.name,
-      },
-
-      createdAt: now,
-      updatedAt: now,
-      createdBy: actorUserId,
-      updatedBy: actorUserId,
-    })
-    .returning({
-      id: reportAccessGrants.id,
-      reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+  for (const validCode of validCodeCandidates) {
+    const product = await controlDb.query.reportAccessProducts.findFirst({
+      where: and(
+        eq(reportAccessProducts.id, validCode.productId),
+        eq(reportAccessProducts.status, "active"),
+        isNull(reportAccessProducts.deletedAt),
+      ),
     });
 
-  await controlDb
-    .update(reportAccessCodes)
-    .set({
-      status: "redeemed",
-      redeemedByUserId: actorUserId,
-      redeemedAt: now,
-      assessmentSessionId: sessionId,
-      updatedAt: now,
-      updatedBy: actorUserId,
-    })
-    .where(eq(reportAccessCodes.id, validCode.id));
+    if (!product) {
+      continue;
+    }
+
+    const reportVersion =
+      await controlDb.query.reportTemplateVersions.findFirst({
+        where: and(
+          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
+          eq(
+            reportTemplateVersions.questionnaireVersionId,
+            completedQuestionnaireVersionId,
+          ),
+          eq(reportTemplateVersions.status, "active"),
+          isNull(reportTemplateVersions.deletedAt),
+        ),
+        orderBy: desc(reportTemplateVersions.updatedAt),
+      });
+
+    if (!reportVersion) {
+      continue;
+    }
+
+    const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
+      where: and(
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.assessmentSessionId, sessionId),
+        eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    });
+
+    if (existingGrant) {
+      return {
+        ok: true,
+        granted: false,
+        message: "Dostęp do tego typu raportu już istnieje.",
+        grantId: existingGrant.id,
+        reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+        accessCodeId: validCode.id,
+      };
+    }
+
+    const now = new Date();
+
+    const grantValidUntil =
+      typeof product.validityDays === "number" && product.validityDays > 0
+        ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+        : null;
+
+    const [grant] = await controlDb
+      .insert(reportAccessGrants)
+      .values({
+        source: "invitation",
+        status: "active",
+
+        productId: product.id,
+        accessCodeId: validCode.id,
+
+        reportTemplateId: product.reportTemplateId,
+        reportTemplateVersionId: reportVersion.id,
+
+        tenantSlug,
+        userId: actorUserId,
+        email: normalizedEmail,
+
+        assessmentProjectId: session.assessmentProjectId,
+        assessmentSessionId: sessionId,
+        assessmentAccessLinkId: session.accessLinkId,
+
+        validFrom: now,
+        validUntil: grantValidUntil,
+
+        metadata: {
+          autoGranted: true,
+          accessCodeId: validCode.id,
+          productCode: product.code,
+          productName: product.name,
+          questionnaireVersionId: completedQuestionnaireVersionId,
+          projectQuestionnaireId: activeProjectQuestionnaire.id,
+        },
+
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actorUserId,
+        updatedBy: actorUserId,
+      })
+      .returning({
+        id: reportAccessGrants.id,
+        reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+      });
+
+    await controlDb
+      .update(reportAccessCodes)
+      .set({
+        status: "redeemed",
+        redeemedByUserId: actorUserId,
+        redeemedAt: now,
+        assessmentSessionId: sessionId,
+        updatedAt: now,
+        updatedBy: actorUserId,
+      })
+      .where(eq(reportAccessCodes.id, validCode.id));
+
+    return {
+      ok: true,
+      granted: true,
+      message: "Automatycznie nadano dostęp do raportu.",
+      grantId: grant.id,
+      reportTemplateVersionId: grant.reportTemplateVersionId,
+      accessCodeId: validCode.id,
+    };
+  }
 
   return {
     ok: true,
-    granted: true,
-    message: "Automatycznie nadano dostęp do raportu.",
-    grantId: grant.id,
-    reportTemplateVersionId: grant.reportTemplateVersionId,
-    accessCodeId: validCode.id,
+    granted: false,
+    message:
+      "Nie znaleziono aktywnego kodu dostępu z raportem pasującym do ukończonego kwestionariusza.",
   };
 }
