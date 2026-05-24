@@ -95,9 +95,7 @@ export function ReportAccessPoolSummary({
 
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-[#8b9099]">
-                  {product.code}
-                </p>
+
 
                 <h3 className="mt-1 text-lg font-semibold leading-6 tracking-[-0.03em] text-[#171717]">
                   {product.name}

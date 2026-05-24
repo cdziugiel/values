@@ -378,7 +378,7 @@ export async function PartnerAssessmentProjectRespondentsPage({
         <SectionShell
           icon={<BarChart3 size={20} />}
           title="Respondenci i sesje"
-          description="Lista sesji w projekcie wraz ze statusem odpowiedzi, snapshotem wyniku i dostępem do raportu."
+          description="Lista sesji w projekcie wraz z informacją o wypełnionym kwestionariuszu, snapshotem wyniku i dostępem do raportu."
           action={
             <BulkGrantReportAccessDialog
               tenantSlug={tenantSlug}
@@ -397,7 +397,20 @@ export async function PartnerAssessmentProjectRespondentsPage({
                   const activeGrant = session.grants.find(
                     (grant: any) => grant.isCurrentlyActive,
                   );
+const compatibleReportAccessProducts =
+  session.compatibleReportAccessProducts ?? [];
 
+const canGrantReportAccess =
+  session.sessionStatus === "completed" &&
+  session.hasSnapshot &&
+  !activeGrant &&
+  compatibleReportAccessProducts.length > 0;
+
+const cannotGrantBecauseNoCompatibleAccess =
+  session.sessionStatus === "completed" &&
+  session.hasSnapshot &&
+  !activeGrant &&
+  compatibleReportAccessProducts.length === 0;
                   return (
                     <article
                       key={session.sessionId}
@@ -435,7 +448,44 @@ export async function PartnerAssessmentProjectRespondentsPage({
                             </dd>
                           </div>
                         </div>
+                        <div>
+                          <dt className="text-[#6b7280]">Kwestionariusz</dt>
+                          <dd className="mt-1">
+                            {session.completedQuestionnaire ? (
+                              <div className="rounded-[1.25rem] border border-black/10 bg-white/70 p-3 text-xs leading-5">
+                                <div
+                                  className={
+                                    session.completedQuestionnaire.isAmbiguous
+                                      ? "font-semibold text-amber-800"
+                                      : "font-semibold text-[#171717]"
+                                  }
+                                >
+                                  {session.completedQuestionnaire.isAmbiguous
+                                    ? "Niejednoznaczne odpowiedzi"
+                                    : session.completedQuestionnaire.questionnaireName ??
+                                    "Kwestionariusz"}
+                                </div>
 
+                                {!session.completedQuestionnaire.isAmbiguous ? (
+                                  <div className="mt-1 text-[#6b7280]">
+                                    {session.completedQuestionnaire.questionnaireVersion ? (
+                                      <>
+                                        {" "}
+                                        · wersja {session.completedQuestionnaire.questionnaireVersion}
+                                      </>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+
+                                <div className="mt-1 text-[#6b7280]">
+                                  Odpowiedzi: {session.completedQuestionnaire.responseCount}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-[#6b7280]">Brak odpowiedzi</span>
+                            )}
+                          </dd>
+                        </div>
                         {session.snapshotCreatedAt ? (
                           <div>
                             <dt className="text-[#6b7280]">Snapshot utworzony</dt>
@@ -496,13 +546,17 @@ export async function PartnerAssessmentProjectRespondentsPage({
                           </Button>
                         ) : null}
 
-                        {!activeGrant && session.sessionStatus === "completed" ? (
-                          <GrantReportAccessToSessionForm
-                            tenantSlug={tenantSlug}
-                            sessionId={session.sessionId}
-                            products={data.reportAccessProducts}
-                          />
-                        ) : null}
+{canGrantReportAccess ? (
+  <GrantReportAccessToSessionForm
+    tenantSlug={tenantSlug}
+    sessionId={session.sessionId}
+    products={compatibleReportAccessProducts}
+  />
+) : cannotGrantBecauseNoCompatibleAccess ? (
+  <div className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm leading-6 text-[#6b7280]">
+    Brak aktywnych dostępów dla tego kwestionariusza
+  </div>
+) : null}
                       </div>
                     </article>
                   );
@@ -516,6 +570,7 @@ export async function PartnerAssessmentProjectRespondentsPage({
                       <tr>
                         <th className="px-4 py-3 font-semibold">Respondent</th>
                         <th className="px-4 py-3 font-semibold">Status</th>
+                        <th className="px-4 py-3 font-semibold">Kwestionariusz</th>
                         <th className="px-4 py-3 font-semibold">Zakończono</th>
                         <th className="px-4 py-3 font-semibold">Snapshot</th>
                         <th className="px-4 py-3 font-semibold">Raport</th>
@@ -530,7 +585,20 @@ export async function PartnerAssessmentProjectRespondentsPage({
                         const activeGrant = session.grants.find(
                           (grant: any) => grant.isCurrentlyActive,
                         );
+const compatibleReportAccessProducts =
+  session.compatibleReportAccessProducts ?? [];
 
+const canGrantReportAccess =
+  session.sessionStatus === "completed" &&
+  session.hasSnapshot &&
+  !activeGrant &&
+  compatibleReportAccessProducts.length > 0;
+
+const cannotGrantBecauseNoCompatibleAccess =
+  session.sessionStatus === "completed" &&
+  session.hasSnapshot &&
+  !activeGrant &&
+  compatibleReportAccessProducts.length === 0;
                         return (
                           <tr
                             key={session.sessionId}
@@ -551,7 +619,41 @@ export async function PartnerAssessmentProjectRespondentsPage({
                                 {getSessionStatusLabel(session.sessionStatus)}
                               </StatusPill>
                             </td>
+                            <td className="px-4 py-4">
+                              {session.completedQuestionnaire ? (
+                                <div>
+                                  <div
+                                    className={
+                                      session.completedQuestionnaire.isAmbiguous
+                                        ? "font-medium text-amber-800"
+                                        : "font-medium text-[#171717]"
+                                    }
+                                  >
+                                    {session.completedQuestionnaire.isAmbiguous
+                                      ? "Niejednoznaczne odpowiedzi"
+                                      : session.completedQuestionnaire.questionnaireName ??
+                                      "Kwestionariusz"}
+                                  </div>
 
+                                  {!session.completedQuestionnaire.isAmbiguous ? (
+                                    <div className="mt-1 text-xs text-[#6b7280]">
+                                      {session.completedQuestionnaire.questionnaireVersion ? (
+                                        <>
+                                          {" "}
+                                          · wersja {session.completedQuestionnaire.questionnaireVersion}
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+
+                                  <div className="mt-1 text-xs text-[#6b7280]">
+                                    Odpowiedzi: {session.completedQuestionnaire.responseCount}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[#6b7280]">Brak odpowiedzi</span>
+                              )}
+                            </td>
                             <td className="px-4 py-4 text-[#6b7280]">
                               {formatDateTime(session.sessionCompletedAt)}
                             </td>
@@ -627,14 +729,17 @@ export async function PartnerAssessmentProjectRespondentsPage({
                                   </Button>
                                 ) : null}
 
-                                {!activeGrant &&
-                                session.sessionStatus === "completed" ? (
-                                  <GrantReportAccessToSessionForm
-                                    tenantSlug={tenantSlug}
-                                    sessionId={session.sessionId}
-                                    products={data.reportAccessProducts}
-                                  />
-                                ) : null}
+{canGrantReportAccess ? (
+  <GrantReportAccessToSessionForm
+    tenantSlug={tenantSlug}
+    sessionId={session.sessionId}
+    products={compatibleReportAccessProducts}
+  />
+) : cannotGrantBecauseNoCompatibleAccess ? (
+  <div className="max-w-[280px] text-right text-sm leading-6 text-[#6b7280]">
+    Brak aktywnych dostępów dla tego kwestionariusza
+  </div>
+) : null}
                               </div>
                             </td>
                           </tr>

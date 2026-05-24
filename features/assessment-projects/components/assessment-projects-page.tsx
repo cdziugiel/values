@@ -210,7 +210,7 @@ export async function AssessmentProjectsPage({
   ).length;
 
   const draftProjectsCount = projects.filter(
-    (project) => project.status === "draft" || project.status === "planned",
+    (project) => project.status === "draft" ,
   ).length;
 
   const projectsWithOrganizationCount = projects.filter(

@@ -4,3 +4,4 @@ export type {
   PostLoginRedirectResult,
 } from "./types/post-login.types";
 export { LoginForm } from "./components/login-form";
+export { LogoutCard } from "./components/logout-card";

@@ -103,7 +103,7 @@ export default async function TenantLayout({
       description: "Firmy i organizacje klientów partnera.",
     },
     {
-      label: "Jednostki",
+      label: "Działy",
       href: `/t/${ctx.tenantSlug}/client-units`,
       icon: <Network size={15} />,
       description: "Działy, zespoły i struktura organizacyjna.",
@@ -112,7 +112,7 @@ export default async function TenantLayout({
       label: "Respondenci",
       href: `/t/${ctx.tenantSlug}/respondents`,
       icon: <Users size={15} />,
-      description: "Baza respondentów w środowisku partnera.",
+      description: "Twoja baza respondentów.",
     },
     {
       label: "Projekty badawcze",
@@ -121,7 +121,7 @@ export default async function TenantLayout({
       description: "Badania, respondenci, kwestionariusze i wyniki.",
     },
     {
-      label: "Członkowie",
+      label: "Użytkownicy",
       href: `/t/${ctx.tenantSlug}/members`,
       icon: <ShieldCheck size={15} />,
       description: "Zespół partnera, role i dostęp użytkowników.",

@@ -1,39 +1,24 @@
-// app/login/page.tsx
+// app/logout/page.tsx
 
-import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import {
   ArrowLeft,
   CheckCircle2,
-  ClipboardCheck,
   LockKeyhole,
-  Mail,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 
-import { authOptions } from "@/auth";
-import { LoginForm } from "@/features/auth";
+import { LogoutCard } from "@/features/auth/components/logout-card";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-const loginBenefits = [
-  "kontynuować rozpoczęte badanie",
-  "zobaczyć ukończone kwestionariusze",
-  "uzyskać dostęp do raportu, jeśli został odblokowany",
+const points = [
+  "zakończysz bieżącą sesję w systemie",
+  "powrót będzie możliwy przez ponowne wysłanie linku dostępowego",
+  "Twoje zapisane odpowiedzi i raporty pozostaną w systemie",
 ];
 
-export default async function LoginPage() {
-  const session = await getServerSession(authOptions);
-
-  if (session?.user?.id) {
-    redirect("/my/assessment");
-  }
-
+export default function LogoutPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f7f7f8_48%,#eef1f3_100%)] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-7xl flex-col">
@@ -68,61 +53,13 @@ export default async function LoginPage() {
             </div>
 
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.02] tracking-[-0.06em] text-[#171717] sm:text-5xl md:text-6xl">
-              Wejdź do swojego badania.
+              Chcesz zakończyć sesję?
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-8 text-[#6b7280] md:text-lg">
-              Podaj adres email, którego używasz w badaniu. Wyślemy Ci
-              jednorazowy link, dzięki któremu bez hasła przejdziesz do swojego
-              panelu respondenta.
+              Wylogowanie zamyka bieżący dostęp do panelu. Możesz wrócić później
+              przez jednorazowy link wysłany na Twój adres email.
             </p>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
-                  <ClipboardCheck size={18} />
-                </div>
-
-                <h2 className="mt-4 font-semibold tracking-[-0.02em]">
-                  Badania
-                </h2>
-
-                <p className="mt-1 text-xs leading-5 text-[#6b7280]">
-                  Wypełniaj przypisane kwestionariusze i wracaj do nich, gdy
-                  potrzebujesz przerwy.
-                </p>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
-                  <Mail size={18} />
-                </div>
-
-                <h2 className="mt-4 font-semibold tracking-[-0.02em]">
-                  Bezpieczeństwo
-                </h2>
-
-                <p className="mt-1 text-xs leading-5 text-[#6b7280]">
-                  Nie musisz pamiętać hasła. Dostęp potwierdzasz linkiem
-                  wysłanym na email.
-                </p>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-4 shadow-sm backdrop-blur">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
-                  <ShieldCheck size={18} />
-                </div>
-
-                <h2 className="mt-4 font-semibold tracking-[-0.02em]">
-                  Prywatność
-                </h2>
-
-                <p className="mt-1 text-xs leading-5 text-[#6b7280]">
-                  Dostęp jest przypisany do Twojego adresu email i konkretnego
-                  procesu badawczego.
-                </p>
-              </div>
-            </div>
 
             <div className="mt-8 rounded-[2rem] border border-black/10 bg-white/70 p-5 shadow-sm backdrop-blur">
               <div className="flex gap-4">
@@ -132,11 +69,11 @@ export default async function LoginPage() {
 
                 <div>
                   <h2 className="font-semibold tracking-[-0.02em] text-[#171717]">
-                    Po zalogowaniu możesz:
+                    Po wylogowaniu:
                   </h2>
 
                   <div className="mt-3 grid gap-2">
-                    {loginBenefits.map((item) => (
+                    {points.map((item) => (
                       <div
                         key={item}
                         className="flex items-center gap-2 text-sm leading-6 text-[#6b7280]"
@@ -161,24 +98,20 @@ export default async function LoginPage() {
               <div className="rounded-[2rem] border border-black/10 bg-[#f7f7f8] p-5">
                 <div className="mb-6">
                   <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
-                    <LockKeyhole size={13} />
-                    Bezpieczne logowanie
+                    <ShieldCheck size={13} />
+                    Bezpieczne zakończenie
                   </div>
 
                   <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
-                    Wyślij link dostępowy
+                    Wylogowanie z systemu
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-                    Wpisz email, a następnie sprawdź skrzynkę odbiorczą.
+                    Potwierdź, jeśli chcesz zakończyć bieżącą sesję.
                   </p>
                 </div>
 
-                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5 shadow-sm">
-                  <Suspense fallback={null}>
-                    <LoginForm />
-                  </Suspense>
-                </div>
+                <LogoutCard />
               </div>
             </div>
           </aside>

@@ -590,7 +590,7 @@ export default async function TenantDashboardPage({
           <StatCard
             label="Sesje"
             value={data.counts.sessions}
-            helper="Wszystkie rozpoczęte i zakończone wypełnienia."
+            helper="Wszystkie rozpoczęte i zakończone kwestionariusze."
             icon={<BarChart3 size={20} />}
             progress={completionRate}
           />

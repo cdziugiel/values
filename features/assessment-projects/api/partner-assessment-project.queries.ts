@@ -6,7 +6,6 @@ import {
     inArray,
     isNull,
     or,
-    sql,
 } from "drizzle-orm";
 
 import {
@@ -18,12 +17,15 @@ import {
     reportTemplates,
     reportTemplateVersions,
     billingProfiles,
+    questionnaires,
+    questionnaireVersions,
 } from "@/drizzle/schema";
 
 
 
 import {
     assessmentProjects,
+    assessmentResponses,
     assessmentResultSnapshots,
     assessmentSessions,
     respondentIdentities,
@@ -137,7 +139,83 @@ export async function getPartnerAssessmentProjectRespondents({
         .orderBy(desc(assessmentSessions.updatedAt));
 
     const sessionIds = sessionRows.map((row: any) => row.sessionId);
+    const responseQuestionnaireRows =
+        sessionIds.length > 0
+            ? await db
+                .select({
+                    sessionId: assessmentResponses.assessmentSessionId,
+                    questionnaireId: assessmentResponses.questionnaireId,
+                    questionnaireVersionId:
+                        assessmentResponses.questionnaireVersionId,
+                    responseCount: count(assessmentResponses.id),
+                })
+                .from(assessmentResponses)
+                .where(
+                    and(
+                        inArray(
+                            assessmentResponses.assessmentSessionId,
+                            sessionIds,
+                        ),
+                        isNull(assessmentResponses.deletedAt),
+                    ),
+                )
+                .groupBy(
+                    assessmentResponses.assessmentSessionId,
+                    assessmentResponses.questionnaireId,
+                    assessmentResponses.questionnaireVersionId,
+                )
+            : [];
 
+    const questionnaireVersionIds = Array.from(
+        new Set(
+            responseQuestionnaireRows
+                .map((row: any) => row.questionnaireVersionId)
+                .filter((value: unknown): value is string =>
+                    typeof value === "string" && value.length > 0,
+                ),
+        ),
+    );
+
+    const questionnaireRows =
+        questionnaireVersionIds.length > 0
+            ? await controlDb
+                .select({
+                    questionnaireId: questionnaires.id,
+                    questionnaireCode: questionnaires.code,
+                    questionnaireName: questionnaires.name,
+                    questionnaireVersionId: questionnaireVersions.id,
+                    questionnaireVersion: questionnaireVersions.version,
+                })
+                .from(questionnaireVersions)
+                .innerJoin(
+                    questionnaires,
+                    eq(questionnaires.id, questionnaireVersions.questionnaireId),
+                )
+                .where(
+                    and(
+                        inArray(questionnaireVersions.id, questionnaireVersionIds),
+                        isNull(questionnaireVersions.deletedAt),
+                        isNull(questionnaires.deletedAt),
+                    ),
+                )
+            : [];
+
+    const questionnaireByVersionId = new Map(
+        questionnaireRows.map((row) => [row.questionnaireVersionId, row]),
+    );
+
+    const responseQuestionnairesBySessionId = new Map<
+        string,
+        typeof responseQuestionnaireRows
+    >();
+
+    for (const row of responseQuestionnaireRows) {
+        const existing =
+            responseQuestionnairesBySessionId.get(row.sessionId) ?? [];
+
+        existing.push(row);
+        responseQuestionnairesBySessionId.set(row.sessionId, existing);
+    }
     const grantRows =
         sessionIds.length > 0
             ? await controlDb
@@ -192,19 +270,6 @@ export async function getPartnerAssessmentProjectRespondents({
         grantsBySessionId.set(grant.assessmentSessionId, existing);
     }
 
-    const sessions = sessionRows.map((session: any) => {
-        const grants = grantsBySessionId.get(session.sessionId) ?? [];
-
-        return {
-            ...session,
-            hasSnapshot: Boolean(session.snapshotId),
-            grants: grants.map((grant) => ({
-                ...grant,
-                isCurrentlyActive: isGrantCurrentlyActive(grant),
-                partnerReportHref: `/t/${tenantSlug}/assessment-sessions/${session.sessionId}/report/${grant.reportTemplateVersionId}`,
-            })),
-        };
-    });
 
     const activeReportAccessProducts = await controlDb
         .select({
@@ -317,49 +382,160 @@ export async function getPartnerAssessmentProjectRespondents({
             };
         },
     );
-    const availableCodeCountRows =
-        activeReportAccessProducts.length > 0
-            ? await controlDb
-                .select({
-                    productId: reportAccessCodes.productId,
-                    availableCount: count(reportAccessCodes.id),
-                })
-                .from(reportAccessCodes)
-                .where(
-                    and(
-                        eq(reportAccessCodes.tenantSlug, tenantSlug),
-                        inArray(
-                            reportAccessCodes.productId,
-                            activeReportAccessProducts.map((product) => product.id),
+    const activeReportTemplateVersionRows =
+    activeReportAccessProducts.length > 0
+        ? await controlDb
+            .select({
+                reportTemplateId: reportTemplateVersions.reportTemplateId,
+                questionnaireVersionId:
+                    reportTemplateVersions.questionnaireVersionId,
+            })
+            .from(reportTemplateVersions)
+            .where(
+                and(
+                    inArray(
+                        reportTemplateVersions.reportTemplateId,
+                        activeReportAccessProducts.map(
+                            (product) => product.reportTemplateId,
                         ),
-                        eq(reportAccessCodes.status, "available"),
-                        isNull(reportAccessCodes.assessmentSessionId),
-                        isNull(reportAccessCodes.assessmentAccessLinkId),
-                        isNull(reportAccessCodes.assignedToEmail),
-                        isNull(reportAccessCodes.assignedToUserId),
-                        isNull(reportAccessCodes.deletedAt),
                     ),
-                )
-                .groupBy(reportAccessCodes.productId)
-            : [];
-
-    const availableCodeCountByProductId = new Map(
-        availableCodeCountRows.map((row) => [
-            row.productId,
-            Number(row.availableCount ?? 0),
-        ]),
-    );
+                    eq(reportTemplateVersions.status, "active"),
+                    isNull(reportTemplateVersions.deletedAt),
+                ),
+            )
+        : [];
 
 
-    return {
-        tenant: {
-            id: ctx.tenantId,
-            slug: ctx.tenantSlug,
-            name: ctx.tenantSlug,
-        },
-        project,
-        sessions,
-        reportAccessProducts: reportAccessProductsWithAvailability,
-        billingProfile,
-    };
+
+const compatibleQuestionnaireVersionIdsByReportTemplateId = new Map<
+  string,
+  Set<string>
+>();
+
+for (const row of activeReportTemplateVersionRows) {
+  if (!row.questionnaireVersionId) {
+    continue;
+  }
+
+  const current =
+    compatibleQuestionnaireVersionIdsByReportTemplateId.get(
+      row.reportTemplateId,
+    ) ?? new Set<string>();
+
+  current.add(row.questionnaireVersionId);
+
+  compatibleQuestionnaireVersionIdsByReportTemplateId.set(
+    row.reportTemplateId,
+    current,
+  );
+}
+
+const sessionsBase = sessionRows.map((session: any) => {
+  const grants = grantsBySessionId.get(session.sessionId) ?? [];
+
+  const responseQuestionnaires =
+    responseQuestionnairesBySessionId.get(session.sessionId) ?? [];
+
+  const validResponseQuestionnaires = responseQuestionnaires.filter(
+    (row: any) =>
+      typeof row.questionnaireVersionId === "string" &&
+      row.questionnaireVersionId.length > 0,
+  );
+
+  const totalResponseCount = validResponseQuestionnaires.reduce(
+    (sum: number, row: any) => sum + Number(row.responseCount ?? 0),
+    0,
+  );
+
+  const singleResponseQuestionnaire =
+    validResponseQuestionnaires.length === 1
+      ? validResponseQuestionnaires[0]
+      : null;
+
+  const questionnaireMeta =
+    singleResponseQuestionnaire?.questionnaireVersionId
+      ? questionnaireByVersionId.get(
+          singleResponseQuestionnaire.questionnaireVersionId,
+        )
+      : null;
+
+  const completedQuestionnaire = singleResponseQuestionnaire
+    ? {
+        questionnaireId: singleResponseQuestionnaire.questionnaireId ?? null,
+        questionnaireVersionId:
+          singleResponseQuestionnaire.questionnaireVersionId ?? null,
+        questionnaireCode: questionnaireMeta?.questionnaireCode ?? null,
+        questionnaireName: questionnaireMeta?.questionnaireName ?? null,
+        questionnaireVersion: questionnaireMeta?.questionnaireVersion ?? null,
+        responseCount: Number(singleResponseQuestionnaire.responseCount ?? 0),
+        isAmbiguous: false,
+      }
+    : validResponseQuestionnaires.length > 1
+      ? {
+          questionnaireId: null,
+          questionnaireVersionId: null,
+          questionnaireCode: null,
+          questionnaireName: "Niejednoznaczne odpowiedzi",
+          questionnaireVersion: null,
+          responseCount: totalResponseCount,
+          isAmbiguous: true,
+        }
+      : null;
+
+  return {
+    ...session,
+    hasSnapshot: Boolean(session.snapshotId),
+    completedQuestionnaire,
+    grants: grants.map((grant) => ({
+      ...grant,
+      isCurrentlyActive: isGrantCurrentlyActive(grant),
+      partnerReportHref: `/t/${tenantSlug}/assessment-sessions/${session.sessionId}/report/${grant.reportTemplateVersionId}`,
+    })),
+  };
+});
+
+const sessions = sessionsBase.map((session: any) => {
+  const completedQuestionnaire = session.completedQuestionnaire;
+
+  const completedQuestionnaireVersionId =
+    completedQuestionnaire && !completedQuestionnaire.isAmbiguous
+      ? completedQuestionnaire.questionnaireVersionId
+      : null;
+
+  const compatibleReportAccessProducts = completedQuestionnaireVersionId
+    ? reportAccessProductsWithAvailability.filter((product) => {
+        if (product.availableCount <= 0) {
+          return false;
+        }
+
+        const compatibleQuestionnaireVersionIds =
+          compatibleQuestionnaireVersionIdsByReportTemplateId.get(
+            product.reportTemplateId,
+          );
+
+        return Boolean(
+          compatibleQuestionnaireVersionIds?.has(
+            completedQuestionnaireVersionId,
+          ),
+        );
+      })
+    : [];
+
+  return {
+    ...session,
+    compatibleReportAccessProducts,
+  };
+});
+
+return {
+  tenant: {
+    id: ctx.tenantId,
+    slug: ctx.tenantSlug,
+    name: ctx.tenantSlug,
+  },
+  project,
+  sessions,
+  reportAccessProducts: reportAccessProductsWithAvailability,
+  billingProfile,
+};
 }
