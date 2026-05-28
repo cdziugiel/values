@@ -173,17 +173,17 @@ export async function TenantMembersPage({ tenantSlug }: TenantMembersPageProps) 
               <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
                 <ShieldCheck size={14} />
                 <span className="hv-brand-eyebrow text-[0.68rem]">
-                  Dostęp do partnera
+                  Dostęp do konta partnera
                 </span>
               </div>
 
               <h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
-                Członkowie zespołu i ich uprawnienia.
+                Członkowie Twojego zespołu i ich uprawnienia.
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
                 Dodawaj użytkowników, kontroluj ich role i szybko sprawdzaj,
-                kto ma aktywny dostęp do środowiska partnera.
+                kto ma aktywny dostęp do Twojego konta partnera.
               </p>
             </div>
 
@@ -210,7 +210,7 @@ export async function TenantMembersPage({ tenantSlug }: TenantMembersPageProps) 
           <MetricCard
             label="Członkowie"
             value={members.length}
-            helper="Wszyscy użytkownicy przypisani do partnera."
+            helper="Wszyscy użytkownicy przypisani do Twojego konta."
             icon={<Users size={20} />}
           />
 
@@ -223,7 +223,7 @@ export async function TenantMembersPage({ tenantSlug }: TenantMembersPageProps) 
           />
 
           <MetricCard
-            label="Ownerzy"
+            label="Właściciele"
             value={ownersCount}
             helper="Osoby z najwyższym poziomem uprawnień."
             icon={<ShieldCheck size={20} />}

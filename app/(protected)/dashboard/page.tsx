@@ -398,7 +398,7 @@ export default async function DashboardPage() {
       <div className="mx-auto w-full max-w-7xl space-y-8">
         <PageHeader
           title="Dashboard"
-          description="Panel kontrolny HUMANET VALUES: tenanty, kwestionariusze, wersje publiczne i stan baz danych."
+          description="Panel kontrolny HUMANET VALUES: partnerzy, kwestionariusze, wersje publiczne i stan baz danych."
           actions={
             <div className="flex flex-wrap gap-2">
               <BrandButton href="/dashboard/questionnaires" variant="secondary">
@@ -406,7 +406,7 @@ export default async function DashboardPage() {
               </BrandButton>
 
               <BrandButton href="/dashboard/tenants" variant="secondary">
-                Tenanty
+                Partnerzy
               </BrandButton>
 
               <BrandButton href="/my/assessment">

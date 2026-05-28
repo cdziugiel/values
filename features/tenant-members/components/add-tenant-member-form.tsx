@@ -107,7 +107,7 @@ export function AddTenantMemberForm({
               />
 
               <p className="text-sm leading-6 text-[#0f766e]">
-                Rola określa zakres dostępu w obrębie partnera. Status możesz
+                Rola określa zakres dostępu w obrębie konta partnera. Status możesz
                 później zmienić w ustawieniach członka zespołu.
               </p>
             </div>

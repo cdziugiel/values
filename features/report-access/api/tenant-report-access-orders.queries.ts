@@ -1,3 +1,4 @@
+// features/report-access/api/tenant-report-access-orders.queries.ts
 import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import {
@@ -69,54 +70,54 @@ export async function getTenantReportAccessOrdersPageData({
   const orderItemRows =
     orderIds.length > 0
       ? await controlDb
-          .select({
-            orderId: reportAccessOrderItems.orderId,
-            itemId: reportAccessOrderItems.id,
+        .select({
+          orderId: reportAccessOrderItems.orderId,
+          itemId: reportAccessOrderItems.id,
 
-            productId: reportAccessOrderItems.productId,
-            quantity: reportAccessOrderItems.quantity,
+          productId: reportAccessOrderItems.productId,
+          quantity: reportAccessOrderItems.quantity,
 
-            unitNet: reportAccessOrderItems.unitNet,
-            unitVat: reportAccessOrderItems.unitVat,
-            unitGross: reportAccessOrderItems.unitGross,
+          unitNet: reportAccessOrderItems.unitNet,
+          unitVat: reportAccessOrderItems.unitVat,
+          unitGross: reportAccessOrderItems.unitGross,
 
-            totalNet: reportAccessOrderItems.totalNet,
-            totalVat: reportAccessOrderItems.totalVat,
-            totalGross: reportAccessOrderItems.totalGross,
+          totalNet: reportAccessOrderItems.totalNet,
+          totalVat: reportAccessOrderItems.totalVat,
+          totalGross: reportAccessOrderItems.totalGross,
 
-            productCode: reportAccessProducts.code,
-            productName: reportAccessProducts.name,
-          })
-          .from(reportAccessOrderItems)
-          .innerJoin(
-            reportAccessProducts,
-            eq(reportAccessProducts.id, reportAccessOrderItems.productId),
-          )
-          .where(
-            and(
-              inArray(reportAccessOrderItems.orderId, orderIds),
-              isNull(reportAccessOrderItems.deletedAt),
-              isNull(reportAccessProducts.deletedAt),
-            ),
-          )
+          productCode: reportAccessProducts.code,
+          productName: reportAccessProducts.name,
+        })
+        .from(reportAccessOrderItems)
+        .innerJoin(
+          reportAccessProducts,
+          eq(reportAccessProducts.id, reportAccessOrderItems.productId),
+        )
+        .where(
+          and(
+            inArray(reportAccessOrderItems.orderId, orderIds),
+            isNull(reportAccessOrderItems.deletedAt),
+            isNull(reportAccessProducts.deletedAt),
+          ),
+        )
       : [];
 
   const orderCodeStatsRows =
     orderIds.length > 0
       ? await controlDb
-          .select({
-            orderId: reportAccessCodes.orderId,
-            status: reportAccessCodes.status,
-            count: count(reportAccessCodes.id),
-          })
-          .from(reportAccessCodes)
-          .where(
-            and(
-              inArray(reportAccessCodes.orderId, orderIds),
-              isNull(reportAccessCodes.deletedAt),
-            ),
-          )
-          .groupBy(reportAccessCodes.orderId, reportAccessCodes.status)
+        .select({
+          orderId: reportAccessCodes.orderId,
+          status: reportAccessCodes.status,
+          count: count(reportAccessCodes.id),
+        })
+        .from(reportAccessCodes)
+        .where(
+          and(
+            inArray(reportAccessCodes.orderId, orderIds),
+            isNull(reportAccessCodes.deletedAt),
+          ),
+        )
+        .groupBy(reportAccessCodes.orderId, reportAccessCodes.status)
       : [];
 
   const poolStatsRows = await controlDb
@@ -200,8 +201,8 @@ export async function getTenantReportAccessOrdersPageData({
   const orders = orderRows.map((order) => {
     const metadata =
       typeof order.metadata === "object" &&
-      order.metadata !== null &&
-      !Array.isArray(order.metadata)
+        order.metadata !== null &&
+        !Array.isArray(order.metadata)
         ? (order.metadata as Record<string, unknown>)
         : {};
 
@@ -269,6 +270,55 @@ export async function getTenantReportAccessOrdersPageData({
     poolByProductId.set(row.productId, current);
   }
 
+  const activeProducts = await controlDb
+  .select({
+    id: reportAccessProducts.id,
+    reportTemplateId: reportAccessProducts.reportTemplateId,
+    code: reportAccessProducts.code,
+    name: reportAccessProducts.name,
+    description: reportAccessProducts.description,
+    accessCount: reportAccessProducts.accessCount,
+    validityDays: reportAccessProducts.validityDays,
+    currency: reportAccessProducts.currency,
+    priceNet: reportAccessProducts.priceNet,
+    vatRate: reportAccessProducts.vatRate,
+    priceGross: reportAccessProducts.priceGross,
+  })
+  .from(reportAccessProducts)
+  .where(
+    and(
+      eq(reportAccessProducts.status, "active"),
+      isNull(reportAccessProducts.deletedAt),
+    ),
+  )
+  .orderBy(reportAccessProducts.name);
+
+const pool = Array.from(poolByProductId.values()).sort((left, right) =>
+  left.productName.localeCompare(right.productName, "pl", {
+    sensitivity: "base",
+    numeric: true,
+  }),
+);
+
+const products = activeProducts.map((product) => {
+  const poolItem = poolByProductId.get(product.id);
+
+  return {
+    id: product.id,
+    reportTemplateId: product.reportTemplateId,
+    code: product.code,
+    name: product.name,
+    description: product.description,
+    accessCount: product.accessCount,
+    validityDays: product.validityDays,
+    currency: product.currency,
+    priceNet: product.priceNet,
+    vatRate: product.vatRate,
+    priceGross: product.priceGross,
+    availableCount: poolItem?.available ?? 0,
+  };
+});
+
   return {
     tenant: {
       id: ctx.tenantId,
@@ -276,12 +326,8 @@ export async function getTenantReportAccessOrdersPageData({
       name: ctx.tenantSlug,
     },
     billingProfile,
+    products,
     orders,
-    pool: Array.from(poolByProductId.values()).sort((left, right) =>
-      left.productName.localeCompare(right.productName, "pl", {
-        sensitivity: "base",
-        numeric: true,
-      }),
-    ),
+    pool,
   };
 }

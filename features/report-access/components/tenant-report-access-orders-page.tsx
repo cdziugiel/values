@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getTenantReportAccessOrdersPageData } from "../api/tenant-report-access-orders.queries";
 import { ReportAccessOrdersHistory } from "./report-access-orders-history";
 import { TenantReportAccessPoolSummary } from "./tenant-report-access-pool-summary";
+import { TenantReportAccessPurchaseDialog } from "./tenant-report-access-purchase-dialog";
 
 type TenantReportAccessOrdersPageProps = {
   tenantSlug: string;
@@ -72,13 +73,11 @@ export async function TenantReportAccessOrdersPage({
             </div>
 
             <div className="flex flex-col gap-2 md:min-w-56">
-              <BrandButton
-                href={`/t/${tenantSlug}/assessment-projects`}
-                variant="secondary"
-              >
-                <ArrowLeft size={16} />
-                Wróć do projektów
-              </BrandButton>
+              <TenantReportAccessPurchaseDialog
+  tenantSlug={tenantSlug}
+  products={data.products}
+  billingProfile={data.billingProfile}
+/>
 
               <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
                 <div className="flex items-center gap-3">

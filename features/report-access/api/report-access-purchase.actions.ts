@@ -1,5 +1,18 @@
+// features/report-access/api/report-access-purchase.actions.ts
 "use server";
 
+
+import { createHash, randomBytes, randomUUID } from "crypto";
+import { revalidatePath } from "next/cache";
+
+import {
+  billingProfiles,
+  reportAccessCodes,
+  reportAccessProducts,
+} from "@/drizzle/schema";
+
+import { requirePermission } from "@/server/permissions/require-permission";
+import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -263,4 +276,305 @@ export async function unlockReportAccessPlaceholderAction(
       reportTemplateVersionId: grant.reportTemplateVersionId,
     }),
   );
+}
+
+
+export type ReportAccessPurchaseState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+function purchaseFail(message: string): ReportAccessPurchaseState {
+  return {
+    status: "error",
+    message,
+  };
+}
+
+function normalizeOptionalString(value: FormDataEntryValue | null) {
+  const normalized = normalizeString(value);
+
+  return normalized || null;
+}
+
+function checkboxValue(value: FormDataEntryValue | null) {
+  return value === "on" || value === "true" || value === "1";
+}
+
+function generateRawReportAccessCode() {
+  const partA = randomBytes(3).toString("hex").toUpperCase();
+  const partB = randomBytes(3).toString("hex").toUpperCase();
+  const partC = randomBytes(3).toString("hex").toUpperCase();
+
+  return `HV-${partA}-${partB}-${partC}`;
+}
+
+function hashReportAccessCode(code: string) {
+  return createHash("sha256").update(code).digest("hex");
+}
+
+function buildCodePreview(code: string) {
+  return `${code.slice(0, 6)}…${code.slice(-4)}`;
+}
+
+function buildValidUntil(now: Date, validityDays: number | null) {
+  if (!validityDays || validityDays <= 0) {
+    return null;
+  }
+
+  return new Date(now.getTime() + validityDays * 24 * 60 * 60 * 1000);
+}
+
+export async function purchaseTenantReportAccessAction(
+  _previousState: ReportAccessPurchaseState,
+  formData: FormData,
+): Promise<ReportAccessPurchaseState> {
+  const tenantSlug = normalizeString(formData.get("tenantSlug"));
+  const productId = normalizeString(formData.get("productId"));
+  const quantity = Number(formData.get("quantity") ?? 0);
+
+  if (!tenantSlug || !productId) {
+    return purchaseFail("Brakuje produktu lub tenanta.");
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) {
+    return purchaseFail("Podaj liczbę od 1 do 500.");
+  }
+
+  const ctx = await requireTenantContext({ tenantSlug });
+
+  requirePermission(ctx, "assessment_project:read");
+
+  const product = await controlDb.query.reportAccessProducts.findFirst({
+    where: and(
+      eq(reportAccessProducts.id, productId),
+      eq(reportAccessProducts.status, "active"),
+      isNull(reportAccessProducts.deletedAt),
+    ),
+  });
+
+  if (!product) {
+    return purchaseFail("Wybrany produkt nie jest już dostępny.");
+  }
+
+  const now = new Date();
+
+  const accessCountPerProduct = Math.max(Number(product.accessCount ?? 1), 1);
+  const generatedAccessCount = quantity * accessCountPerProduct;
+
+  const unitNetNumber = moneyToNumber(product.priceNet);
+  const unitGrossNumber = moneyToNumber(product.priceGross);
+  const unitVatNumber = Math.max(unitGrossNumber - unitNetNumber, 0);
+
+  const totalNetNumber = unitNetNumber * quantity;
+  const totalGrossNumber = unitGrossNumber * quantity;
+  const totalVatNumber = unitVatNumber * quantity;
+
+  const unitNet = moneyString(unitNetNumber);
+  const unitVat = moneyString(unitVatNumber);
+  const unitGross = moneyString(unitGrossNumber);
+
+  const totalNet = moneyString(totalNetNumber);
+  const totalVat = moneyString(totalVatNumber);
+  const totalGross = moneyString(totalGrossNumber);
+
+  const invoiceRequested = checkboxValue(formData.get("invoiceRequested"));
+  const saveBillingProfile = checkboxValue(formData.get("saveBillingProfile"));
+
+  const billingType =
+    normalizeString(formData.get("billingType")) === "individual"
+      ? "individual"
+      : "company";
+
+  const billingSnapshot = invoiceRequested
+    ? {
+        type: billingType,
+        companyName: normalizeOptionalString(formData.get("companyName")),
+        taxId: normalizeOptionalString(formData.get("taxId")),
+        firstName: normalizeOptionalString(formData.get("firstName")),
+        lastName: normalizeOptionalString(formData.get("lastName")),
+        email: normalizeOptionalString(formData.get("billingEmail")),
+        phone: normalizeOptionalString(formData.get("phone")),
+        country: normalizeOptionalString(formData.get("country")) ?? "PL",
+        postalCode: normalizeOptionalString(formData.get("postalCode")),
+        city: normalizeOptionalString(formData.get("city")),
+        street: normalizeOptionalString(formData.get("street")),
+        buildingNumber: normalizeOptionalString(formData.get("buildingNumber")),
+        apartmentNumber: normalizeOptionalString(
+          formData.get("apartmentNumber"),
+        ),
+        invoiceEmail: normalizeOptionalString(formData.get("invoiceEmail")),
+      }
+    : {};
+
+  let billingProfileId: string | null = null;
+
+  if (invoiceRequested && saveBillingProfile) {
+    const [billingProfile] = await controlDb
+      .insert(billingProfiles)
+      .values({
+        ownerType: "tenant",
+
+        tenantSlug: ctx.tenantSlug,
+        tenantId: ctx.tenantId,
+
+        type: billingType,
+
+        companyName: normalizeOptionalString(formData.get("companyName")),
+        taxId: normalizeOptionalString(formData.get("taxId")),
+
+        firstName: normalizeOptionalString(formData.get("firstName")),
+        lastName: normalizeOptionalString(formData.get("lastName")),
+
+        email: normalizeOptionalString(formData.get("billingEmail")),
+        phone: normalizeOptionalString(formData.get("phone")),
+
+        country: normalizeOptionalString(formData.get("country")) ?? "PL",
+        postalCode: normalizeOptionalString(formData.get("postalCode")),
+        city: normalizeOptionalString(formData.get("city")),
+        street: normalizeOptionalString(formData.get("street")),
+        buildingNumber: normalizeOptionalString(
+          formData.get("buildingNumber"),
+        ),
+        apartmentNumber: normalizeOptionalString(
+          formData.get("apartmentNumber"),
+        ),
+
+        invoiceEmail: normalizeOptionalString(formData.get("invoiceEmail")),
+
+        createdAt: now,
+        updatedAt: now,
+        createdBy: ctx.userId,
+        updatedBy: ctx.userId,
+      })
+      .returning({
+        id: billingProfiles.id,
+      });
+
+    billingProfileId = billingProfile.id;
+  }
+
+  const [order] = await controlDb
+    .insert(reportAccessOrders)
+    .values({
+      buyerType: "tenant",
+
+      tenantSlug: ctx.tenantSlug,
+      tenantId: ctx.tenantId,
+      buyerUserId: ctx.userId,
+
+      status: "paid",
+
+      paymentProvider: "placeholder",
+      paymentProviderOrderId: `tenant-placeholder:${randomUUID()}`,
+
+      currency: product.currency ?? "PLN",
+
+      totalNet,
+      totalVat,
+      totalGross,
+
+      invoiceRequested,
+      billingProfileId,
+      billingSnapshot,
+
+      metadata: {
+        placeholderPayment: true,
+        source: "tenant_report_access_orders_page",
+        tenantSlug: ctx.tenantSlug,
+        tenantId: ctx.tenantId,
+        productId: product.id,
+        productCode: product.code,
+        productName: product.name,
+        productAccessCount: accessCountPerProduct,
+        quantity,
+        generatedAccessCount,
+      },
+
+      paidAt: now,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: ctx.userId,
+      updatedBy: ctx.userId,
+    })
+    .returning({
+      id: reportAccessOrders.id,
+    });
+
+  await controlDb.insert(reportAccessOrderItems).values({
+    orderId: order.id,
+    productId: product.id,
+
+    quantity,
+
+    unitNet,
+    unitVat,
+    unitGross,
+
+    totalNet,
+    totalVat,
+    totalGross,
+
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const validUntil = buildValidUntil(now, product.validityDays);
+
+  const codeRows = Array.from({ length: generatedAccessCount }, () => {
+    const rawCode = generateRawReportAccessCode();
+
+    return {
+      productId: product.id,
+      orderId: order.id,
+
+      codeHash: hashReportAccessCode(rawCode),
+      codePreview: buildCodePreview(rawCode),
+
+      status: "available",
+
+      tenantSlug: ctx.tenantSlug,
+      tenantId: ctx.tenantId,
+
+      ownerUserId: null,
+      purchasedByUserId: ctx.userId,
+
+      assignedToEmail: null,
+      assignedToUserId: null,
+
+      assessmentProjectId: null,
+      assessmentSessionId: null,
+      assessmentAccessLinkId: null,
+
+      redeemedByUserId: null,
+      redeemedAt: null,
+
+      validFrom: now,
+      validUntil,
+
+      metadata: {
+        placeholderPayment: true,
+        source: "tenant_purchase",
+        productCode: product.code,
+        productName: product.name,
+        orderQuantity: quantity,
+        productAccessCount: accessCountPerProduct,
+      },
+
+      createdAt: now,
+      updatedAt: now,
+      createdBy: ctx.userId,
+      updatedBy: ctx.userId,
+    };
+  });
+
+  await controlDb.insert(reportAccessCodes).values(codeRows);
+
+  revalidatePath(`/t/${ctx.tenantSlug}/report-access`);
+  revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
+
+  return {
+    status: "success",
+    message: `Zakupiono ${generatedAccessCount} dostępów. Dostępy trafiły do puli partnera.`,
+  };
 }

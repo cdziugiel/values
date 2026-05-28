@@ -121,7 +121,7 @@ export default async function TenantLayout({
       description: "Badania, respondenci, kwestionariusze i wyniki.",
     },
     {
-      label: "Użytkownicy",
+      label: "Uprawnienia",
       href: `/t/${ctx.tenantSlug}/members`,
       icon: <ShieldCheck size={15} />,
       description: "Zespół partnera, role i dostęp użytkowników.",

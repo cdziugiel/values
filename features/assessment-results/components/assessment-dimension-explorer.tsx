@@ -294,8 +294,9 @@ export function AssessmentDimensionExplorer({
         useState<AssessmentResultMetricKey>("averageWeightedMeanScore");
     const [viewMode, setViewMode] = useState<ViewMode>("list");
     const [selectedQuestionnaireVersionId, setSelectedQuestionnaireVersionId] =
-        useState<string>("all");
-    const [selectedCategoryCode, setSelectedCategoryCode] = useState<string>("all");
+        useState<string>("");
+
+    const [selectedCategoryCode, setSelectedCategoryCode] = useState<string>("");
     const [selectedDimensionIds, setSelectedDimensionIds] = useState<Set<string>>(
         () => new Set(),
     );
@@ -319,9 +320,24 @@ export function AssessmentDimensionExplorer({
         [aggregates],
     );
 
+    useEffect(() => {
+        if (questionnaireOptions.length === 0) {
+            setSelectedQuestionnaireVersionId("");
+            setSelectedDimensionIds(new Set());
+            return;
+        }
+
+        const availableIds = new Set(questionnaireOptions.map((option) => option.id));
+
+        if (!selectedQuestionnaireVersionId || !availableIds.has(selectedQuestionnaireVersionId)) {
+            setSelectedQuestionnaireVersionId(questionnaireOptions[0]?.id ?? "");
+            setSelectedDimensionIds(new Set());
+        }
+    }, [questionnaireOptions, selectedQuestionnaireVersionId]);
+
     const aggregatesForQuestionnaire = useMemo(() => {
-        if (selectedQuestionnaireVersionId === "all") {
-            return aggregates;
+        if (!selectedQuestionnaireVersionId) {
+            return [];
         }
 
         return aggregates.filter(
@@ -344,6 +360,20 @@ export function AssessmentDimensionExplorer({
         ).sort((a, b) => a.name.localeCompare(b.name, "pl"));
     }, [aggregatesForQuestionnaire]);
 
+    useEffect(() => {
+        if (categoryOptions.length === 0) {
+            setSelectedCategoryCode("");
+            setSelectedDimensionIds(new Set());
+            return;
+        }
+
+        const availableCodes = new Set(categoryOptions.map((category) => category.code));
+
+        if (!selectedCategoryCode || !availableCodes.has(selectedCategoryCode)) {
+            setSelectedCategoryCode(categoryOptions[0]?.code ?? "");
+            setSelectedDimensionIds(new Set());
+        }
+    }, [categoryOptions, selectedCategoryCode]);
 
     useEffect(() => {
         if (viewMode !== "cross") {
@@ -379,8 +409,8 @@ export function AssessmentDimensionExplorer({
 
 
     const filteredByCategory = useMemo(() => {
-        if (selectedCategoryCode === "all") {
-            return aggregatesForQuestionnaire;
+        if (!selectedCategoryCode) {
+            return [];
         }
 
         return aggregatesForQuestionnaire.filter((aggregate) =>
@@ -413,8 +443,8 @@ export function AssessmentDimensionExplorer({
     }, [filteredByCategory, selectedDimensionIds]);
 
     const crossResultsForQuestionnaire = useMemo(() => {
-        if (selectedQuestionnaireVersionId === "all") {
-            return crossCategoryResults;
+        if (!selectedQuestionnaireVersionId) {
+            return [];
         }
 
         return crossCategoryResults.filter(
@@ -438,13 +468,6 @@ export function AssessmentDimensionExplorer({
             selectedDimensionIds.size === 0
                 ? directedResults
                 : directedResults.filter((result) => {
-                    if (selectedCategoryCode === "all") {
-                        return (
-                            selectedDimensionIds.has(result.xDimensionId) ||
-                            selectedDimensionIds.has(result.yDimensionId)
-                        );
-                    }
-
                     if (selectedCategoryCode === result.xCategoryCode) {
                         return selectedDimensionIds.has(result.xDimensionId);
                     }
@@ -634,7 +657,7 @@ export function AssessmentDimensionExplorer({
                             }}
                             className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                         >
-                            <option value="all">Wszystkie kategorie</option>
+
                             {categoryOptions.map((category) => (
                                 <option key={category.code} value={category.code}>
                                     {category.name}
@@ -661,7 +684,7 @@ export function AssessmentDimensionExplorer({
                         <button
                             type="button"
                             onClick={() => {
-                                setSelectedCategoryCode("all");
+                                setSelectedCategoryCode(categoryOptions[0]?.code ?? "");
                                 setSelectedDimensionIds(new Set());
 
                                 const nextX = categoryOptions[0]?.code ?? "";
@@ -788,20 +811,20 @@ export function AssessmentDimensionExplorer({
                     </div>
                 ) : null}
 
-{viewMode === "cross" && (xValueOrder.length > 0 || yValueOrder.length > 0) ? (
-  <div className="flex justify-end">
-    <button
-      type="button"
-      onClick={() => {
-        setXValueOrder([]);
-        setYValueOrder([]);
-      }}
-      className="rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#6b7280] transition hover:bg-white hover:text-[#171717]"
-    >
-      Przywróć kolejność alfabetyczną
-    </button>
-  </div>
-) : null}
+                {viewMode === "cross" && (xValueOrder.length > 0 || yValueOrder.length > 0) ? (
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setXValueOrder([]);
+                                setYValueOrder([]);
+                            }}
+                            className="rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#6b7280] transition hover:bg-white hover:text-[#171717]"
+                        >
+                            Przywróć kolejność alfabetyczną
+                        </button>
+                    </div>
+                ) : null}
                 {viewMode === "cross" ? (
                     !crossMatrix ||
                         crossMatrix.xValues.length === 0 ||
@@ -827,48 +850,48 @@ export function AssessmentDimensionExplorer({
                                                 Y \ X
                                             </th>
 
-{crossMatrix.xValues.map((xValue, index) => {
-  const key = getCrossValueKey(xValue);
+                                            {crossMatrix.xValues.map((xValue, index) => {
+                                                const key = getCrossValueKey(xValue);
 
-  return (
-    <th
-      key={key}
-      className="group relative w-[132px] min-w-[132px] border-b border-black/10 px-3 py-3 text-center font-semibold"
-      title={xValue.name}
-    >
-      <span className="block truncate px-7 transition-opacity group-hover:opacity-35">
-        {xValue.name}
-      </span>
+                                                return (
+                                                    <th
+                                                        key={key}
+                                                        className="group relative w-[132px] min-w-[132px] border-b border-black/10 px-3 py-3 text-center font-semibold"
+                                                        title={xValue.name}
+                                                    >
+                                                        <span className="block truncate px-7 transition-opacity group-hover:opacity-35">
+                                                            {xValue.name}
+                                                        </span>
 
-      <AxisMoveButtons
-        canMovePrevious={index > 0}
-        canMoveNext={index < crossMatrix.xValues.length - 1}
-        previousLabel="←"
-        nextLabel="→"
-        onMovePrevious={() =>
-          setXValueOrder((currentOrder) =>
-            moveInOrder({
-              values: crossMatrix.xValues,
-              currentOrder,
-              key,
-              direction: -1,
-            }),
-          )
-        }
-        onMoveNext={() =>
-          setXValueOrder((currentOrder) =>
-            moveInOrder({
-              values: crossMatrix.xValues,
-              currentOrder,
-              key,
-              direction: 1,
-            }),
-          )
-        }
-      />
-    </th>
-  );
-})}
+                                                        <AxisMoveButtons
+                                                            canMovePrevious={index > 0}
+                                                            canMoveNext={index < crossMatrix.xValues.length - 1}
+                                                            previousLabel="←"
+                                                            nextLabel="→"
+                                                            onMovePrevious={() =>
+                                                                setXValueOrder((currentOrder) =>
+                                                                    moveInOrder({
+                                                                        values: crossMatrix.xValues,
+                                                                        currentOrder,
+                                                                        key,
+                                                                        direction: -1,
+                                                                    }),
+                                                                )
+                                                            }
+                                                            onMoveNext={() =>
+                                                                setXValueOrder((currentOrder) =>
+                                                                    moveInOrder({
+                                                                        values: crossMatrix.xValues,
+                                                                        currentOrder,
+                                                                        key,
+                                                                        direction: 1,
+                                                                    }),
+                                                                )
+                                                            }
+                                                        />
+                                                    </th>
+                                                );
+                                            })}
                                         </tr>
                                     </thead>
 
@@ -878,60 +901,60 @@ export function AssessmentDimensionExplorer({
                                                 key={`${row.yValue.categoryCode}:${row.yValue.code}`}
                                                 className="border-b border-black/10"
                                             >
-<td
-  className="group sticky left-0 z-10 w-[180px] min-w-[180px] border-b border-black/10 bg-white px-4 py-4 text-left font-semibold text-[#171717]"
-  title={row.yValue.name}
->
-  <div className="relative">
-    <span className="block truncate pr-16 transition-opacity group-hover:opacity-35">
-      {row.yValue.name}
-    </span>
+                                                <td
+                                                    className="group sticky left-0 z-10 w-[180px] min-w-[180px] border-b border-black/10 bg-white px-4 py-4 text-left font-semibold text-[#171717]"
+                                                    title={row.yValue.name}
+                                                >
+                                                    <div className="relative">
+                                                        <span className="block truncate pr-16 transition-opacity group-hover:opacity-35">
+                                                            {row.yValue.name}
+                                                        </span>
 
-    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-      <button
-        type="button"
-        aria-label="Przesuń wiersz w górę"
-        disabled={rowIndex === 0}
-        onClick={(event) => {
-          event.stopPropagation();
+                                                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                                            <button
+                                                                type="button"
+                                                                aria-label="Przesuń wiersz w górę"
+                                                                disabled={rowIndex === 0}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
 
-          setYValueOrder((currentOrder) =>
-            moveInOrder({
-              values: crossMatrix.yValues,
-              currentOrder,
-              key: getCrossValueKey(row.yValue),
-              direction: -1,
-            }),
-          );
-        }}
-        className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
-      >
-        ↑
-      </button>
+                                                                    setYValueOrder((currentOrder) =>
+                                                                        moveInOrder({
+                                                                            values: crossMatrix.yValues,
+                                                                            currentOrder,
+                                                                            key: getCrossValueKey(row.yValue),
+                                                                            direction: -1,
+                                                                        }),
+                                                                    );
+                                                                }}
+                                                                className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
+                                                            >
+                                                                ↑
+                                                            </button>
 
-      <button
-        type="button"
-        aria-label="Przesuń wiersz w dół"
-        disabled={rowIndex === crossMatrix.yValues.length - 1}
-        onClick={(event) => {
-          event.stopPropagation();
+                                                            <button
+                                                                type="button"
+                                                                aria-label="Przesuń wiersz w dół"
+                                                                disabled={rowIndex === crossMatrix.yValues.length - 1}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
 
-          setYValueOrder((currentOrder) =>
-            moveInOrder({
-              values: crossMatrix.yValues,
-              currentOrder,
-              key: getCrossValueKey(row.yValue),
-              direction: 1,
-            }),
-          );
-        }}
-        className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
-      >
-        ↓
-      </button>
-    </span>
-  </div>
-</td>
+                                                                    setYValueOrder((currentOrder) =>
+                                                                        moveInOrder({
+                                                                            values: crossMatrix.yValues,
+                                                                            currentOrder,
+                                                                            key: getCrossValueKey(row.yValue),
+                                                                            direction: 1,
+                                                                        }),
+                                                                    );
+                                                                }}
+                                                                className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
+                                                            >
+                                                                ↓
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                </td>
 
                                                 {row.values.map((cell) => (
                                                     <td
@@ -1031,47 +1054,47 @@ export function AssessmentDimensionExplorer({
 
 
 function AxisMoveButtons({
-  canMovePrevious,
-  canMoveNext,
-  previousLabel,
-  nextLabel,
-  onMovePrevious,
-  onMoveNext,
+    canMovePrevious,
+    canMoveNext,
+    previousLabel,
+    nextLabel,
+    onMovePrevious,
+    onMoveNext,
 }: {
-  canMovePrevious: boolean;
-  canMoveNext: boolean;
-  previousLabel: string;
-  nextLabel: string;
-  onMovePrevious: () => void;
-  onMoveNext: () => void;
+    canMovePrevious: boolean;
+    canMoveNext: boolean;
+    previousLabel: string;
+    nextLabel: string;
+    onMovePrevious: () => void;
+    onMoveNext: () => void;
 }) {
-  return (
-    <span className="pointer-events-none absolute inset-0 flex items-center justify-between px-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-      <button
-        type="button"
-        aria-label={previousLabel}
-        disabled={!canMovePrevious}
-        onClick={(event) => {
-          event.stopPropagation();
-          onMovePrevious();
-        }}
-        className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
-      >
-        {previousLabel}
-      </button>
+    return (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-between px-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+                type="button"
+                aria-label={previousLabel}
+                disabled={!canMovePrevious}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onMovePrevious();
+                }}
+                className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
+            >
+                {previousLabel}
+            </button>
 
-      <button
-        type="button"
-        aria-label={nextLabel}
-        disabled={!canMoveNext}
-        onClick={(event) => {
-          event.stopPropagation();
-          onMoveNext();
-        }}
-        className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
-      >
-        {nextLabel}
-      </button>
-    </span>
-  );
+            <button
+                type="button"
+                aria-label={nextLabel}
+                disabled={!canMoveNext}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onMoveNext();
+                }}
+                className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-xs font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-25"
+            >
+                {nextLabel}
+            </button>
+        </span>
+    );
 }

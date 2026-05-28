@@ -339,7 +339,7 @@ export async function AssessmentSessionResultsPage({
             </div>
           </div>
 
-          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-4 md:p-8">
+          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-3 md:p-8">
             <MetricCard
               label="Status sesji"
               value={statusLabel(data.session.status)}
@@ -359,11 +359,6 @@ export async function AssessmentSessionResultsPage({
               icon={<CheckCircle2 size={18} />}
             />
 
-            <MetricCard
-              label="Liczba wyników"
-              value={data.scores.length}
-              icon={<Layers3 size={18} />}
-            />
           </div>
         </section>
 
@@ -437,155 +432,7 @@ export async function AssessmentSessionResultsPage({
           )}
         </SectionCard>
 
-        <SectionCard
-          icon={<Table2 size={20} />}
-          title="Odpowiedzi i scoring itemów"
-          description="Widok techniczny pokazujący, jak odpowiedzi respondenta zostały przeliczone na wartości scoringowe."
-        >
-          {data.responseDiagnostics.length === 0 ? (
-            <EmptyPanel>Brak itemów diagnostycznych dla tej sesji.</EmptyPanel>
-          ) : (
-            <DataTable minWidth="min-w-[1400px]">
-              <TableHead>
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Kwestionariusz</th>
-                  <th className="px-4 py-3 font-semibold">Strona</th>
-                  <th className="px-4 py-3 font-semibold">Item</th>
-                  <th className="px-4 py-3 font-semibold">Typ</th>
-                  <th className="px-4 py-3 font-semibold">Odpowiedź</th>
-                  <th className="px-4 py-3 text-right font-semibold">Wynik bazowy</th>
-                  <th className="px-4 py-3 font-semibold">Wymiary</th>
-                  <th className="px-4 py-3 font-semibold">Reverse</th>
-                  <th className="px-4 py-3 font-semibold">Waga</th>
-                  <th className="px-4 py-3 text-right font-semibold">Wynik po reverse</th>
-                  <th className="px-4 py-3 text-right font-semibold">Wynik ważony</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                </tr>
-              </TableHead>
-
-              <tbody>
-                {data.responseDiagnostics.map((item) => {
-                  if (item.dimensions.length === 0) {
-                    return (
-                      <tr key={item.itemId} className="border-b border-black/10 last:border-0">
-                        <td className="px-4 py-4">
-                          <div className="font-semibold text-[#171717]">
-                            {item.questionnaireName}
-                          </div>
-                          <div className="text-xs text-[#6b7280]">
-                            {item.questionnaireVersionName}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-[#171717]">
-                          {item.pageTitle ?? "—"}
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <div className="font-semibold text-[#171717]">{item.itemText}</div>
-                          <div className="font-mono text-xs text-[#6b7280]">
-                            {item.itemCode}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-[#171717]">{item.itemType}</td>
-                        <td className="px-4 py-4 text-[#171717]">{item.responseDisplayValue}</td>
-                        <td className="px-4 py-4 text-right text-[#171717]">
-                          {formatNumber(item.numericScore)}
-                        </td>
-                        <td className="px-4 py-4 text-[#6b7280]">—</td>
-                        <td className="px-4 py-4 text-[#6b7280]">—</td>
-                        <td className="px-4 py-4 text-[#6b7280]">—</td>
-                        <td className="px-4 py-4 text-right text-[#6b7280]">—</td>
-                        <td className="px-4 py-4 text-right text-[#6b7280]">—</td>
-                        <td className="px-4 py-4">
-                          <BadgePill className="border-black/10 bg-white/70 text-[#6b7280]">
-                            Brak wymiaru
-                          </BadgePill>
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return item.dimensions.map((dimension, dimensionIndex) => (
-                    <tr
-                      key={`${item.itemId}:${dimension.scoreConfigId}`}
-                      className="border-b border-black/10 last:border-0"
-                    >
-                      {dimensionIndex === 0 ? (
-                        <>
-                          <td rowSpan={item.dimensions.length} className="px-4 py-4 align-top">
-                            <div className="font-semibold text-[#171717]">
-                              {item.questionnaireName}
-                            </div>
-                            <div className="text-xs text-[#6b7280]">
-                              {item.questionnaireVersionName}
-                            </div>
-                          </td>
-
-                          <td rowSpan={item.dimensions.length} className="px-4 py-4 align-top text-[#171717]">
-                            {item.pageTitle ?? "—"}
-                          </td>
-
-                          <td rowSpan={item.dimensions.length} className="px-4 py-4 align-top">
-                            <div className="font-semibold text-[#171717]">{item.itemText}</div>
-                            <div className="font-mono text-xs text-[#6b7280]">
-                              {item.itemCode}
-                            </div>
-                          </td>
-
-                          <td rowSpan={item.dimensions.length} className="px-4 py-4 align-top text-[#171717]">
-                            {item.itemType}
-                          </td>
-
-                          <td rowSpan={item.dimensions.length} className="px-4 py-4 align-top text-[#171717]">
-                            {item.responseDisplayValue}
-                          </td>
-
-                          <td rowSpan={item.dimensions.length} className="px-4 py-4 text-right align-top text-[#171717]">
-                            {formatNumber(item.numericScore)}
-                          </td>
-                        </>
-                      ) : null}
-
-                      <td className="px-4 py-4">
-                        <div className="font-semibold text-[#171717]">
-                          {dimension.dimensionName}
-                        </div>
-                        <div className="font-mono text-xs text-[#6b7280]">
-                          {dimension.dimensionCode}
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-4 text-[#171717]">
-                        {dimension.reverseScored ? "tak" : "nie"}
-                      </td>
-
-                      <td className="px-4 py-4 text-[#171717]">
-                        {dimension.weight ?? "—"}
-                      </td>
-
-                      <td className="px-4 py-4 text-right text-[#171717]">
-                        {formatNumber(dimension.numericScoreAfterReverse)}
-                      </td>
-
-                      <td className="px-4 py-4 text-right text-[#171717]">
-                        {formatNumber(dimension.weightedScore)}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <DiagnosticStatusBadge
-                          responseExists={item.responseExists}
-                          numericScore={item.numericScore}
-                        />
-                      </td>
-                    </tr>
-                  ));
-                })}
-              </tbody>
-            </DataTable>
-          )}
-        </SectionCard>
+        
 
         <section className="rounded-[2rem] border border-black/10 bg-white/60 p-6 shadow-sm backdrop-blur">
           <div className="flex gap-4">
@@ -595,11 +442,11 @@ export async function AssessmentSessionResultsPage({
 
             <div>
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-[#171717]">
-                Uwagi diagnostyczne
+                Uwagi
               </h2>
 
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6b7280]">
-                Ten widok jest techniczno-diagnostyczny. Służy do sprawdzenia,
+                To jest widok techniczny. Służy do sprawdzenia,
                 czy scoring działa poprawnie. Nie jest finalnym raportem
                 psychologicznym ani raportem dla respondenta.
               </p>
