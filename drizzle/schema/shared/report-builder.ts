@@ -23,14 +23,13 @@ export const reportTemplates = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
 
-    questionnaireId: uuid("questionnaire_id")
-      .notNull()
-      .references(() => questionnaires.id, {
-        onDelete: "restrict",
-      }),
+    questionnaireId: uuid("questionnaire_id").references(() => questionnaires.id, {
+      onDelete: "restrict",
+    }),
 
     code: varchar("code", { length: 120 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    kind: varchar("kind", { length: 60 }).notNull().default("personal"),
     description: text("description"),
 
     status: varchar("status", { length: 40 }).notNull().default("draft"),
@@ -48,10 +47,8 @@ export const reportTemplates = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => ({
-    questionnaireCodeUnique: uniqueIndex(
-      "report_templates_questionnaire_code_unique",
-    )
-      .on(table.questionnaireId, table.code)
+    codeUnique: uniqueIndex("report_templates_code_unique")
+      .on(table.code)
       .where(sql`deleted_at is null`),
   }),
 );
@@ -67,11 +64,12 @@ export const reportTemplateVersions = pgTable(
         onDelete: "restrict",
       }),
 
-    questionnaireVersionId: uuid("questionnaire_version_id")
-      .notNull()
-      .references(() => questionnaireVersions.id, {
-        onDelete: "restrict",
-      }),
+questionnaireVersionId: uuid("questionnaire_version_id").references(
+  () => questionnaireVersions.id,
+  {
+    onDelete: "restrict",
+  },
+),
 
     version: varchar("version", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),

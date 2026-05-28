@@ -53,11 +53,18 @@ type SnapshotResponse = {
 
 type SnapshotPayload = {
   version?: number | null;
+  reportKind?: string | null;
   tenantSlug?: string | null;
   frozenAt?: string | Date | null;
 
   session?: Record<string, unknown> | null;
   project?: Record<string, unknown> | null;
+  respondent?: Record<string, unknown> | null;
+  organization?: Record<string, unknown> | null;
+  unit?: Record<string, unknown> | null;
+  team?: Record<string, unknown> | null;
+  scope?: Record<string, unknown> | null;
+
   questionnaires?: unknown[] | null;
 
   dimensionCategories?: unknown[] | null;
@@ -66,6 +73,12 @@ type SnapshotPayload = {
   responses?: SnapshotResponse[] | null;
   analytics?: Record<string, unknown> | null;
   crossScores?: unknown;
+
+  primary?: unknown;
+  sources?: unknown[] | null;
+  composite?: Record<string, unknown> | null;
+  aggregate?: Record<string, unknown> | null;
+  comparison?: Record<string, unknown> | null;
 };
 
 type ReportScore = {
@@ -557,13 +570,13 @@ const responsesByPage = groupResponsesByPage(responses);
     version: 1,
 
     payload,
-
     tenantSlug: payload?.tenantSlug ?? null,
     frozenAt: payload?.frozenAt ?? null,
-
-    session: payload?.session ?? null,
-    project: payload?.project ?? null,
-    questionnaires: payload?.questionnaires ?? [],
+    session: payload?.session ?? {},
+    project: payload?.project ?? {},
+    questionnaires: Array.isArray(payload?.questionnaires)
+      ? payload.questionnaires
+      : [],
 
     dimensionCategories: payload?.dimensionCategories ?? [],
     dimensions: payload?.dimensions ?? [],
@@ -605,6 +618,32 @@ const responsesByPage = groupResponsesByPage(responses);
         return `${Math.round(parsed * 100)}%`;
       },
     },
+    reportKind: payload?.reportKind ?? "personal",
+
+respondent: payload?.respondent ?? {},
+
+primary: payload?.primary ?? null,
+
+sources: Array.isArray(payload?.sources) ? payload.sources : [],
+
+composite:
+  payload?.composite && typeof payload.composite === "object"
+    ? payload.composite
+    : {},
+
+aggregate:
+  payload?.aggregate && typeof payload.aggregate === "object"
+    ? payload.aggregate
+    : {},
+
+comparison:
+  payload?.comparison && typeof payload.comparison === "object"
+    ? payload.comparison
+    : {},
+    organization: payload?.organization ?? {},
+unit: payload?.unit ?? {},
+team: payload?.team ?? {},
+scope: payload?.scope ?? {},
   };
 }
 

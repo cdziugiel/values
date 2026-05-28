@@ -10,7 +10,16 @@ import {
   reportTemplateVersions,
 } from "@/drizzle/schema";
 import { controlDb } from "@/server/db/control-db";
+import {
+  buildDefaultReportTemplateConfig,
+  buildDefaultReportTemplateDataBindings,
+  isQuestionnaireBoundReportKind,
+} from "../lib/report-template-kind-defaults";
 
+import { requireSuperAdmin } from "@/server/auth/require-super-admin";
+
+import { updatePersonalCompositeSourcesSchema } from "../forms/report-template-admin.schema";
+import { buildPersonalCompositeDataBindings } from "../lib/personal-composite-bindings";
 import {
   archiveReportTemplateSchema,
   archiveReportTemplateVersionSchema,
@@ -57,6 +66,18 @@ function parseJsonObject(value: string, fieldLabel: string) {
   }
 }
 
+function assertQuestionnaireRequiredForTemplateKind({
+  kind,
+  questionnaireId,
+}: {
+  kind: string;
+  questionnaireId?: string | null;
+}) {
+  if (isQuestionnaireBoundReportKind(kind) && !questionnaireId) {
+    throw new Error("Raport personalny musi być powiązany z kwestionariuszem.");
+  }
+}
+
 async function assertQuestionnaireExists(questionnaireId: string) {
   const questionnaire = await controlDb.query.questionnaires.findFirst({
     where: and(
@@ -72,6 +93,93 @@ async function assertQuestionnaireExists(questionnaireId: string) {
   return questionnaire;
 }
 
+export async function updatePersonalCompositeSourcesAsSuperAdmin(
+  input: unknown,
+) {
+  const actor = await requireSuperAdmin();
+
+  const parsed = updatePersonalCompositeSourcesSchema.parse(input);
+
+  const [version] = await controlDb
+    .select({
+      id: reportTemplateVersions.id,
+      reportTemplateId: reportTemplateVersions.reportTemplateId,
+      dataBindings: reportTemplateVersions.dataBindings,
+      templateKind: reportTemplates.kind,
+    })
+    .from(reportTemplateVersions)
+    .innerJoin(
+      reportTemplates,
+      eq(reportTemplates.id, reportTemplateVersions.reportTemplateId),
+    )
+    .where(
+      and(
+        eq(reportTemplateVersions.id, parsed.reportTemplateVersionId),
+        isNull(reportTemplateVersions.deletedAt),
+        isNull(reportTemplates.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!version) {
+    throw new Error("Nie znaleziono wersji template’u raportu.");
+  }
+
+  if (version.templateKind !== "personal_composite") {
+    throw new Error(
+      "Źródła kwestionariuszy można konfigurować tylko dla raportu personal_composite.",
+    );
+  }
+
+  const questionnaireIds = parsed.sources.map((source) => source.questionnaireId);
+
+  const existingQuestionnaires = await controlDb
+    .select({
+      id: questionnaires.id,
+      code: questionnaires.code,
+      name: questionnaires.name,
+    })
+    .from(questionnaires)
+    .where(isNull(questionnaires.deletedAt));
+
+  const questionnaireById = new Map(
+    existingQuestionnaires.map((questionnaire) => [
+      questionnaire.id,
+      questionnaire,
+    ]),
+  );
+
+  for (const source of parsed.sources) {
+    const questionnaire = questionnaireById.get(source.questionnaireId);
+
+    if (!questionnaire) {
+      throw new Error("Wybrany kwestionariusz nie istnieje.");
+    }
+
+    if (questionnaire.code !== source.questionnaireCode) {
+      throw new Error(
+        "Kod kwestionariusza nie zgadza się z aktualną definicją kwestionariusza.",
+      );
+    }
+  }
+
+  const dataBindings = buildPersonalCompositeDataBindings({
+    currentDataBindings: version.dataBindings,
+    sources: parsed.sources,
+  });
+
+  const [updated] = await controlDb
+    .update(reportTemplateVersions)
+    .set({
+      dataBindings,
+      updatedBy: actor.id,
+      updatedAt: new Date(),
+    })
+    .where(eq(reportTemplateVersions.id, parsed.reportTemplateVersionId))
+    .returning();
+
+  return updated;
+}
 async function assertReportTemplateExists(reportTemplateId: string) {
   const template = await controlDb.query.reportTemplates.findFirst({
     where: and(
@@ -102,14 +210,31 @@ async function assertReportTemplateVersionExists(reportTemplateVersionId: string
   return version;
 }
 
-async function assertQuestionnaireVersionBelongsToTemplateQuestionnaire({
+async function assertQuestionnaireVersionForReportTemplate({
   reportTemplateId,
   questionnaireVersionId,
 }: {
   reportTemplateId: string;
-  questionnaireVersionId: string;
+  questionnaireVersionId?: string | null;
 }) {
   const template = await assertReportTemplateExists(reportTemplateId);
+
+  if (isQuestionnaireBoundReportKind(template.kind) && !template.questionnaireId) {
+    throw new Error("Raport personalny musi być powiązany z kwestionariuszem.");
+  }
+
+  if (isQuestionnaireBoundReportKind(template.kind) && !questionnaireVersionId) {
+    throw new Error(
+      "Wersja raportu personalnego musi być powiązana z wersją kwestionariusza.",
+    );
+  }
+
+  if (!questionnaireVersionId) {
+    return {
+      template,
+      questionnaireVersion: null,
+    };
+  }
 
   const version = await controlDb.query.questionnaireVersions.findFirst({
     where: and(
@@ -122,7 +247,10 @@ async function assertQuestionnaireVersionBelongsToTemplateQuestionnaire({
     throw new Error("Nie znaleziono wersji kwestionariusza.");
   }
 
-  if (version.questionnaireId !== template.questionnaireId) {
+  if (
+    template.questionnaireId &&
+    version.questionnaireId !== template.questionnaireId
+  ) {
     throw new Error(
       "Wersja kwestionariusza nie należy do kwestionariusza powiązanego z tym template’em raportu.",
     );
@@ -143,20 +271,28 @@ export async function createReportTemplateAsSuperAdmin({
 }) {
   const parsed = createReportTemplateSchema.parse(input);
 
-  await assertQuestionnaireExists(parsed.questionnaireId);
+assertQuestionnaireRequiredForTemplateKind({
+  kind: parsed.kind,
+  questionnaireId: parsed.questionnaireId,
+});
 
-  const [template] = await controlDb
-    .insert(reportTemplates)
-    .values({
-      questionnaireId: parsed.questionnaireId,
-      code: parsed.code,
-      name: parsed.name,
-      description: nullIfEmpty(parsed.description),
-      status: "draft",
-      createdBy: actorUserId,
-      updatedBy: actorUserId,
-    })
-    .returning();
+if (parsed.questionnaireId) {
+  await assertQuestionnaireExists(parsed.questionnaireId);
+}
+
+const [template] = await controlDb
+  .insert(reportTemplates)
+  .values({
+    questionnaireId: parsed.questionnaireId ?? null,
+    kind: parsed.kind,
+    code: parsed.code,
+    name: parsed.name,
+    description: nullIfEmpty(parsed.description),
+    status: "draft",
+    createdBy: actorUserId,
+    updatedBy: actorUserId,
+  })
+  .returning();
 
   return template;
 }
@@ -170,20 +306,31 @@ export async function updateReportTemplateAsSuperAdmin({
 }) {
   const parsed = updateReportTemplateSchema.parse(input);
 
-  await assertReportTemplateExists(parsed.reportTemplateId);
+await assertReportTemplateExists(parsed.reportTemplateId);
 
-  const [template] = await controlDb
-    .update(reportTemplates)
-    .set({
-      code: parsed.code,
-      name: parsed.name,
-      description: nullIfEmpty(parsed.description),
-      status: parsed.status,
-      updatedBy: actorUserId,
-      updatedAt: new Date(),
-    })
-    .where(eq(reportTemplates.id, parsed.reportTemplateId))
-    .returning();
+assertQuestionnaireRequiredForTemplateKind({
+  kind: parsed.kind,
+  questionnaireId: parsed.questionnaireId,
+});
+
+if (parsed.questionnaireId) {
+  await assertQuestionnaireExists(parsed.questionnaireId);
+}
+
+const [template] = await controlDb
+  .update(reportTemplates)
+  .set({
+    questionnaireId: parsed.questionnaireId ?? null,
+    kind: parsed.kind,
+    code: parsed.code,
+    name: parsed.name,
+    description: nullIfEmpty(parsed.description),
+    status: parsed.status,
+    updatedBy: actorUserId,
+    updatedAt: new Date(),
+  })
+  .where(eq(reportTemplates.id, parsed.reportTemplateId))
+  .returning();
 
   return template;
 }
@@ -269,31 +416,34 @@ export async function createReportTemplateVersionAsSuperAdmin({
 }) {
   const parsed = createReportTemplateVersionSchema.parse(input);
 
-  await assertQuestionnaireVersionBelongsToTemplateQuestionnaire({
-    reportTemplateId: parsed.reportTemplateId,
-    questionnaireVersionId: parsed.questionnaireVersionId,
-  });
+  const { template } = await assertQuestionnaireVersionForReportTemplate({
+  reportTemplateId: parsed.reportTemplateId,
+  questionnaireVersionId: parsed.questionnaireVersionId,
+});
 
-  const [version] = await controlDb
-    .insert(reportTemplateVersions)
-    .values({
-      reportTemplateId: parsed.reportTemplateId,
-      questionnaireVersionId: parsed.questionnaireVersionId,
-      version: parsed.version,
-      name: parsed.name,
-      description: nullIfEmpty(parsed.description),
-      status: "draft",
-      isDefault: false,
-      globalCss: "",
-      globalJs: "",
-      pageSize: "A4",
-      orientation: "portrait",
-      config: {},
-      dataBindings: {},
-      createdBy: actorUserId,
-      updatedBy: actorUserId,
-    })
-    .returning();
+const defaultConfig = buildDefaultReportTemplateConfig(template.kind);
+const defaultDataBindings = buildDefaultReportTemplateDataBindings(template.kind);
+
+const [version] = await controlDb
+  .insert(reportTemplateVersions)
+  .values({
+    reportTemplateId: parsed.reportTemplateId,
+    questionnaireVersionId: parsed.questionnaireVersionId ?? null,
+    version: parsed.version,
+    name: parsed.name,
+    description: nullIfEmpty(parsed.description),
+    status: "draft",
+    isDefault: false,
+    globalCss: "",
+    globalJs: "",
+    pageSize: "A4",
+    orientation: "portrait",
+    config: defaultConfig,
+    dataBindings: defaultDataBindings,
+    createdBy: actorUserId,
+    updatedBy: actorUserId,
+  })
+  .returning();
 
   return version;
 }
@@ -371,10 +521,14 @@ export async function publishReportTemplateVersionAsSuperAdmin({
 }) {
   const parsed = publishReportTemplateVersionSchema.parse(input);
 
-  const existing = await assertReportTemplateVersionExists(
-    parsed.reportTemplateVersionId,
-  );
+const existing = await assertReportTemplateVersionExists(
+  parsed.reportTemplateVersionId,
+);
 
+await assertQuestionnaireVersionForReportTemplate({
+  reportTemplateId: existing.reportTemplateId,
+  questionnaireVersionId: existing.questionnaireVersionId,
+});
   const now = new Date();
 
   const [version] = await controlDb.transaction(async (tx) => {

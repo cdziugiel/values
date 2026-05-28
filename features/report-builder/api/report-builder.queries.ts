@@ -1,7 +1,6 @@
 // features/report-builder/api/report-builder.queries.ts
 
-import { and, asc, eq, isNull } from "drizzle-orm";
-
+import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import {
   questionnaireVersions,
   questionnaires,
@@ -38,6 +37,7 @@ export async function getReportTemplateVersionEditor({
       name: reportTemplateVersions.name,
       description: reportTemplateVersions.description,
 
+
       status: reportTemplateVersions.status,
       isDefault: reportTemplateVersions.isDefault,
 
@@ -52,7 +52,7 @@ export async function getReportTemplateVersionEditor({
 
       createdAt: reportTemplateVersions.createdAt,
       updatedAt: reportTemplateVersions.updatedAt,
-
+      reportTemplateKind: reportTemplates.kind,
       reportTemplateCode: reportTemplates.code,
       reportTemplateName: reportTemplates.name,
       reportTemplateDescription: reportTemplates.description,
@@ -72,11 +72,11 @@ export async function getReportTemplateVersionEditor({
       reportTemplates,
       eq(reportTemplates.id, reportTemplateVersions.reportTemplateId),
     )
-    .innerJoin(
+    .leftJoin(
       questionnaireVersions,
       eq(questionnaireVersions.id, reportTemplateVersions.questionnaireVersionId),
     )
-    .innerJoin(
+    .leftJoin(
       questionnaires,
       eq(questionnaires.id, questionnaireVersions.questionnaireId),
     )
@@ -85,8 +85,6 @@ export async function getReportTemplateVersionEditor({
         eq(reportTemplateVersions.id, reportTemplateVersionId),
         isNull(reportTemplateVersions.deletedAt),
         isNull(reportTemplates.deletedAt),
-        isNull(questionnaireVersions.deletedAt),
-        isNull(questionnaires.deletedAt),
       ),
     )
     .limit(1);
@@ -128,16 +126,34 @@ export async function getReportTemplateVersionEditor({
     )
     .orderBy(asc(reportTemplatePages.orderIndex), asc(reportTemplatePages.title));
 
+
+const questionnaireRows = await controlDb
+  .select({
+    id: questionnaires.id,
+    code: questionnaires.code,
+    name: questionnaires.name,
+    status: questionnaires.status,
+  })
+  .from(questionnaires)
+  .where(
+    and(
+      isNull(questionnaires.deletedAt),
+      ne(questionnaires.status, "archived"),
+    ),
+  )
+  .orderBy(asc(questionnaires.name));
+
   return {
     ...version,
     config: asRecord(version.config),
     dataBindings: asRecord(version.dataBindings),
+    availableQuestionnaires: questionnaireRows,
     pages: pages.map((page) => ({
       ...page,
       visibilityCondition:
         page.visibilityCondition &&
-        typeof page.visibilityCondition === "object" &&
-        !Array.isArray(page.visibilityCondition)
+          typeof page.visibilityCondition === "object" &&
+          !Array.isArray(page.visibilityCondition)
           ? page.visibilityCondition
           : null,
       componentBindings: asArray(page.componentBindings),

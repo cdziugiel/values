@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   CheckCircle2,
   FileText,
@@ -11,6 +11,15 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import {
+  AGGREGATE_SCOPE_OPTIONS,
+  REPORT_TEMPLATE_FAMILY_OPTIONS,
+  resolveReportTemplateKindFromUi,
+  isPersonalReportTemplateKind,
+  type AggregateReportScope,
+  type ReportTemplateFamily,
+} from "../constants/report-template-kind-options";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -18,11 +27,15 @@ import {
   createReportTemplateAction,
   type ReportTemplateAdminActionState,
 } from "../api/report-template-admin.actions";
-
 const initialState: ReportTemplateAdminActionState = {
   status: "idle",
   message: "",
 };
+
+
+function isQuestionnaireRequired(kind: string) {
+  return kind === "personal";
+}
 
 type ReportTemplateCreateFormProps = {
   questionnaires: {
@@ -70,6 +83,22 @@ export function ReportTemplateCreateForm({
     createReportTemplateAction,
     initialState,
   );
+const [kind, setKind] = useState("personal");
+const [family, setFamily] = useState<ReportTemplateFamily>("personal");
+const [aggregateScope, setAggregateScope] =
+  useState<AggregateReportScope>("project");
+
+const resolvedKind = useMemo(
+  () =>
+    resolveReportTemplateKindFromUi({
+      family,
+      aggregateScope,
+    }),
+  [family, aggregateScope],
+);
+
+const requiresQuestionnaire = isPersonalReportTemplateKind(resolvedKind);
+
 
   return (
     <section className="rounded-[2rem] hv-brand-card">
@@ -104,54 +133,119 @@ export function ReportTemplateCreateForm({
                 className="mt-0.5 shrink-0 text-[#0f766e]"
               />
 
-              <p className="text-sm leading-6 text-[#0f766e]">
-                Template powinien być powiązany z kwestionariuszem, aby raporty
-                można było stabilnie przypisywać do wersji narzędzi badawczych.
-              </p>
+<p className="text-sm leading-6 text-[#0f766e]">
+  Typ template’u określa, czy raport dotyczy jednej osoby, kilku raportów
+  personalnych, agregatu projektu, organizacji, zespołu czy porównania.
+  Kwestionariusz jest wymagany tylko dla raportów personalnych.
+</p>
             </div>
           </div>
         </div>
 
         <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
-          {questionnaires.length === 0 ? (
-            <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-5 text-sm leading-6 text-[#6b7280]">
-              Brak kwestionariuszy. Najpierw utwórz kwestionariusz, aby móc
-              przygotować dla niego template raportu.
-            </div>
-          ) : (
+          {
             <>
               <div className="grid gap-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#171717]">
-                    Kwestionariusz
-                  </span>
+                <input type="hidden" name="kind" value={resolvedKind} />
+<label className="space-y-2 md:col-span-2">
+  <span className="text-sm font-medium text-[#171717]">
+    Rodzaj raportu
+  </span>
 
-                  <select
-                    name="questionnaireId"
-                    required
-                    className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
-                  >
-                    <option value="">Wybierz kwestionariusz</option>
-                    {questionnaires.map((questionnaire) => (
-                      <option key={questionnaire.id} value={questionnaire.id}>
-                        {questionnaire.name} ({questionnaire.code})
-                      </option>
-                    ))}
-                  </select>
-                </label>
+  <select
+    value={family}
+    onChange={(event) => {
+      setFamily(event.target.value as ReportTemplateFamily);
+    }}
+    className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+  >
+    {REPORT_TEMPLATE_FAMILY_OPTIONS.map((option) => (
+      <option key={option.value} value={option.value}>
+        {option.label} — {option.description}
+      </option>
+    ))}
+  </select>
+</label>
+{family === "aggregate" ? (
+  <label className="space-y-2 md:col-span-2">
+    <span className="text-sm font-medium text-[#171717]">
+      Zakres raportu zbiorczego
+    </span>
 
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#171717]">
-                    Kod
-                  </span>
-                  <Input
-                    name="code"
-                    required
-                    placeholder="HUMANET_VALUES_DEFAULT"
-                    className="rounded-2xl border-black/10 bg-white font-mono text-sm"
-                  />
-                </label>
-              </div>
+    <select
+      value={aggregateScope}
+      onChange={(event) =>
+        setAggregateScope(event.target.value as AggregateReportScope)
+      }
+      className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+    >
+      {AGGREGATE_SCOPE_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label} — {option.description}
+        </option>
+      ))}
+    </select>
+
+    <span className="block text-xs leading-5 text-[#6b7280]">
+      Typ techniczny:{" "}
+      <span className="font-mono text-[#171717]">{resolvedKind}</span>
+    </span>
+  </label>
+) : null}
+  {requiresQuestionnaire ? (
+    <label className="space-y-2">
+      <span className="text-sm font-medium text-[#171717]">
+        Kwestionariusz
+      </span>
+
+      <select
+        name="questionnaireId"
+        required
+        className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+      >
+        <option value="">Wybierz kwestionariusz</option>
+        {questionnaires.map((questionnaire) => (
+          <option key={questionnaire.id} value={questionnaire.id}>
+            {questionnaire.name} ({questionnaire.code})
+          </option>
+        ))}
+      </select>
+
+      {questionnaires.length === 0 ? (
+        <span className="block text-xs leading-5 text-red-600">
+          Brak kwestionariuszy. Raport personalny wymaga przypisania
+          kwestionariusza.
+        </span>
+      ) : null}
+    </label>
+  ) : (
+    <input type="hidden" name="questionnaireId" value="" />
+  )}
+
+  <label className={requiresQuestionnaire ? "space-y-2" : "space-y-2 md:col-span-2"}>
+    <span className="text-sm font-medium text-[#171717]">
+      Kod
+    </span>
+    <Input
+      name="code"
+      required
+placeholder={
+  resolvedKind === "personal_composite"
+    ? "FULL_PERSONAL_REPORT"
+    : resolvedKind === "project_aggregate"
+      ? "PROJECT_COLLECTIVE_REPORT"
+      : resolvedKind === "organization_aggregate"
+        ? "ORGANIZATION_COLLECTIVE_REPORT"
+        : resolvedKind === "team_aggregate"
+          ? "TEAM_COLLECTIVE_REPORT"
+          : resolvedKind === "comparison"
+            ? "COMPARISON_REPORT"
+            : "PERSONAL_REPORT"
+}
+      className="rounded-2xl border-black/10 bg-white font-mono text-sm"
+    />
+  </label>
+</div>
 
               <label className="mt-5 block space-y-2">
                 <span className="text-sm font-medium text-[#171717]">
@@ -198,7 +292,7 @@ export function ReportTemplateCreateForm({
                 </Button>
               </div>
             </>
-          )}
+          }
         </div>
       </form>
     </section>

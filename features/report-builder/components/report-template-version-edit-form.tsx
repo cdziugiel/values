@@ -40,21 +40,26 @@ function stringifyJson(value: unknown) {
 }
 
 type ReportTemplateVersionEditFormProps = {
-  version: {
-    reportTemplateVersionId: string;
-    reportTemplateId: string;
-    version: string;
-    name: string;
-    description: string | null;
-    status: string;
-    isDefault: boolean;
-    globalCss: string | null;
-    globalJs: string | null;
-    pageSize: string;
-    orientation: string;
-    config: unknown;
-    dataBindings: unknown;
-  };
+version: {
+  reportTemplateVersionId: string;
+  reportTemplateId: string;
+  reportTemplateKind?: string;
+  questionnaireVersionId?: string | null;
+  questionnaireVersion?: string | null;
+  questionnaireVersionName?: string | null;
+  questionnaireVersionStatus?: string | null;
+  version: string;
+  name: string;
+  description: string | null;
+  status: string;
+  isDefault: boolean;
+  globalCss: string | null;
+  globalJs: string | null;
+  pageSize: string;
+  orientation: string;
+  config: unknown;
+  dataBindings: unknown;
+};
 };
 
 function ActionMessage({

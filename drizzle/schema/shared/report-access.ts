@@ -251,7 +251,8 @@ export const reportAccessCodes = pgTable(
 
     assignedToEmail: varchar("assigned_to_email", { length: 320 }),
     assignedToUserId: uuid("assigned_to_user_id"),
-
+    subjectType: varchar("subject_type", { length: 60 }),
+    subjectId: uuid("subject_id"),
     /**
      * Tenantowe identyfikatory trzymamy jako uuid bez FK,
      * bo znajdują się w tenant DB, nie w control DB.
@@ -343,6 +344,14 @@ export const reportAccessGrants = pgTable(
     userId: uuid("user_id"),
     email: varchar("email", { length: 320 }),
 
+    subjectType: varchar("subject_type", { length: 60 })
+      .notNull()
+      .default("assessment_session"),
+    // assessment_session | respondent | assessment_project | client_organization | client_unit | team | custom_cohort
+
+    subjectId: uuid("subject_id"),
+
+
     assessmentProjectId: uuid("assessment_project_id"),
     assessmentSessionId: uuid("assessment_session_id").notNull(),
     assessmentAccessLinkId: uuid("assessment_access_link_id"),
@@ -370,6 +379,12 @@ export const reportAccessGrants = pgTable(
     userIdx: index("rag_user_idx").on(table.userId),
     tenantSlugIdx: index("rag_tenant_slug_idx").on(table.tenantSlug),
     templateIdx: index("rag_template_idx").on(table.reportTemplateId),
+    subjectIdx: index("rag_subject_idx").on(table.subjectType, table.subjectId),
+    oneActiveGrantPerSubjectAndReportType: uniqueIndex(
+      "rag_one_active_grant_per_subject_report_type_idx",
+    )
+      .on(table.subjectType, table.subjectId, table.reportTemplateId)
+      .where(sql`deleted_at is null and status = 'active' and subject_id is not null`),
     templateVersionIdx: index("rag_template_version_idx").on(
       table.reportTemplateVersionId,
     ),

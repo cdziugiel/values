@@ -20,6 +20,8 @@ import {
   type ReportTemplateAdminActionState,
 } from "../api/report-template-admin.actions";
 
+
+
 const initialState: ReportTemplateAdminActionState = {
   status: "idle",
   message: "",
@@ -27,6 +29,7 @@ const initialState: ReportTemplateAdminActionState = {
 
 type ReportTemplateVersionCreateFormProps = {
   reportTemplateId: string;
+  reportTemplateKind: string;
   questionnaireVersions: {
     id: string;
     version: string;
@@ -34,6 +37,10 @@ type ReportTemplateVersionCreateFormProps = {
     status: string;
   }[];
 };
+
+function isQuestionnaireVersionRequired(kind: string) {
+  return kind === "personal";
+}
 
 function ActionMessage({
   status,
@@ -66,15 +73,19 @@ function ActionMessage({
   );
 }
 
+
+
 export function ReportTemplateVersionCreateForm({
   reportTemplateId,
+  reportTemplateKind,
   questionnaireVersions,
 }: ReportTemplateVersionCreateFormProps) {
   const [state, formAction, isPending] = useActionState(
     createReportTemplateVersionAction,
     initialState,
   );
-
+  const requiresQuestionnaireVersion =
+    isQuestionnaireVersionRequired(reportTemplateKind);
   return (
     <section className="rounded-[2rem] hv-brand-card">
       <form
@@ -98,8 +109,9 @@ export function ReportTemplateVersionCreateForm({
             </h2>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6b7280]">
-              Wersja raportu jest przypięta do konkretnej wersji kwestionariusza,
-              co ułatwia odtwarzalność historycznych sesji i raportów.
+              Dla raportów personalnych wersja raportu jest przypięta do konkretnej
+              wersji kwestionariusza. Raporty złożone, agregowane i porównawcze mogą
+              korzystać z konfiguracji źródeł danych w builderze.
             </p>
           </div>
 
@@ -119,32 +131,33 @@ export function ReportTemplateVersionCreateForm({
         </div>
 
         <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
-          {questionnaireVersions.length === 0 ? (
+          {requiresQuestionnaireVersion && questionnaireVersions.length === 0 ? (
             <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-5 text-sm leading-6 text-[#6b7280]">
-              Brak wersji kwestionariuszy, do których można przypisać wersję
-              raportu.
+              Brak wersji kwestionariuszy, do których można przypisać wersję raportu.
+              Raport personalny wymaga wersji kwestionariusza.
             </div>
           ) : (
             <>
               <div className="grid gap-5 md:grid-cols-3">
-                <label className="space-y-2 md:col-span-3">
-                  <span className="text-sm font-medium text-[#171717]">
-                    Wersja kwestionariusza
-                  </span>
+                {requiresQuestionnaireVersion ? (
+                  <label className="space-y-2 md:col-span-3">
+                    <span className="text-sm font-medium text-[#171717]">
+                      Wersja kwestionariusza
+                    </span>
 
-                  <select
-                    name="questionnaireVersionId"
-                    required
-                    className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
-                  >
-                    <option value="">Wybierz wersję</option>
-                    {questionnaireVersions.map((version) => (
-                      <option key={version.id} value={version.id}>
-                        {version.name} · {version.version} · {version.status}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    <select
+                      name="questionnaireVersionId"
+                      required
+                      className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+                    >
+                      <option value="">Wybierz wersję</option>
+                      {questionnaireVersions.map((version) => (
+                        <option key={version.id} value={version.id}>
+                          {version.name} · {version.version} · {version.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>) : ""}
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-[#171717]">

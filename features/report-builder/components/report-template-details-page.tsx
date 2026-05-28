@@ -15,6 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui";
 
+import {
+  getReportTemplateKindDescription,
+  getReportTemplateKindLabel,
+  isPersonalReportTemplateKind,
+} from "../constants/report-template-kind-options";
+
 import { getReportTemplateDetailsData } from "../api/report-template-admin.queries";
 import { ReportTemplateVersionCreateForm } from "./report-template-version-create-form";
 import { ReportTemplateEditForm } from "./report-template-edit-form";
@@ -136,63 +142,73 @@ export async function ReportTemplateDetailsPage({
       </div>
     );
   }
-
-  const availableQuestionnaireVersions =
-  data.availableQuestionnaireVersions.filter(
-    (questionnaireVersion) => questionnaireVersion.status !== "archived",
+  const templateKindLabel = getReportTemplateKindLabel(data.template.kind);
+  const templateKindDescription = getReportTemplateKindDescription(
+    data.template.kind,
   );
 
-const archivedTemplateVersionsCount = data.versions.filter(
-  (version) => version.status === "archived",
-).length;
+  const isPersonalTemplate = isPersonalReportTemplateKind(data.template.kind);
 
-const visibleTemplateVersions = showArchivedTemplateVersions
-  ? data.versions
-  : data.versions.filter((version) => version.status !== "archived");
-const archivedQuestionnaireVersionsCount =
-  data.availableQuestionnaireVersions.filter(
-    (questionnaireVersion) => questionnaireVersion.status === "archived",
+  const templateScopeDescription = isPersonalTemplate
+    ? `Template raportu personalnego dla kwestionariusza: ${data.template.questionnaireName ?? "nie przypisano"
+    }.`
+    : `${templateKindLabel}: ${templateKindDescription}`;
+  const availableQuestionnaireVersions =
+    data.availableQuestionnaireVersions.filter(
+      (questionnaireVersion) => questionnaireVersion.status !== "archived",
+    );
+
+  const archivedTemplateVersionsCount = data.versions.filter(
+    (version) => version.status === "archived",
   ).length;
 
-const activeVersionsCount = visibleTemplateVersions.filter(
-  (version) => version.status === "active",
-).length;
+  const visibleTemplateVersions = showArchivedTemplateVersions
+    ? data.versions
+    : data.versions.filter((version) => version.status !== "archived");
+  const archivedQuestionnaireVersionsCount =
+    data.availableQuestionnaireVersions.filter(
+      (questionnaireVersion) => questionnaireVersion.status === "archived",
+    ).length;
 
-const draftVersionsCount = visibleTemplateVersions.filter(
-  (version) => version.status === "draft",
-).length;
+  const activeVersionsCount = visibleTemplateVersions.filter(
+    (version) => version.status === "active",
+  ).length;
 
-const defaultVersionsCount = visibleTemplateVersions.filter(
-  (version) => version.isDefault,
-).length;
+  const draftVersionsCount = visibleTemplateVersions.filter(
+    (version) => version.status === "draft",
+  ).length;
+
+  const defaultVersionsCount = visibleTemplateVersions.filter(
+    (version) => version.isDefault,
+  ).length;
 
   return (
     <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="mx-auto w-full max-w-7xl space-y-8">
         <PageHeader
           title={data.template.name}
-          description={`Template raportu dla kwestionariusza: ${data.template.questionnaireName}.`}
-actions={
-  <div className="flex flex-wrap gap-2">
-    <BrandButton
-      href={
-        showArchivedTemplateVersions
-          ? `/dashboard/report-templates/${data.template.id}`
-          : `/dashboard/report-templates/${data.template.id}?archivedTemplateVersions=1`
-      }
-      variant="secondary"
-    >
-      {showArchivedTemplateVersions
-        ? "Ukryj archiwalne wersje"
-        : "Pokaż archiwalne wersje"}
-    </BrandButton>
+          description={templateScopeDescription}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <BrandButton
+                href={
+                  showArchivedTemplateVersions
+                    ? `/dashboard/report-templates/${data.template.id}`
+                    : `/dashboard/report-templates/${data.template.id}?archivedTemplateVersions=1`
+                }
+                variant="secondary"
+              >
+                {showArchivedTemplateVersions
+                  ? "Ukryj archiwalne wersje"
+                  : "Pokaż archiwalne wersje"}
+              </BrandButton>
 
-    <BrandButton href="/dashboard/report-templates" variant="secondary">
-      <ArrowLeft size={16} />
-      Wróć do template’ów
-    </BrandButton>
-  </div>
-}
+              <BrandButton href="/dashboard/report-templates" variant="secondary">
+                <ArrowLeft size={16} />
+                Wróć do template’ów
+              </BrandButton>
+            </div>
+          }
         />
 
         <section className="overflow-hidden rounded-[2rem] hv-brand-card">
@@ -209,7 +225,12 @@ actions={
                 <h1 className="text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
                   {data.template.name}
                 </h1>
-
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+                >
+                  {templateKindLabel}
+                </Badge>
                 <Badge
                   variant="outline"
                   className={`rounded-full ${getStatusBadgeClassName(
@@ -234,10 +255,12 @@ actions={
 
                 <div>
                   <p className="text-sm font-semibold text-[#171717]">
-                    Kwestionariusz
+                    {isPersonalTemplate ? "Kwestionariusz" : "Zakres danych"}
                   </p>
                   <p className="mt-0.5 text-sm text-[#6b7280]">
-                    {data.template.questionnaireName}
+                    {isPersonalTemplate
+                      ? data.template.questionnaireName ?? "Nie przypisano kwestionariusza"
+                      : templateKindDescription}
                   </p>
                 </div>
               </div>
@@ -300,14 +323,17 @@ actions={
           </div>
 
           <div className="mt-6 rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
-            <ReportTemplateEditForm template={data.template} />
+            <ReportTemplateEditForm template={data.template}
+              questionnaires={data.questionnaires}
+            />
           </div>
         </section>
 
-<ReportTemplateVersionCreateForm
-  reportTemplateId={data.template.id}
-  questionnaireVersions={availableQuestionnaireVersions}
-/>
+        <ReportTemplateVersionCreateForm
+          reportTemplateId={reportTemplateId}
+          reportTemplateKind={data.template.kind}
+          questionnaireVersions={data.availableQuestionnaireVersions}
+        />
 
         <section className="rounded-[2rem] hv-brand-card">
           <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:p-6">

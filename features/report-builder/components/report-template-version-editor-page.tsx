@@ -19,6 +19,10 @@ import { getReportTemplateVersionEditorData } from "../api/report-template-admin
 import { listReportPreviewSessionOptions } from "../api/report-preview-session.queries";
 import { ReportTemplateVersionEditForm } from "./report-template-version-edit-form";
 import { ReportRealDataPreviewPicker } from "./report-real-data-preview-picker";
+import {
+  getReportTemplateKindLabel,
+  isPersonalReportTemplateKind,
+} from "../constants/report-template-kind-options";
 
 function statusLabel(status: string) {
   if (status === "active") return "Aktywny";
@@ -132,7 +136,13 @@ export async function ReportTemplateVersionEditorPage({
   }
 
   const { version } = data;
+  const isPersonalTemplate = isPersonalReportTemplateKind(
+    version.reportTemplateKind,
+  );
 
+  const templateKindLabel = getReportTemplateKindLabel(
+    version.reportTemplateKind,
+  );
   const previewSessions = await listReportPreviewSessionOptions({
     reportTemplateVersionId: version.reportTemplateVersionId,
   });
@@ -242,16 +252,24 @@ export async function ReportTemplateVersionEditorPage({
               value={version.orientation === "portrait" ? "Pionowa" : "Pozioma"}
               icon={<Maximize2 size={18} />}
             />
-
             <MetricCard
-              label="Kwestionariusz"
+              label={isPersonalTemplate ? "Kwestionariusz" : "Typ raportu"}
               value={
-                <span>
-                  {version.questionnaireVersionName}
-                  <span className="mt-1 block font-mono text-xs font-normal text-[#6b7280]">
-                    {version.questionnaireVersion}
+                isPersonalTemplate ? (
+                  <span>
+                    {version.questionnaireVersionName ?? "Nie przypisano"}
+                    <span className="mt-1 block font-mono text-xs font-normal text-[#6b7280]">
+                      {version.questionnaireVersion ?? "—"}
+                    </span>
                   </span>
-                </span>
+                ) : (
+                  <span>
+                    {templateKindLabel}
+                    <span className="mt-1 block font-mono text-xs font-normal text-[#6b7280]">
+                      {version.reportTemplateKind}
+                    </span>
+                  </span>
+                )
               }
               icon={<ShieldCheck size={18} />}
             />

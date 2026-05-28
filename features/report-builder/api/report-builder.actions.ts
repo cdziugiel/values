@@ -278,3 +278,45 @@ export async function archiveReportTemplatePageAction(
     return fail(error);
   }
 }
+
+
+import { updatePersonalCompositeSourcesAsSuperAdmin } from "./report-template-admin.mutations";
+
+type ActionState = {
+  ok: boolean;
+  message?: string;
+};
+
+export async function updatePersonalCompositeSourcesAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const reportTemplateVersionId = String(
+      formData.get("reportTemplateVersionId") ?? "",
+    );
+
+    const sourcesRaw = String(formData.get("sources") ?? "[]");
+    const sources = JSON.parse(sourcesRaw);
+
+    await updatePersonalCompositeSourcesAsSuperAdmin({
+      reportTemplateVersionId,
+      sources,
+    });
+
+    revalidatePath(`/dashboard/report-builder/${reportTemplateVersionId}`);
+
+    return {
+      ok: true,
+      message: "Zapisano wymagane kwestionariusze raportu złożonego.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nie udało się zapisać wymaganych kwestionariuszy.",
+    };
+  }
+}

@@ -1,6 +1,6 @@
 // features/report-builder/api/report-template-admin.queries.ts
 
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 
 import {
   questionnaireVersions,
@@ -14,6 +14,7 @@ export async function getReportTemplateListData() {
   const rows = await controlDb
     .select({
       reportTemplateId: reportTemplates.id,
+      kind: reportTemplates.kind,
       code: reportTemplates.code,
       name: reportTemplates.name,
       description: reportTemplates.description,
@@ -26,17 +27,12 @@ export async function getReportTemplateListData() {
       questionnaireName: questionnaires.name,
     })
     .from(reportTemplates)
-    .innerJoin(
+    .leftJoin(
       questionnaires,
       eq(questionnaires.id, reportTemplates.questionnaireId),
     )
-    .where(
-      and(
-        isNull(reportTemplates.deletedAt),
-        isNull(questionnaires.deletedAt),
-      ),
-    )
-    .orderBy(asc(questionnaires.name), asc(reportTemplates.name));
+    .where(isNull(reportTemplates.deletedAt))
+    .orderBy(asc(reportTemplates.kind), asc(reportTemplates.name));
 
   const versionRows = await controlDb
     .select({
@@ -87,16 +83,21 @@ export async function getReportTemplateListData() {
 }
 
 export async function getReportTemplateCreateData() {
-  const questionnaireRows = await controlDb
-    .select({
-      id: questionnaires.id,
-      code: questionnaires.code,
-      name: questionnaires.name,
-      status: questionnaires.status,
-    })
-    .from(questionnaires)
-    .where(isNull(questionnaires.deletedAt))
-    .orderBy(asc(questionnaires.name));
+const questionnaireRows = await controlDb
+  .select({
+    id: questionnaires.id,
+    code: questionnaires.code,
+    name: questionnaires.name,
+    status: questionnaires.status,
+  })
+  .from(questionnaires)
+  .where(
+    and(
+      isNull(questionnaires.deletedAt),
+      ne(questionnaires.status, "archived"),
+    ),
+  )
+  .orderBy(asc(questionnaires.name));
 
   return {
     questionnaires: questionnaireRows,
@@ -108,6 +109,7 @@ export async function getReportTemplateDetailsData(reportTemplateId: string) {
     .select({
       id: reportTemplates.id,
       questionnaireId: reportTemplates.questionnaireId,
+      kind: reportTemplates.kind,
       code: reportTemplates.code,
       name: reportTemplates.name,
       description: reportTemplates.description,
@@ -119,7 +121,7 @@ export async function getReportTemplateDetailsData(reportTemplateId: string) {
       questionnaireName: questionnaires.name,
     })
     .from(reportTemplates)
-    .innerJoin(
+    .leftJoin(
       questionnaires,
       eq(questionnaires.id, reportTemplates.questionnaireId),
     )
@@ -127,7 +129,6 @@ export async function getReportTemplateDetailsData(reportTemplateId: string) {
       and(
         eq(reportTemplates.id, reportTemplateId),
         isNull(reportTemplates.deletedAt),
-        isNull(questionnaires.deletedAt),
       ),
     )
     .limit(1);
@@ -158,7 +159,7 @@ export async function getReportTemplateDetailsData(reportTemplateId: string) {
       questionnaireVersionStatus: questionnaireVersions.status,
     })
     .from(reportTemplateVersions)
-    .innerJoin(
+    .leftJoin(
       questionnaireVersions,
       eq(questionnaireVersions.id, reportTemplateVersions.questionnaireVersionId),
     )
@@ -166,31 +167,45 @@ export async function getReportTemplateDetailsData(reportTemplateId: string) {
       and(
         eq(reportTemplateVersions.reportTemplateId, reportTemplateId),
         isNull(reportTemplateVersions.deletedAt),
-        isNull(questionnaireVersions.deletedAt),
       ),
     )
     .orderBy(desc(reportTemplateVersions.updatedAt));
 
-  const availableQuestionnaireVersions = await controlDb
-    .select({
-      id: questionnaireVersions.id,
-      version: questionnaireVersions.version,
-      name: questionnaireVersions.name,
-      status: questionnaireVersions.status,
-    })
-    .from(questionnaireVersions)
-    .where(
-      and(
-        eq(questionnaireVersions.questionnaireId, template.questionnaireId),
-        isNull(questionnaireVersions.deletedAt),
-      ),
-    )
-    .orderBy(desc(questionnaireVersions.updatedAt));
+  const availableQuestionnaireVersions = template.questionnaireId
+    ? await controlDb
+      .select({
+        id: questionnaireVersions.id,
+        version: questionnaireVersions.version,
+        name: questionnaireVersions.name,
+        status: questionnaireVersions.status,
+      })
+      .from(questionnaireVersions)
+      .where(
+        and(
+          eq(questionnaireVersions.questionnaireId, template.questionnaireId),
+          isNull(questionnaireVersions.deletedAt),
+        ),
+      )
+      .orderBy(desc(questionnaireVersions.updatedAt))
+    : [];
+
+
+    const questionnaireRows = await controlDb
+  .select({
+    id: questionnaires.id,
+    code: questionnaires.code,
+    name: questionnaires.name,
+    status: questionnaires.status,
+  })
+  .from(questionnaires)
+  .where(isNull(questionnaires.deletedAt))
+  .orderBy(asc(questionnaires.name));
 
   return {
     template,
     versions,
     availableQuestionnaireVersions,
+  questionnaires: questionnaireRows,
   };
 }
 
@@ -207,7 +222,7 @@ export async function getReportTemplateVersionEditorData({
       reportTemplateCode: reportTemplates.code,
       reportTemplateName: reportTemplates.name,
       questionnaireId: reportTemplates.questionnaireId,
-
+      reportTemplateKind: reportTemplates.kind,
       reportTemplateVersionId: reportTemplateVersions.id,
       questionnaireVersionId: reportTemplateVersions.questionnaireVersionId,
       version: reportTemplateVersions.version,
@@ -233,7 +248,7 @@ export async function getReportTemplateVersionEditorData({
       reportTemplates,
       eq(reportTemplates.id, reportTemplateVersions.reportTemplateId),
     )
-    .innerJoin(
+    .leftJoin(
       questionnaireVersions,
       eq(questionnaireVersions.id, reportTemplateVersions.questionnaireVersionId),
     )
@@ -243,7 +258,6 @@ export async function getReportTemplateVersionEditorData({
         eq(reportTemplateVersions.id, reportTemplateVersionId),
         isNull(reportTemplates.deletedAt),
         isNull(reportTemplateVersions.deletedAt),
-        isNull(questionnaireVersions.deletedAt),
       ),
     )
     .limit(1);

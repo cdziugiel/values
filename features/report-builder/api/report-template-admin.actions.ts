@@ -56,6 +56,7 @@ export async function createReportTemplateAction(
 
   const rawInput = {
     questionnaireId: String(formData.get("questionnaireId") ?? ""),
+    kind: String(formData.get("kind") ?? "personal"),
     code: String(formData.get("code") ?? ""),
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
@@ -96,6 +97,8 @@ export async function updateReportTemplateAction(
 
   const rawInput = {
     reportTemplateId: String(formData.get("reportTemplateId") ?? ""),
+    questionnaireId: String(formData.get("questionnaireId") ?? ""),
+    kind: String(formData.get("kind") ?? "personal"),
     code: String(formData.get("code") ?? ""),
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),

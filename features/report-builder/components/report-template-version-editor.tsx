@@ -34,6 +34,8 @@ import {
 } from "../api/report-builder.actions";
 
 import { ReportA4PreviewFrame } from "./report-a4-preview-frame";
+import { PersonalCompositeSourcesPanel } from "./personal-composite-sources-panel";
+
 
 const initialState: ReportBuilderActionState = {
   status: "idle",
@@ -194,6 +196,7 @@ function ReportTemplateVersionSettingsForm({
 
   return (
     <section className="group relative overflow-hidden rounded-[2rem] hv-brand-card transition duration-300 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+      
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
 
       <button
@@ -533,6 +536,7 @@ function ReportTemplatePageEditor({
 
   return (
     <article className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 shadow-sm backdrop-blur transition duration-300 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+      
       <button
         type="button"
         onClick={onSelect}
@@ -828,7 +832,15 @@ export function ReportTemplateVersionEditor({
             />
           </div>
         </section>
-
+{reportTemplateVersion.reportTemplateKind === "personal_composite" ? (
+  <PersonalCompositeSourcesPanel
+    reportTemplateVersionId={reportTemplateVersion.id}
+    dataBindings={reportTemplateVersion.dataBindings}
+    availableQuestionnaires={
+      reportTemplateVersion.availableQuestionnaires ?? []
+    }
+  />
+) : null}
         <ReportTemplateVersionSettingsForm
           reportTemplateVersion={reportTemplateVersion}
         />

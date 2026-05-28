@@ -32,7 +32,13 @@ export default async function ReportBuilderPage({ params }: PageProps) {
   if (!reportTemplateVersion) {
     notFound();
   }
+  const questionnaireLabel =
+    reportTemplateVersion.questionnaireName &&
+      reportTemplateVersion.questionnaireVersionName
+      ? `${reportTemplateVersion.questionnaireName} · ${reportTemplateVersion.questionnaireVersionName}`
+      : `Typ raportu: ${reportTemplateVersion.reportTemplateKind}`;
 
+  const versionDescription = `${questionnaireLabel} · wersja raportu: ${reportTemplateVersion.version}`;
   return (
     <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -46,11 +52,8 @@ export default async function ReportBuilderPage({ params }: PageProps) {
               <h1 className="text-3xl font-semibold">
                 {reportTemplateVersion.reportTemplateName}
               </h1>
-
               <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                {reportTemplateVersion.questionnaireName} ·{" "}
-                {reportTemplateVersion.questionnaireVersionName} · wersja raportu:{" "}
-                {reportTemplateVersion.version}
+                {versionDescription}
               </p>
             </div>
           </div>
