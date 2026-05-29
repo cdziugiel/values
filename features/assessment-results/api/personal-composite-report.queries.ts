@@ -233,6 +233,404 @@ function buildCompositeEligibility({
   };
 }
 
+type CompositeResponseDimension = {
+  dimensionCode?: string | null;
+  dimensionName?: string | null;
+  dimensionCategory?: string | null;
+  weight?: unknown;
+};
+
+type CompositeSnapshotResponse = {
+  responseExists?: boolean | null;
+  responseRawValue?: unknown;
+  responseNumericValue?: unknown;
+  itemId?: string | null;
+  itemCode?: string | null;
+  itemText?: string | null;
+  dimensions?: CompositeResponseDimension[] | null;
+};
+
+type CompositeDimensionObservation = {
+  sourceSlot: string;
+  sourceLabel: string;
+  questionnaireId: string;
+  questionnaireCode: string;
+  questionnaireName: string;
+
+  assessmentSessionId: string;
+  assessmentResultSnapshotId: string;
+
+  itemId: string | null;
+  itemCode: string | null;
+  itemText: string | null;
+
+  dimensionCode: string;
+  dimensionName: string;
+  dimensionCategory: string;
+
+  value: number;
+  weight: number;
+  weightedValue: number;
+};
+
+function stringOrFallback(value: unknown, fallback: string) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim();
+
+  return normalized || fallback;
+}
+
+function normalizeCompositeDimensionCode(value: unknown) {
+  return stringOrFallback(value, "UNKNOWN").trim().toUpperCase();
+}
+
+function normalizeCompositeDimensionCategory(value: unknown) {
+  return stringOrFallback(value, "__NO_CATEGORY__").trim().toUpperCase();
+}
+
+function numberOrNull(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function getCompositeResponseNumericValue(response: CompositeSnapshotResponse) {
+  const explicit = numberOrNull(response.responseNumericValue);
+
+  if (explicit !== null) {
+    return explicit;
+  }
+
+  return numberOrNull(response.responseRawValue);
+}
+
+function getCompositeResponseWeight(
+  dimension: CompositeResponseDimension,
+) {
+  return numberOrNull(dimension.weight) ?? 1;
+}
+
+function mean(values: number[]) {
+  const clean = values.filter((value) => Number.isFinite(value));
+
+  if (clean.length === 0) {
+    return null;
+  }
+
+  return clean.reduce((sum, value) => sum + value, 0) / clean.length;
+}
+
+function median(values: number[]) {
+  const clean = values
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+
+  if (clean.length === 0) {
+    return null;
+  }
+
+  const middle = Math.floor(clean.length / 2);
+
+  if (clean.length % 2 === 0) {
+    return (clean[middle - 1] + clean[middle]) / 2;
+  }
+
+  return clean[middle];
+}
+
+function stdDev(values: number[]) {
+  const clean = values.filter((value) => Number.isFinite(value));
+
+  if (clean.length < 2) {
+    return null;
+  }
+
+  const avg = mean(clean);
+
+  if (avg === null) {
+    return null;
+  }
+
+  const variance =
+    clean.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) /
+    (clean.length - 1);
+
+  return Math.sqrt(variance);
+}
+
+function min(values: number[]) {
+  const clean = values.filter((value) => Number.isFinite(value));
+
+  return clean.length > 0 ? Math.min(...clean) : null;
+}
+
+function max(values: number[]) {
+  const clean = values.filter((value) => Number.isFinite(value));
+
+  return clean.length > 0 ? Math.max(...clean) : null;
+}
+
+function round(value: number | null, digits = 4) {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+
+  const factor = Math.pow(10, digits);
+  return Math.round(value * factor) / factor;
+}
+
+
+function extractCompositeDimensionObservationsFromSource(
+  source: CompositeResolvedSource,
+): CompositeDimensionObservation[] {
+  if (!source.available || !source.payload) {
+    return [];
+  }
+
+  const payload = asRecord(source.payload);
+  const responses = Array.isArray(payload.responses)
+    ? (payload.responses as CompositeSnapshotResponse[])
+    : [];
+
+  if (!source.assessmentSessionId || !source.assessmentResultSnapshotId) {
+    return [];
+  }
+
+  const observations: CompositeDimensionObservation[] = [];
+
+  for (const response of responses) {
+    if (response.responseExists !== true) {
+      continue;
+    }
+
+    const value = getCompositeResponseNumericValue(response);
+
+    if (value === null) {
+      continue;
+    }
+
+    const dimensions = Array.isArray(response.dimensions)
+      ? response.dimensions
+      : [];
+
+    for (const dimension of dimensions) {
+      const dimensionCode = normalizeCompositeDimensionCode(
+        dimension.dimensionCode,
+      );
+
+      if (!dimensionCode || dimensionCode === "UNKNOWN") {
+        continue;
+      }
+
+      const dimensionCategory = normalizeCompositeDimensionCategory(
+        dimension.dimensionCategory,
+      );
+
+      const dimensionName =
+        typeof dimension.dimensionName === "string" &&
+        dimension.dimensionName.trim()
+          ? dimension.dimensionName.trim()
+          : dimensionCode;
+
+      const weight = getCompositeResponseWeight(dimension);
+
+      observations.push({
+        sourceSlot: source.slot,
+        sourceLabel: source.label,
+        questionnaireId: source.questionnaireId,
+        questionnaireCode: source.questionnaireCode,
+        questionnaireName: source.questionnaireName,
+
+        assessmentSessionId: source.assessmentSessionId,
+        assessmentResultSnapshotId: source.assessmentResultSnapshotId,
+
+        itemId: typeof response.itemId === "string" ? response.itemId : null,
+        itemCode:
+          typeof response.itemCode === "string" ? response.itemCode : null,
+        itemText:
+          typeof response.itemText === "string" ? response.itemText : null,
+
+        dimensionCode,
+        dimensionName,
+        dimensionCategory,
+
+        value,
+        weight,
+        weightedValue: value * weight,
+      });
+    }
+  }
+
+  return observations;
+}
+
+function aggregateCompositeMergedDimensionScores(
+  sources: CompositeResolvedSource[],
+) {
+  const observations = sources.flatMap((source) =>
+    extractCompositeDimensionObservationsFromSource(source),
+  );
+
+  const groups = new Map<string, CompositeDimensionObservation[]>();
+
+  for (const observation of observations) {
+    const key = [
+      observation.dimensionCategory,
+      observation.dimensionCode,
+    ].join("::");
+
+    const current = groups.get(key) ?? [];
+    current.push(observation);
+    groups.set(key, current);
+  }
+
+  const rows = Array.from(groups.values()).map((groupRows) => {
+    const first = groupRows[0];
+
+    const values = groupRows.map((row) => row.value);
+    const weightedValues = groupRows.map((row) => row.weightedValue);
+    const weightSum = groupRows.reduce((sum, row) => sum + row.weight, 0);
+    const rawSum = groupRows.reduce((sum, row) => sum + row.value, 0);
+    const weightedSum = groupRows.reduce(
+      (sum, row) => sum + row.weightedValue,
+      0,
+    );
+
+    const sourceSlots = Array.from(
+      new Set(groupRows.map((row) => row.sourceSlot)),
+    );
+
+    const questionnaireIds = Array.from(
+      new Set(groupRows.map((row) => row.questionnaireId)),
+    );
+
+    const itemIds = Array.from(
+      new Set(
+        groupRows
+          .map((row) => row.itemId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const itemCodes = Array.from(
+      new Set(
+        groupRows
+          .map((row) => row.itemCode)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    return {
+      dimensionCategory: first.dimensionCategory,
+      dimensionCode: first.dimensionCode,
+      dimensionName: first.dimensionName,
+
+      nItems: groupRows.length,
+      nUniqueItems: itemIds.length || itemCodes.length || groupRows.length,
+
+      nSources: sourceSlots.length,
+      sourceSlots,
+      questionnaireIds,
+
+      rawSum: round(rawSum),
+      weightedSum: round(weightedSum),
+      weightSum: round(weightSum),
+
+      meanScore: round(mean(values)),
+      weightedMeanScore:
+        weightSum > 0 ? round(weightedSum / weightSum) : null,
+
+      medianScore: round(median(values)),
+      stdDevScore: round(stdDev(values)),
+      minScore: round(min(values)),
+      maxScore: round(max(values)),
+
+      debug: {
+        itemIds,
+        itemCodes,
+      },
+    };
+  });
+
+  rows.sort((a, b) =>
+    [
+      a.dimensionCategory.localeCompare(b.dimensionCategory),
+      a.dimensionCode.localeCompare(b.dimensionCode),
+    ].find((result) => result !== 0) ?? 0,
+  );
+
+  const byDimensionKey = Object.fromEntries(
+    rows.map((row) => [
+      `${row.dimensionCategory}.${row.dimensionCode}`,
+      row,
+    ]),
+  );
+
+  const byDimensionCode: Record<string, any[]> = {};
+
+  for (const row of rows) {
+    byDimensionCode[row.dimensionCode] ??= [];
+    byDimensionCode[row.dimensionCode].push(row);
+  }
+
+  const byCategory: Record<string, Record<string, any>> = {};
+
+  for (const row of rows) {
+    byCategory[row.dimensionCategory] ??= {};
+    byCategory[row.dimensionCategory][row.dimensionCode] = row;
+  }
+
+  return {
+    rows,
+    byDimensionKey,
+    byDimensionCode,
+    byCategory,
+    debug: {
+      observationCount: observations.length,
+      mergedDimensionCount: rows.length,
+    },
+  };
+}
+
+function aggregateCompositeSourceDimensionScores(
+  sources: CompositeResolvedSource[],
+) {
+  const result: Record<string, any> = {};
+
+  for (const source of sources) {
+    const merged = aggregateCompositeMergedDimensionScores([source]);
+
+    result[source.slot] = {
+      slot: source.slot,
+      label: source.label,
+      questionnaireId: source.questionnaireId,
+      questionnaireCode: source.questionnaireCode,
+      questionnaireName: source.questionnaireName,
+
+      available: source.available,
+      assessmentSessionId: source.assessmentSessionId,
+      assessmentResultSnapshotId: source.assessmentResultSnapshotId,
+
+      dimensionScores: merged,
+    };
+  }
+
+  return result;
+}
+
 export type PersonalCompositeReportData = {
   tenant: {
     id: string;
@@ -486,6 +884,12 @@ const availableSourceByCode = new Map(
     (source) => source.available,
   );
 
+const mergedDimensionScores =
+  aggregateCompositeMergedDimensionScores(availableResolvedSources);
+
+const sourceDimensionScores =
+  aggregateCompositeSourceDimensionScores(availableResolvedSources);
+
   const sourcesBySlot = Object.fromEntries(
     resolvedSources.map((source) => [source.slot, source]),
   );
@@ -546,7 +950,10 @@ composite: {
   bySlot: sourcesBySlot,
   availableBySlot: availableSourcesBySlot,
   availableByCode: availableSourcesByCode,
-
+  dimensionScores: {
+    merged: mergedDimensionScores,
+    bySource: sourceDimensionScores,
+  },
   
 },
 
