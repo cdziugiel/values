@@ -1,10 +1,10 @@
 // features/my-assessment/components/my-assessment-page.tsx
 
-import { ArrowRight, ShieldCheck } from "lucide-react";
-
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/shared/ui";
 import { MyReportAccessList } from "@/features/report-access/components/my-report-access-list";
+import { MyReportPurchaseOpportunities } from "@/features/report-access/components/my-report-purchase-opportunities";
+import { MyReportTabs } from "@/features/report-access/components/my-report-tabs";
 
 import { getMyAssessments } from "../api/my-assessment.queries";
 import { MyAssessmentTabs } from "./my-assessment-tabs";
@@ -30,7 +30,12 @@ export async function MyAssessmentPage() {
         <MyAssessmentTabs
           publicQuestionnaires={assessment.publicQuestionnaires}
           invitedQuestionnaires={assessment.invitedQuestionnaires}
-          reportsSlot={<MyReportAccessList />}
+          reportsSlot={
+            <MyReportTabs
+              purchaseSlot={<MyReportPurchaseOpportunities tenantSlug="humanet" />}
+              ownedSlot={<MyReportAccessList />}
+            />
+          }
         />
       </div>
     </div>

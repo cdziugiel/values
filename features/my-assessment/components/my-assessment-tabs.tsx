@@ -214,16 +214,16 @@ export function MyAssessmentTabs({
       count: completedQuestionnaires.length,
       icon: <CheckCircle2 size={16} />,
     },
-    {
-      key: "reports",
-      label: "Raporty",
-      shortLabel: "Raporty",
-      description: "Dostępne wyniki i raporty",
-      helperText:
-        "Tutaj znajdziesz raporty, do których masz aktywny dostęp.",
-      count: null,
-      icon: <FileText size={16} />,
-    },
+{
+  key: "reports",
+  label: "Raporty",
+  shortLabel: "Raporty",
+  description: "Raporty do zakupu i zakupione",
+  helperText:
+    "Wybierz raport do odblokowania albo wróć do raportów, które zostały już zakupione.",
+  count: null,
+  icon: <FileText size={16} />,
+},
   ];
 
   const activeTabConfig = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
