@@ -12,7 +12,7 @@ export type ReportAccessGuardResult =
         id: string;
         source: string;
         tenantSlug: string;
-        assessmentSessionId: string;
+        assessmentSessionId: string | null;
         reportTemplateId: string;
         reportTemplateVersionId: string;
       } | null;

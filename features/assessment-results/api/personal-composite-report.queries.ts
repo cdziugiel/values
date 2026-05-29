@@ -19,6 +19,12 @@ import { requirePermission } from "@/server/permissions/require-permission";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 
+
+import type {
+  FrozenCompositeSelection,
+  PersonalCompositeSourceSelection,
+} from "../types/personal-composite-selection.types";
+
 function getDisplayName(input: {
   firstName: string | null;
   lastName: string | null;
@@ -71,11 +77,34 @@ type CompositeSourceConfig = {
 
 type CompositeResolvedSource = CompositeSourceConfig & {
   available: boolean;
+
+  selectionMode: "latest_completed" | "same_project" | "manual" | "frozen";
+  candidateCount: number;
+
+  assessmentProjectId: string | null;
+  assessmentProjectName: string | null;
+
   assessmentSessionId: string | null;
   assessmentResultSnapshotId: string | null;
+
+  questionnaireVersionId: string | null;
+
   completedAt: Date | null;
   frozenAt: Date | null;
   payload: unknown | null;
+
+  candidates: Array<{
+    assessmentProjectId: string | null;
+    assessmentProjectName: string | null;
+    assessmentSessionId: string;
+    assessmentResultSnapshotId: string;
+    questionnaireId: string | null;
+    questionnaireVersionId: string | null;
+    questionnaireCode: string | null;
+    questionnaireName: string | null;
+    completedAt: Date | null;
+    frozenAt: Date | null;
+  }>;
 };
 
 function asRecord(value: unknown): Record<string, any> {
@@ -145,6 +174,490 @@ function getSnapshotQuestionnaireMeta(payload: unknown) {
     questionnaireVersionId,
     questionnaireCode: questionnaireCode || null,
     questionnaireName,
+  };
+}
+
+
+type CompositeAvailableSource = {
+  code: string;
+
+  assessmentProjectId: string | null;
+  assessmentProjectName: string | null;
+
+  questionnaireId: string | null;
+  questionnaireVersionId: string | null;
+  questionnaireCode: string | null;
+  questionnaireName: string | null;
+
+  assessmentSessionId: string;
+  assessmentResultSnapshotId: string;
+
+  completedAt: Date | null;
+  frozenAt: Date | null;
+
+  payload: unknown;
+};
+
+function getTime(value: Date | string | null | undefined) {
+  if (!value) return 0;
+
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+
+  return Number.isFinite(time) ? time : 0;
+}
+
+function sortNewestFirst<T extends { completedAt: Date | null; frozenAt: Date | null }>(
+  rows: T[],
+) {
+  return [...rows].sort((a, b) => {
+    const completedDiff = getTime(b.completedAt) - getTime(a.completedAt);
+
+    if (completedDiff !== 0) {
+      return completedDiff;
+    }
+
+    return getTime(b.frozenAt) - getTime(a.frozenAt);
+  });
+}
+
+function sourceCandidateDto(source: CompositeAvailableSource) {
+  return {
+    assessmentProjectId: source.assessmentProjectId,
+    assessmentProjectName: source.assessmentProjectName,
+
+    assessmentSessionId: source.assessmentSessionId,
+    assessmentResultSnapshotId: source.assessmentResultSnapshotId,
+
+    questionnaireId: source.questionnaireId,
+    questionnaireVersionId: source.questionnaireVersionId,
+    questionnaireCode: source.questionnaireCode,
+    questionnaireName: source.questionnaireName,
+
+    completedAt: source.completedAt,
+    frozenAt: source.frozenAt,
+  };
+}
+
+function groupByQuestionnaireId(sources: CompositeAvailableSource[]) {
+  const grouped = new Map<string, CompositeAvailableSource[]>();
+
+  for (const source of sources) {
+    if (!source.questionnaireId) continue;
+
+    const current = grouped.get(source.questionnaireId) ?? [];
+    current.push(source);
+    grouped.set(source.questionnaireId, current);
+  }
+
+  for (const [key, value] of grouped.entries()) {
+    grouped.set(key, sortNewestFirst(value));
+  }
+
+  return grouped;
+}
+
+function resolveFrozenCompositeSources({
+  configuredSources,
+  availableSources,
+  frozenSelection,
+}: {
+  configuredSources: CompositeSourceConfig[];
+  availableSources: CompositeAvailableSource[];
+  frozenSelection: FrozenCompositeSelection;
+}): CompositeResolvedSource[] {
+  const availableBySnapshotId = new Map(
+    availableSources.map((source) => [
+      source.assessmentResultSnapshotId,
+      source,
+    ]),
+  );
+
+  const frozenBySlot = new Map(
+    frozenSelection.selectedSources.map((source) => [source.slot, source]),
+  );
+
+  return configuredSources.map((configuredSource) => {
+    const frozen = frozenBySlot.get(configuredSource.slot);
+
+    const matched = frozen
+      ? availableBySnapshotId.get(frozen.assessmentResultSnapshotId)
+      : null;
+
+    return {
+      ...configuredSource,
+      available: Boolean(matched),
+
+      selectionMode: "frozen",
+      candidateCount: matched ? 1 : 0,
+
+      assessmentProjectId:
+        matched?.assessmentProjectId ?? frozen?.assessmentProjectId ?? null,
+      assessmentProjectName:
+        matched?.assessmentProjectName ?? frozen?.assessmentProjectName ?? null,
+
+      assessmentSessionId:
+        matched?.assessmentSessionId ?? frozen?.assessmentSessionId ?? null,
+      assessmentResultSnapshotId:
+        matched?.assessmentResultSnapshotId ??
+        frozen?.assessmentResultSnapshotId ??
+        null,
+
+      questionnaireVersionId:
+        matched?.questionnaireVersionId ?? frozen?.questionnaireVersionId ?? null,
+
+      completedAt:
+        matched?.completedAt ??
+        (frozen?.completedAt ? new Date(frozen.completedAt) : null),
+      frozenAt:
+        matched?.frozenAt ?? (frozen?.frozenAt ? new Date(frozen.frozenAt) : null),
+
+      payload: matched?.payload ?? null,
+
+      candidates: matched ? [sourceCandidateDto(matched)] : [],
+    };
+  });
+}
+
+function resolveLatestCompletedCompositeSources({
+  configuredSources,
+  availableSources,
+}: {
+  configuredSources: CompositeSourceConfig[];
+  availableSources: CompositeAvailableSource[];
+}): CompositeResolvedSource[] {
+  const byQuestionnaireId = groupByQuestionnaireId(availableSources);
+
+  return configuredSources.map((configuredSource) => {
+    const candidates = byQuestionnaireId.get(configuredSource.questionnaireId) ?? [];
+    const matched = candidates[0] ?? null;
+
+    return {
+      ...configuredSource,
+      available: Boolean(matched),
+
+      selectionMode: "latest_completed",
+      candidateCount: candidates.length,
+
+      assessmentProjectId: matched?.assessmentProjectId ?? null,
+      assessmentProjectName: matched?.assessmentProjectName ?? null,
+
+      assessmentSessionId: matched?.assessmentSessionId ?? null,
+      assessmentResultSnapshotId: matched?.assessmentResultSnapshotId ?? null,
+
+      questionnaireVersionId: matched?.questionnaireVersionId ?? null,
+
+      completedAt: matched?.completedAt ?? null,
+      frozenAt: matched?.frozenAt ?? null,
+      payload: matched?.payload ?? null,
+
+      candidates: candidates.map(sourceCandidateDto),
+    };
+  });
+}
+
+function resolveSameProjectCompositeSources({
+  configuredSources,
+  availableSources,
+  preferredAssessmentProjectId,
+}: {
+  configuredSources: CompositeSourceConfig[];
+  availableSources: CompositeAvailableSource[];
+  preferredAssessmentProjectId?: string | null;
+}): CompositeResolvedSource[] {
+  const requiredSources = configuredSources.filter((source) => source.required);
+
+  const projectIds = Array.from(
+    new Set(
+      availableSources
+        .map((source) => source.assessmentProjectId)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const orderedProjectIds = preferredAssessmentProjectId
+    ? [
+        preferredAssessmentProjectId,
+        ...projectIds.filter((id) => id !== preferredAssessmentProjectId),
+      ]
+    : projectIds;
+
+  const viableProjectId =
+    orderedProjectIds.find((projectId) =>
+      requiredSources.every((configuredSource) =>
+        availableSources.some(
+          (source) =>
+            source.assessmentProjectId === projectId &&
+            source.questionnaireId === configuredSource.questionnaireId,
+        ),
+      ),
+    ) ?? null;
+
+  return configuredSources.map((configuredSource) => {
+    const candidates = sortNewestFirst(
+      availableSources.filter(
+        (source) =>
+          source.assessmentProjectId === viableProjectId &&
+          source.questionnaireId === configuredSource.questionnaireId,
+      ),
+    );
+
+    const matched = candidates[0] ?? null;
+
+    return {
+      ...configuredSource,
+      available: Boolean(matched),
+
+      selectionMode: "same_project",
+      candidateCount: candidates.length,
+
+      assessmentProjectId: matched?.assessmentProjectId ?? viableProjectId,
+      assessmentProjectName: matched?.assessmentProjectName ?? null,
+
+      assessmentSessionId: matched?.assessmentSessionId ?? null,
+      assessmentResultSnapshotId: matched?.assessmentResultSnapshotId ?? null,
+
+      questionnaireVersionId: matched?.questionnaireVersionId ?? null,
+
+      completedAt: matched?.completedAt ?? null,
+      frozenAt: matched?.frozenAt ?? null,
+      payload: matched?.payload ?? null,
+
+      candidates: candidates.map(sourceCandidateDto),
+    };
+  });
+}
+
+function resolveManualCompositeSources({
+  configuredSources,
+  availableSources,
+  manual,
+}: {
+  configuredSources: CompositeSourceConfig[];
+  availableSources: CompositeAvailableSource[];
+  manual?: PersonalCompositeSourceSelection["manual"];
+}): CompositeResolvedSource[] {
+  const bySessionId = new Map(
+    availableSources.map((source) => [source.assessmentSessionId, source]),
+  );
+
+  const groupedByQuestionnaireId = groupByQuestionnaireId(availableSources);
+
+  return configuredSources.map((configuredSource) => {
+    const selectedSessionId =
+      manual?.bySlot?.[configuredSource.slot] ??
+      manual?.byQuestionnaireId?.[configuredSource.questionnaireId] ??
+      null;
+
+    const candidates =
+      groupedByQuestionnaireId.get(configuredSource.questionnaireId) ?? [];
+
+    const matched = selectedSessionId
+      ? bySessionId.get(selectedSessionId) ?? null
+      : null;
+
+    const validMatched =
+      matched?.questionnaireId === configuredSource.questionnaireId
+        ? matched
+        : null;
+
+    return {
+      ...configuredSource,
+      available: Boolean(validMatched),
+
+      selectionMode: "manual",
+      candidateCount: candidates.length,
+
+      assessmentProjectId: validMatched?.assessmentProjectId ?? null,
+      assessmentProjectName: validMatched?.assessmentProjectName ?? null,
+
+      assessmentSessionId: validMatched?.assessmentSessionId ?? null,
+      assessmentResultSnapshotId:
+        validMatched?.assessmentResultSnapshotId ?? null,
+
+      questionnaireVersionId: validMatched?.questionnaireVersionId ?? null,
+
+      completedAt: validMatched?.completedAt ?? null,
+      frozenAt: validMatched?.frozenAt ?? null,
+      payload: validMatched?.payload ?? null,
+
+      candidates: candidates.map(sourceCandidateDto),
+    };
+  });
+}
+
+function resolveCompositeSources({
+  configuredSources,
+  availableSources,
+  sourceSelection,
+  frozenSelection,
+  assessmentProjectId,
+}: {
+  configuredSources: CompositeSourceConfig[];
+  availableSources: CompositeAvailableSource[];
+  sourceSelection?: PersonalCompositeSourceSelection | null;
+  frozenSelection?: FrozenCompositeSelection | null;
+  assessmentProjectId?: string | null;
+}) {
+  if (frozenSelection) {
+    return resolveFrozenCompositeSources({
+      configuredSources,
+      availableSources,
+      frozenSelection,
+    });
+  }
+
+  if (sourceSelection?.mode === "manual") {
+    return resolveManualCompositeSources({
+      configuredSources,
+      availableSources,
+      manual: sourceSelection.manual,
+    });
+  }
+
+  if (sourceSelection?.mode === "same_project") {
+    return resolveSameProjectCompositeSources({
+      configuredSources,
+      availableSources,
+      preferredAssessmentProjectId:
+        sourceSelection.assessmentProjectId ?? assessmentProjectId ?? null,
+    });
+  }
+
+  return resolveLatestCompletedCompositeSources({
+    configuredSources,
+    availableSources,
+  });
+}
+
+function buildFrozenCompositeSelection({
+  mode,
+  respondentId,
+  reportTemplateVersionId,
+  assessmentProjectId,
+  resolvedSources,
+}: {
+  mode: "latest_completed" | "same_project" | "manual" | "frozen";
+  respondentId: string;
+  reportTemplateVersionId: string;
+  assessmentProjectId?: string | null;
+  resolvedSources: CompositeResolvedSource[];
+}): FrozenCompositeSelection {
+  return {
+    mode: mode == "frozen"? 'latest_completed' : mode,
+    frozenAt: new Date().toISOString(),
+    respondentId,
+    reportTemplateVersionId,
+    assessmentProjectId: assessmentProjectId ?? null,
+    selectedSources: resolvedSources
+      .filter(
+        (source) =>
+          source.available &&
+          source.assessmentSessionId &&
+          source.assessmentResultSnapshotId,
+      )
+      .map((source) => ({
+        slot: source.slot,
+        label: source.label,
+        questionnaireId: source.questionnaireId,
+        questionnaireCode: source.questionnaireCode,
+        questionnaireName: source.questionnaireName,
+        required: source.required,
+
+        assessmentProjectId: source.assessmentProjectId,
+        assessmentProjectName: source.assessmentProjectName,
+
+        assessmentSessionId: source.assessmentSessionId!,
+        assessmentResultSnapshotId: source.assessmentResultSnapshotId!,
+
+        questionnaireVersionId: source.questionnaireVersionId,
+
+        completedAt: source.completedAt,
+        frozenAt: source.frozenAt,
+      })),
+  };
+}
+
+function getDateTime(value: Date | string | null | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+
+  return Number.isFinite(time) ? time : 0;
+}
+
+function sortSourcesNewestFirst(
+  sources: CompositeAvailableSource[],
+): CompositeAvailableSource[] {
+  return [...sources].sort((a, b) => {
+    const completedDiff = getDateTime(b.completedAt) - getDateTime(a.completedAt);
+
+    if (completedDiff !== 0) {
+      return completedDiff;
+    }
+
+    return getDateTime(b.frozenAt) - getDateTime(a.frozenAt);
+  });
+}
+
+function groupAvailableSourcesByQuestionnaireId(
+  sources: CompositeAvailableSource[],
+) {
+  const grouped = new Map<string, CompositeAvailableSource[]>();
+
+  for (const source of sources) {
+    if (!source.questionnaireId) {
+      continue;
+    }
+
+    const current = grouped.get(source.questionnaireId) ?? [];
+    current.push(source);
+    grouped.set(source.questionnaireId, current);
+  }
+
+  for (const [questionnaireId, group] of grouped.entries()) {
+    grouped.set(questionnaireId, sortSourcesNewestFirst(group));
+  }
+
+  return grouped;
+}
+
+function groupAvailableSourcesByQuestionnaireCode(
+  sources: CompositeAvailableSource[],
+) {
+  const grouped = new Map<string, CompositeAvailableSource[]>();
+
+  for (const source of sources) {
+    const code = source.questionnaireCode ?? source.code;
+
+    if (!code) {
+      continue;
+    }
+
+    const current = grouped.get(code) ?? [];
+    current.push(source);
+    grouped.set(code, current);
+  }
+
+  for (const [code, group] of grouped.entries()) {
+    grouped.set(code, sortSourcesNewestFirst(group));
+  }
+
+  return grouped;
+}
+
+function stripSourcePayload(source: CompositeAvailableSource) {
+  return {
+    code: source.code,
+    questionnaireId: source.questionnaireId,
+    questionnaireVersionId: source.questionnaireVersionId,
+    questionnaireCode: source.questionnaireCode,
+    questionnaireName: source.questionnaireName,
+    assessmentSessionId: source.assessmentSessionId,
+    assessmentResultSnapshotId: source.assessmentResultSnapshotId,
+    completedAt: source.completedAt,
+    frozenAt: source.frozenAt,
   };
 }
 
@@ -641,7 +1154,7 @@ export type PersonalCompositeReportData = {
     id: string;
     name: string;
     description: string | null;
-  };
+  } | null;
   respondent: {
     id: string;
     displayName: string;
@@ -672,25 +1185,24 @@ export type PersonalCompositeReportData = {
 
 export async function getPersonalCompositeReport({
   tenantSlug,
-  assessmentProjectId,
+  assessmentProjectId = null,
   respondentId,
   reportTemplateVersionId,
   previewMode = false,
+  sourceSelection = null,
+  frozenSelection = null,
 }: {
   tenantSlug: string;
-  assessmentProjectId: string;
+  assessmentProjectId?: string | null;
   respondentId: string;
   reportTemplateVersionId: string;
   previewMode?: boolean;
+  sourceSelection?: PersonalCompositeSourceSelection | null;
+  frozenSelection?: FrozenCompositeSelection | null;
 }): Promise<PersonalCompositeReportData | null> {
-  if (
-    !tenantSlug ||
-    !assessmentProjectId ||
-    !respondentId ||
-    !reportTemplateVersionId
-  ) {
-    return null;
-  }
+if (!tenantSlug || !respondentId || !reportTemplateVersionId) {
+  return null;
+}
 
   const ctx = await requireTenantContext({ tenantSlug });
   requirePermission(ctx, "report:read");
@@ -734,43 +1246,62 @@ export async function getPersonalCompositeReport({
   );
 
   const db = await getTenantDb(ctx);
-  const [subject] = await db
-    .select({
-      projectId: assessmentProjects.id,
-      projectName: assessmentProjects.name,
-      projectDescription: assessmentProjects.description,
+const project = assessmentProjectId
+  ? (
+      await db
+        .select({
+          id: assessmentProjects.id,
+          name: assessmentProjects.name,
+          description: assessmentProjects.description,
+        })
+        .from(assessmentProjects)
+        .where(
+          and(
+            eq(assessmentProjects.id, assessmentProjectId),
+            isNull(assessmentProjects.deletedAt),
+          ),
+        )
+        .limit(1)
+    )[0]
+  : null;
 
-      respondentId: respondents.id,
-      respondentExternalCode: respondents.externalCode,
+if (assessmentProjectId && !project) {
+  return null;
+}
 
-      respondentEmail: respondentIdentities.email,
-      respondentFirstName: respondentIdentities.firstName,
-      respondentLastName: respondentIdentities.lastName,
-    })
-    .from(respondents)
-    .innerJoin(
-      assessmentProjects,
-      eq(assessmentProjects.id, assessmentProjectId),
-    )
-    .leftJoin(
-      respondentIdentities,
-      and(
-        eq(respondentIdentities.respondentId, respondents.id),
-        isNull(respondentIdentities.deletedAt),
-      ),
-    )
-    .where(
-      and(
-        eq(respondents.id, respondentId),
-        isNull(respondents.deletedAt),
-        isNull(assessmentProjects.deletedAt),
-      ),
-    )
-    .limit(1);
+const [subject] = await db
+  .select({
+    respondentId: respondents.id,
+    respondentExternalCode: respondents.externalCode,
+
+    respondentEmail: respondentIdentities.email,
+    respondentFirstName: respondentIdentities.firstName,
+    respondentLastName: respondentIdentities.lastName,
+  })
+  .from(respondents)
+  .leftJoin(
+    respondentIdentities,
+    and(
+      eq(respondentIdentities.respondentId, respondents.id),
+      isNull(respondentIdentities.deletedAt),
+    ),
+  )
+  .where(and(eq(respondents.id, respondentId), isNull(respondents.deletedAt)))
+  .limit(1);
+
+if (!subject) {
+  return null;
+}
 
   if (!subject) {
     return null;
   }
+
+
+  const projectCondition = assessmentProjectId
+  ? eq(assessmentSessions.assessmentProjectId, assessmentProjectId)
+  : undefined;
+
   const rows = await db
     .select({
       sessionId: assessmentSessions.id,
@@ -780,6 +1311,7 @@ export async function getPersonalCompositeReport({
       projectId: assessmentProjects.id,
       projectName: assessmentProjects.name,
       projectDescription: assessmentProjects.description,
+sessionAssessmentProjectId: assessmentSessions.assessmentProjectId,
 
       respondentId: respondents.id,
       respondentExternalCode: respondents.externalCode,
@@ -811,7 +1343,7 @@ export async function getPersonalCompositeReport({
     )
     .where(
       and(
-        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+        projectCondition,
         eq(assessmentSessions.respondentId, respondentId),
         eq(assessmentSessions.status, "completed"),
         isNull(assessmentSessions.deletedAt),
@@ -823,14 +1355,17 @@ export async function getPersonalCompositeReport({
     .orderBy(desc(assessmentSessions.completedAt));
 
 
-const availableSources = rows.map((row, index) => {
+const availableSources: CompositeAvailableSource[] = rows.map((row, index) => {
   const questionnaireMeta = getSnapshotQuestionnaireMeta(row.snapshotPayload);
 
-  const code =
-    questionnaireMeta.questionnaireCode ?? `SOURCE_${index + 1}`;
+  const code = questionnaireMeta.questionnaireCode ?? `SOURCE_${index + 1}`;
 
   return {
     code,
+
+    assessmentProjectId: row.sessionAssessmentProjectId ?? null,
+    assessmentProjectName: row.projectName ?? null,
+
     questionnaireId: questionnaireMeta.questionnaireId,
     questionnaireVersionId: questionnaireMeta.questionnaireVersionId,
     questionnaireCode: questionnaireMeta.questionnaireCode,
@@ -844,36 +1379,32 @@ const availableSources = rows.map((row, index) => {
   };
 });
 
-const availableSourceByQuestionnaireId = new Map(
-  availableSources
-    .filter((source) => source.questionnaireId)
-    .map((source) => [source.questionnaireId as string, source]),
-);
+const resolvedSources = resolveCompositeSources({
+  configuredSources,
+  availableSources,
+  sourceSelection,
+  frozenSelection,
+  assessmentProjectId,
+});
 
-const availableSourceByCode = new Map(
-  availableSources
-    .filter((source) => source.questionnaireCode || source.code)
-    .map((source) => [source.questionnaireCode ?? source.code, source]),
-);
+const effectiveSelectionMode =
+  frozenSelection?.mode ?? sourceSelection?.mode ?? "latest_completed";
 
-  const resolvedSources: CompositeResolvedSource[] = configuredSources.map(
-    (configuredSource) => {
-      const matched =
-  availableSourceByQuestionnaireId.get(configuredSource.questionnaireId) ??
-  availableSourceByCode.get(configuredSource.questionnaireCode);
+const frozenCompositeSelection = buildFrozenCompositeSelection({
+  mode:
+    effectiveSelectionMode,
+  respondentId,
+  reportTemplateVersionId,
+  assessmentProjectId,
+  resolvedSources,
+});
 
-      return {
-        ...configuredSource,
-        available: Boolean(matched),
-        assessmentSessionId: matched?.assessmentSessionId ?? null,
-        assessmentResultSnapshotId:
-          matched?.assessmentResultSnapshotId ?? null,
-        completedAt: matched?.completedAt ?? null,
-        frozenAt: matched?.frozenAt ?? null,
-        payload: matched?.payload ?? null,
-      };
-    },
-  );
+const availableSourcesByQuestionnaireId =
+  groupAvailableSourcesByQuestionnaireId(availableSources);
+
+const availableSourcesByQuestionnaireCode =
+  groupAvailableSourcesByQuestionnaireCode(availableSources);
+
 
   const eligibility = buildCompositeEligibility({
     configuredSources,
@@ -910,11 +1441,27 @@ const sourceDimensionScores =
     reportKind: "personal_composite",
     tenantSlug: ctx.tenantSlug,
     frozenAt: new Date().toISOString(),
-
-    project: {
-      id: subject.projectId,
-      name: subject.projectName,
-      description: subject.projectDescription,
+scope: assessmentProjectId
+  ? {
+      type: "assessment_project",
+      assessmentProjectId,
+      label: project?.name ?? "Projekt",
+    }
+  : {
+      type: "respondent",
+      respondentId,
+      label: "Moje badania publiczne",
+    },
+project: project
+  ? {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+    }
+  : {
+      id: null,
+      name: "Moje badania publiczne",
+      description: null,
     },
 
     respondent: {
@@ -954,6 +1501,12 @@ composite: {
     merged: mergedDimensionScores,
     bySource: sourceDimensionScores,
   },
+  selection: {
+  mode: effectiveSelectionMode,
+  frozen: frozenCompositeSelection,
+  selectedSources: frozenCompositeSelection.selectedSources,
+  
+},
   
 },
 
@@ -995,11 +1548,13 @@ composite: {
       slug: ctx.tenantSlug,
       name: "tenantName" in ctx ? String(ctx.tenantName ?? "") : null,
     },
-    project: {
-      id: subject.projectId,
-      name: subject.projectName,
-      description: subject.projectDescription,
-    },
+project: project
+  ? {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+    }
+  : null,
     respondent: {
       id: subject.respondentId,
       email: subject.respondentEmail,

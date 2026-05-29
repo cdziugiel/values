@@ -13,6 +13,7 @@ import {
 
 import {
   assessmentProjectQuestionnaires,
+  assessmentResultSnapshots,
   assessmentSessions,
   respondentIdentities,
   respondents,
@@ -408,5 +409,334 @@ export async function getReportAccessOfferForCompletedSession({
     product: product ?? null,
     existingGrant,
     hasAccess: Boolean(existingGrant),
+  };
+}
+
+
+function asRecord(value: unknown): Record<string, any> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, any>;
+  }
+
+  return {};
+}
+
+function readCompositeRequiredSources(dataBindings: unknown) {
+  const bindings = asRecord(dataBindings);
+  const sources = asRecord(bindings.sources);
+  const personalReports = sources.personalReports;
+
+  if (!Array.isArray(personalReports)) {
+    return [];
+  }
+
+  return personalReports
+    .map((item) => {
+      const source = asRecord(item);
+
+      return {
+        slot: typeof source.slot === "string" ? source.slot : "",
+        label: typeof source.label === "string" ? source.label : "",
+        questionnaireId:
+          typeof source.questionnaireId === "string"
+            ? source.questionnaireId
+            : "",
+        questionnaireCode:
+          typeof source.questionnaireCode === "string"
+            ? source.questionnaireCode
+            : "",
+        questionnaireName:
+          typeof source.questionnaireName === "string"
+            ? source.questionnaireName
+            : "",
+        required: Boolean(source.required),
+      };
+    })
+    .filter((source) => source.slot && source.questionnaireId);
+}
+
+function getSnapshotQuestionnaireId(payload: unknown) {
+  const record = asRecord(payload);
+  const questionnaires = Array.isArray(record.questionnaires)
+    ? record.questionnaires
+    : [];
+
+  const first = asRecord(questionnaires[0]);
+
+  if (typeof first.questionnaireId === "string") {
+    return first.questionnaireId;
+  }
+
+  const questionnaire = asRecord(record.questionnaire);
+
+  if (typeof questionnaire.id === "string") {
+    return questionnaire.id;
+  }
+
+  if (typeof record.questionnaireId === "string") {
+    return record.questionnaireId;
+  }
+
+  return null;
+}
+
+export async function getActiveReportAccessGrantForSubject({
+  tenantSlug,
+  subjectType,
+  subjectId,
+  reportTemplateVersionId,
+  userId,
+}: {
+  tenantSlug: string;
+  subjectType: string;
+  subjectId: string;
+  reportTemplateVersionId: string;
+  userId?: string | null;
+}) {
+  const grants = await controlDb
+    .select()
+    .from(reportAccessGrants)
+    .where(
+      and(
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.subjectType, subjectType),
+        eq(reportAccessGrants.subjectId, subjectId),
+        eq(reportAccessGrants.reportTemplateVersionId, reportTemplateVersionId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    )
+    .limit(10);
+
+  const now = new Date();
+
+  return (
+    grants.find((grant) => {
+      if (userId && grant.userId && grant.userId !== userId) {
+        return false;
+      }
+
+      if (grant.validFrom && grant.validFrom > now) {
+        return false;
+      }
+
+      if (grant.validUntil && grant.validUntil < now) {
+        return false;
+      }
+
+      return true;
+    }) ?? null
+  );
+}
+
+export async function resolveRespondentForCurrentUser({
+  tenantSlug,
+}: {
+  tenantSlug: string;
+}) {
+  const authSession = await requireSession();
+  const email = normalizeEmail(authSession.user.email);
+
+  if (!email) {
+    return {
+      ok: false as const,
+      message: "Konto użytkownika nie ma adresu e-mail.",
+    };
+  }
+
+  const tenant = await getTenantDbBySlug(tenantSlug);
+
+  if (!tenant) {
+    return {
+      ok: false as const,
+      message: "Nie znaleziono tenanta badania.",
+    };
+  }
+
+  const rows = await tenant.db
+    .select({
+      respondentId: respondents.id,
+      respondentEmail: respondentIdentities.email,
+      respondentExternalCode: respondents.externalCode,
+    })
+    .from(respondents)
+    .innerJoin(
+      respondentIdentities,
+      eq(respondentIdentities.respondentId, respondents.id),
+    )
+    .where(
+      and(
+        eq(respondentIdentities.email, email),
+        isNull(respondents.deletedAt),
+        isNull(respondentIdentities.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  const respondent = rows[0];
+
+  if (!respondent) {
+    return {
+      ok: false as const,
+      message:
+        "Nie znaleziono respondenta powiązanego z adresem e-mail zalogowanego użytkownika.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    tenant,
+    actorUserId: authSession.user.id,
+    actorEmail: email,
+    respondent: {
+      id: respondent.respondentId,
+      email: normalizeEmail(respondent.respondentEmail),
+      externalCode: respondent.respondentExternalCode,
+    },
+  };
+}
+
+export async function getCompositeReportAccessOfferForCurrentUser({
+  tenantSlug,
+  reportTemplateVersionId,
+}: {
+  tenantSlug: string;
+  reportTemplateVersionId: string;
+}) {
+  const resolved = await resolveRespondentForCurrentUser({ tenantSlug });
+
+  if (!resolved.ok) {
+    return {
+      ok: false as const,
+      message: resolved.message,
+    };
+  }
+
+  const [reportVersion] = await controlDb
+    .select({
+      reportTemplateId: reportTemplateVersions.reportTemplateId,
+      reportTemplateVersionId: reportTemplateVersions.id,
+      reportTemplateVersionName: reportTemplateVersions.name,
+      reportTemplateVersion: reportTemplateVersions.version,
+      reportTemplateVersionStatus: reportTemplateVersions.status,
+      dataBindings: reportTemplateVersions.dataBindings,
+
+      reportTemplateCode: reportTemplates.code,
+      reportTemplateName: reportTemplates.name,
+      reportTemplateKind: reportTemplates.kind,
+    })
+    .from(reportTemplateVersions)
+    .innerJoin(
+      reportTemplates,
+      eq(reportTemplates.id, reportTemplateVersions.reportTemplateId),
+    )
+    .where(
+      and(
+        eq(reportTemplateVersions.id, reportTemplateVersionId),
+        eq(reportTemplateVersions.status, "active"),
+        eq(reportTemplates.status, "active"),
+        eq(reportTemplates.kind, "personal_composite"),
+        isNull(reportTemplateVersions.deletedAt),
+        isNull(reportTemplates.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!reportVersion) {
+    return {
+      ok: false as const,
+      message: "Nie znaleziono aktywnej wersji raportu złożonego.",
+    };
+  }
+
+  const configuredSources = readCompositeRequiredSources(
+    reportVersion.dataBindings,
+  );
+
+  if (configuredSources.length === 0) {
+    return {
+      ok: false as const,
+      message:
+        "Raport złożony nie ma skonfigurowanych kwestionariuszy źródłowych.",
+    };
+  }
+
+  const snapshotRows = await resolved.tenant.db
+    .select({
+      sessionId: assessmentSessions.id,
+      sessionStatus: assessmentSessions.status,
+      snapshotId: assessmentResultSnapshots.id,
+      payload: assessmentResultSnapshots.payload,
+      createdAt: assessmentResultSnapshots.createdAt,
+    })
+    .from(assessmentResultSnapshots)
+    .innerJoin(
+      assessmentSessions,
+      eq(assessmentSessions.id, assessmentResultSnapshots.assessmentSessionId),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.respondentId, resolved.respondent.id),
+        eq(assessmentSessions.status, "completed"),
+        isNull(assessmentSessions.deletedAt),
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    );
+
+  const completedQuestionnaireIds = new Set(
+    snapshotRows
+      .map((row) => getSnapshotQuestionnaireId(row.payload))
+      .filter((value): value is string => Boolean(value)),
+  );
+
+  const missingRequiredSources = configuredSources.filter(
+    (source) =>
+      source.required && !completedQuestionnaireIds.has(source.questionnaireId),
+  );
+
+  const missingOptionalSources = configuredSources.filter(
+    (source) =>
+      !source.required && !completedQuestionnaireIds.has(source.questionnaireId),
+  );
+
+  const eligibility = {
+    status:
+      missingRequiredSources.length > 0
+        ? ("missing_required_sources" as const)
+        : ("ready" as const),
+    canRender: missingRequiredSources.length === 0,
+    configuredSources,
+    completedQuestionnaireIds: Array.from(completedQuestionnaireIds),
+    missingRequiredSources,
+    missingOptionalSources,
+  };
+
+  const existingGrant = await getActiveReportAccessGrantForSubject({
+    tenantSlug,
+    subjectType: "respondent",
+    subjectId: resolved.respondent.id,
+    reportTemplateVersionId,
+    userId: resolved.actorUserId,
+  });
+
+  const product = await controlDb.query.reportAccessProducts.findFirst({
+    where: and(
+      eq(reportAccessProducts.reportTemplateId, reportVersion.reportTemplateId),
+      eq(reportAccessProducts.status, "active"),
+      isNull(reportAccessProducts.deletedAt),
+    ),
+  });
+
+  return {
+    ok: true as const,
+    tenantSlug,
+    actorUserId: resolved.actorUserId,
+    actorEmail: resolved.actorEmail,
+    respondent: resolved.respondent,
+    reportVersion,
+    product: product ?? null,
+    existingGrant,
+    hasAccess: Boolean(existingGrant),
+    eligibility,
   };
 }

@@ -45,43 +45,43 @@ export default async function PersonalCompositeReportPage({
     notFound();
   }
 
-  
+
   if (!data.eligibility.canRender) {
-  return (
-    <main className="min-h-screen bg-[#f3f4f6] p-6">
-      <section className="mx-auto max-w-4xl rounded-[2rem] border border-amber-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
-          Nie można wygenerować raportu złożonego
-        </h1>
+    return (
+      <main className="min-h-screen bg-[#f3f4f6] p-6">
+        <section className="mx-auto max-w-4xl rounded-[2rem] border border-amber-200 bg-white p-6 shadow-sm">
+          <h1 className="text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+            Nie można wygenerować raportu złożonego
+          </h1>
 
-        <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-          Brakuje wymaganych kwestionariuszy dla respondenta{" "}
-          <strong>{data.respondent.displayName}</strong>.
-        </p>
+          <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+            Brakuje wymaganych kwestionariuszy dla respondenta{" "}
+            <strong>{data.respondent.displayName}</strong>.
+          </p>
 
-        <div className="mt-5 space-y-3">
-          {data.eligibility.missingRequiredSources.map((source) => (
-            <div
-              key={source.slot}
-              className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-            >
-              <div className="font-semibold">{source.questionnaireName}</div>
-              <div className="mt-1 font-mono text-xs">
-                {source.questionnaireCode}
+          <div className="mt-5 space-y-3">
+            {data.eligibility.missingRequiredSources.map((source) => (
+              <div
+                key={source.slot}
+                className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              >
+                <div className="font-semibold">{source.questionnaireName}</div>
+                <div className="mt-1 font-mono text-xs">
+                  {source.questionnaireCode}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
+            ))}
+          </div>
+        </section>
+      </main>
+    );
+  }
 
 
-const rendered = renderReportDocument({
-  reportTemplateVersion,
-  payload: data.payload,
-});
+  const rendered = renderReportDocument({
+    reportTemplateVersion,
+    payload: data.payload,
+  });
 
   const backHref = `/t/${tenantSlug}/assessment-projects/${projectId}/respondents`;
 
@@ -134,8 +134,8 @@ const rendered = renderReportDocument({
                 </h1>
 
                 <p className="mt-1 text-sm leading-6 text-[#6b7280]">
-                  {data.project.name} · źródła:{" "}
-                  {data.payload?.composite?.sourceCount ?? 0}
+                  {data.project?.name ?? "Raport złożony"} · źródła:{" "}
+                  {data.payload?.composite?.availableSourceCount ?? 0}
                 </p>
               </div>
             </div>

@@ -11,10 +11,12 @@ import {
 } from "@/drizzle/schema";
 
 import { controlDb } from "@/server/db/control-db";
-
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import {
+  getCompositeReportAccessOfferForCurrentUser,
   getReportAccessOfferForCompletedSession,
 } from "./report-access.queries";
+import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
 
 export type ReportAccessActionState = {
   status: "idle" | "success" | "error";
@@ -22,6 +24,10 @@ export type ReportAccessActionState = {
 };
 
 function fail(error: unknown): ReportAccessActionState {
+  if (isRedirectError(error)) {
+    throw error;
+  }
+
   return {
     status: "error",
     message:
@@ -215,6 +221,9 @@ export async function unlockReportWithPlaceholderPaymentAction(
           userId: offer.actorUserId,
           email: offer.actorEmail,
 
+          subjectType: "assessment_session",
+          subjectId: sessionId,
+
           assessmentProjectId: offer.session.assessmentProjectId,
           assessmentSessionId: sessionId,
           assessmentAccessLinkId: offer.session.assessmentAccessLinkId,
@@ -245,6 +254,259 @@ export async function unlockReportWithPlaceholderPaymentAction(
 
     redirect(
       `/my/assessment/sessions/${sessionId}/report/${result.grant.reportTemplateVersionId}?tenant=${tenantSlug}`,
+    );
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+
+export async function unlockCompositeReportWithPlaceholderPaymentAction(
+  _previousState: ReportAccessActionState,
+  formData: FormData,
+): Promise<ReportAccessActionState> {
+  const tenantSlug = String(formData.get("tenantSlug") ?? "");
+  const reportTemplateVersionId = String(
+    formData.get("reportTemplateVersionId") ?? "",
+  );
+
+  const rawSelectionMode = String(
+    formData.get("selectionMode") ?? "latest_completed",
+  );
+
+  const selectionMode: "latest_completed" | "same_project" | "manual" =
+    rawSelectionMode === "same_project" || rawSelectionMode === "manual"
+      ? rawSelectionMode
+      : "latest_completed";
+
+  if (!tenantSlug || !reportTemplateVersionId) {
+    return {
+      status: "error",
+      message: "Brakuje danych raportu złożonego.",
+    };
+  }
+
+  try {
+    const offer = await getCompositeReportAccessOfferForCurrentUser({
+      tenantSlug,
+      reportTemplateVersionId,
+    });
+
+    if (!offer.ok) {
+      return {
+        status: "error",
+        message: offer.message,
+      };
+    }
+
+    if (!offer.eligibility.canRender) {
+      return {
+        status: "error",
+        message:
+          "Nie można odblokować raportu złożonego, ponieważ brakuje wymaganych ukończonych kwestionariuszy.",
+      };
+    }
+
+    const product = offer.product;
+
+    if (!product) {
+      return {
+        status: "error",
+        message:
+          "Nie znaleziono aktywnego produktu sprzedażowego dla tego raportu złożonego.",
+      };
+    }
+
+    let manualSelection:
+      | {
+          bySlot?: Record<string, string>;
+          byQuestionnaireId?: Record<string, string>;
+        }
+      | undefined;
+
+    if (selectionMode === "manual") {
+      const manualRaw = String(formData.get("manualSelection") ?? "{}");
+
+      try {
+        const parsed = JSON.parse(manualRaw);
+
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          !Array.isArray(parsed)
+        ) {
+          manualSelection = parsed;
+        } else {
+          manualSelection = {};
+        }
+      } catch {
+        return {
+          status: "error",
+          message: "Nieprawidłowy format ręcznego wyboru źródeł raportu.",
+        };
+      }
+    }
+
+    const compositeData = await getPersonalCompositeReport({
+      tenantSlug,
+      respondentId: offer.respondent.id,
+      reportTemplateVersionId,
+      previewMode: true,
+      sourceSelection: {
+        mode: selectionMode,
+        manual: manualSelection,
+      },
+    });
+
+    if (!compositeData || !compositeData.eligibility.canRender) {
+      return {
+        status: "error",
+        message:
+          "Nie można odblokować raportu złożonego dla wybranego zestawu źródeł.",
+      };
+    }
+
+    const frozenSelection = compositeData.payload?.composite?.selection?.frozen;
+
+    if (!frozenSelection) {
+      return {
+        status: "error",
+        message: "Nie udało się zamrozić wyboru źródeł raportu złożonego.",
+      };
+    }
+
+    const now = new Date();
+
+    const totalNet = toMoneyString(product.priceNet);
+    const totalGross = toMoneyString(product.priceGross);
+    const totalVat = calculateVat({
+      gross: product.priceGross,
+      net: product.priceNet,
+    });
+
+    const result = await controlDb.transaction(async (tx) => {
+      const [order] = await tx
+        .insert(reportAccessOrders)
+        .values({
+          buyerType: "user",
+          tenantSlug,
+          buyerUserId: offer.actorUserId,
+
+          status: "paid",
+
+          paymentProvider: "placeholder",
+          paymentProviderOrderId: `placeholder:composite:${offer.respondent.id}:${Date.now()}`,
+
+          currency: product.currency,
+          totalNet,
+          totalVat,
+          totalGross,
+
+          invoiceRequested: false,
+
+          metadata: {
+            placeholder: true,
+            reportKind: "personal_composite",
+            subjectType: "respondent",
+            subjectId: offer.respondent.id,
+            reportTemplateId: offer.reportVersion.reportTemplateId,
+            reportTemplateVersionId:
+              offer.reportVersion.reportTemplateVersionId,
+            compositeSelection: frozenSelection,
+            compositeSelectionMode: selectionMode,
+            eligibility: compositeData.eligibility,
+          },
+
+          paidAt: now,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: offer.actorUserId,
+          updatedBy: offer.actorUserId,
+        })
+        .returning();
+
+      await tx.insert(reportAccessOrderItems).values({
+        orderId: order.id,
+        productId: product.id,
+        quantity: 1,
+
+        unitNet: totalNet,
+        unitVat: totalVat,
+        unitGross: totalGross,
+
+        totalNet,
+        totalVat,
+        totalGross,
+
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const validUntil = product.validityDays
+        ? new Date(
+            now.getTime() + product.validityDays * 24 * 60 * 60 * 1000,
+          )
+        : null;
+
+      const [grant] = await tx
+        .insert(reportAccessGrants)
+        .values({
+          source: "placeholder_payment",
+          status: "active",
+
+          productId: product.id,
+          orderId: order.id,
+
+          reportTemplateId: offer.reportVersion.reportTemplateId,
+          reportTemplateVersionId:
+            offer.reportVersion.reportTemplateVersionId,
+
+          tenantSlug,
+          userId: offer.actorUserId,
+          email: offer.actorEmail,
+
+          subjectType: "respondent",
+          subjectId: offer.respondent.id,
+
+          assessmentProjectId: null,
+          assessmentSessionId: null,
+          assessmentAccessLinkId: null,
+
+          validFrom: now,
+          validUntil,
+
+          metadata: {
+            placeholder: true,
+            reportKind: "personal_composite",
+            respondentId: offer.respondent.id,
+
+            compositeSelection: frozenSelection,
+            compositeSelectionMode: selectionMode,
+
+            purchasedReportTemplateVersionName:
+              offer.reportVersion.reportTemplateVersionName,
+            purchasedReportTemplateVersion:
+              offer.reportVersion.reportTemplateVersion,
+            eligibility: compositeData.eligibility,
+          },
+
+          createdAt: now,
+          updatedAt: now,
+          createdBy: offer.actorUserId,
+          updatedBy: offer.actorUserId,
+        })
+        .returning();
+
+      return {
+        order,
+        grant,
+      };
+    });
+
+    redirect(
+      `/my/reports/composite/grants/${result.grant.id}?tenant=${encodeURIComponent(
+        tenantSlug,
+      )}`,
     );
   } catch (error) {
     return fail(error);

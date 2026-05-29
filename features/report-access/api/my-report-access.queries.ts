@@ -41,6 +41,40 @@ function isCurrentlyActive({
   return true;
 }
 
+function buildReportHref(row: {
+  id: string;
+  status: string;
+  tenantSlug: string;
+  assessmentSessionId: string | null;
+  subjectType: string;
+  subjectId: string | null;
+  reportTemplateKind: string;
+  reportTemplateVersionId: string;
+}) {
+  if (row.status !== "active") {
+    return null;
+  }
+
+  if (
+    row.reportTemplateKind === "personal_composite" ||
+    row.subjectType === "respondent"
+  ) {
+    return `/my/reports/composite/grants/${row.id}?tenant=${encodeURIComponent(
+      row.tenantSlug,
+    )}`;
+  }
+
+  if (!row.assessmentSessionId) {
+    return null;
+  }
+
+  return (
+    `/my/assessment/sessions/${row.assessmentSessionId}` +
+    `/report/${row.reportTemplateVersionId}` +
+    `?tenant=${encodeURIComponent(row.tenantSlug)}`
+  );
+}
+
 export async function getMyReportAccesses() {
   const session = await requireSession();
   const email = normalizeEmail(session.user.email);
@@ -53,6 +87,10 @@ export async function getMyReportAccesses() {
       status: reportAccessGrants.status,
 
       tenantSlug: reportAccessGrants.tenantSlug,
+
+      subjectType: reportAccessGrants.subjectType,
+      subjectId: reportAccessGrants.subjectId,
+
       assessmentSessionId: reportAccessGrants.assessmentSessionId,
 
       reportTemplateId: reportAccessGrants.reportTemplateId,
@@ -67,6 +105,7 @@ export async function getMyReportAccesses() {
       productCode: reportAccessProducts.code,
       productName: reportAccessProducts.name,
 
+      reportTemplateKind: reportTemplates.kind,
       reportTemplateCode: reportTemplates.code,
       reportTemplateName: reportTemplates.name,
 
@@ -102,17 +141,17 @@ export async function getMyReportAccesses() {
     )
     .orderBy(desc(reportAccessGrants.createdAt));
 
-  return rows.map((row) => ({
-    ...row,
-    isCurrentlyActive: isCurrentlyActive({
+  return rows.map((row) => {
+    const active = isCurrentlyActive({
       status: row.status,
       validFrom: row.validFrom,
       validUntil: row.validUntil,
-    }),
+    });
 
-    reportHref:
-      row.status === "active"
-        ? `/my/assessment/sessions/${row.assessmentSessionId}/report/${row.reportTemplateVersionId}?tenant=${row.tenantSlug}`
-        : null,
-  }));
+    return {
+      ...row,
+      isCurrentlyActive: active,
+      reportHref: active ? buildReportHref(row) : null,
+    };
+  });
 }

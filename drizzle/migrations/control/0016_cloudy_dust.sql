@@ -1,0 +1,3 @@
+DROP INDEX "rag_one_active_grant_per_session_report_type_idx";--> statement-breakpoint
+ALTER TABLE "report_access_grants" ALTER COLUMN "assessment_session_id" DROP NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "rag_one_active_grant_per_session_report_type_idx" ON "report_access_grants" USING btree ("assessment_session_id","report_template_id") WHERE deleted_at is null and status = 'active' and assessment_session_id is not null;

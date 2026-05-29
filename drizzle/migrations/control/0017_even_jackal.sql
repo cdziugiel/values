@@ -1,0 +1,1 @@
+DROP INDEX "rag_one_active_grant_per_subject_report_type_idx";
