@@ -21,6 +21,7 @@ import { BulkGrantReportAccessDialog } from "./bulk-grant-report-access-dialog";
 import { GenerateReportAccessPoolDialog } from "./generate-report-access-pool-dialog";
 import { GrantCompositeReportAccessToRespondentForm } from "./grant-composite-report-access-to-respondent-form";
 import { PartnerRespondentsAccordion } from "./partner-respondents-accordion";
+import { PartnerProjectReportsPanel } from "./partner-project-reports-panel";
 
 type PartnerAssessmentProjectRespondentsPageProps = {
   tenantSlug: string;
@@ -361,23 +362,38 @@ export async function PartnerAssessmentProjectRespondentsPage({
           />
         </section>
 
-        <SectionShell
-          icon={<KeyRound size={20} />}
-          title="Dostępy dla parnera"
-          description="Pula dostępów, z której partner lub admin może nadawać raporty respondentom."
-          action={
-            <GenerateReportAccessPoolDialog
-              tenantSlug={tenantSlug}
-              projectId={projectId}
-              products={data.partnerReportAccessProducts ?? []}
-              billingProfile={data.billingProfile}
-            />
-          }
-        >
-          <ReportAccessPoolSummary
-  products={data.partnerReportAccessProducts ?? []}
+<SectionShell
+  icon={<BarChart3 size={20} />}
+  title="Raporty partnera"
+  description="Raporty zbiorcze dostępne dla projektu, organizacji, zespołów i porównań. Nie są przypisywane do pojedynczego respondenta."
+>
+  <PartnerProjectReportsPanel
+  tenantSlug={tenantSlug}
+  projectId={projectId}
+  reports={data.partnerReports ?? []}
+  projectClientUnits={data.projectClientUnits ?? []}
 />
-        </SectionShell>
+</SectionShell>
+
+
+
+<SectionShell
+  icon={<KeyRound size={20} />}
+  title="Dostępy do raportów partnera"
+  description="Pula dostępów używana do aktywowania raportów projektu, organizacji i zespołów."
+  action={
+    <GenerateReportAccessPoolDialog
+      tenantSlug={tenantSlug}
+      projectId={projectId}
+      products={data.partnerReportAccessProducts ?? []}
+      billingProfile={data.billingProfile}
+    />
+  }
+>
+  <ReportAccessPoolSummary
+    products={data.partnerReportAccessProducts ?? []}
+  />
+</SectionShell>
         <SectionShell
           icon={<KeyRound size={20} />}
           title="Dostępy dla respondentów"
@@ -401,12 +417,12 @@ export async function PartnerAssessmentProjectRespondentsPage({
   title="Respondenci"
   description="Kompaktowa lista respondentów. Rozwiń respondenta, aby zobaczyć jego sesje, raporty sesyjne i raporty specjalne."
   action={
-    <BulkGrantReportAccessDialog
-      tenantSlug={tenantSlug}
-      projectId={projectId}
-      products={data.reportAccessProducts}
-      sessions={data.sessions}
-    />
+<BulkGrantReportAccessDialog
+  tenantSlug={tenantSlug}
+  projectId={projectId}
+  products={data.sessionReportAccessProducts ?? []}
+  sessions={data.sessions}
+/>
   }
 >
   <PartnerRespondentsAccordion

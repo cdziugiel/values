@@ -8,13 +8,19 @@ export const PARTNER_REPORT_TEMPLATE_KINDS = [
   "organization_aggregate",
   "team_aggregate",
   "comparison",
+  "aggregate",
 ] as const;
 
 export function isRespondentReportTemplateKind(kind: string | null | undefined) {
-  return (
-    kind === "personal" ||
-    kind === "personal_composite"
-  );
+  return kind === "personal" || kind === "personal_composite";
+}
+
+export function isSessionReportTemplateKind(kind: string | null | undefined) {
+  return kind === "personal";
+}
+
+export function isCompositeReportTemplateKind(kind: string | null | undefined) {
+  return kind === "personal_composite";
 }
 
 export function isPartnerReportTemplateKind(kind: string | null | undefined) {
@@ -22,18 +28,16 @@ export function isPartnerReportTemplateKind(kind: string | null | undefined) {
     kind === "project_aggregate" ||
     kind === "organization_aggregate" ||
     kind === "team_aggregate" ||
-    kind === "comparison"
+    kind === "comparison" ||
+    kind === "aggregate"
   );
 }
 
-export function getReportTemplateAudience(kind: string | null | undefined) {
-  if (isRespondentReportTemplateKind(kind)) {
-    return "respondent";
-  }
+export function getPartnerReportScope(kind: string | null | undefined) {
+  if (kind === "project_aggregate") return "project";
+  if (kind === "organization_aggregate") return "organization";
+  if (kind === "team_aggregate") return "team";
+  if (kind === "comparison") return "comparison";
 
-  if (isPartnerReportTemplateKind(kind)) {
-    return "partner";
-  }
-
-  return "unknown";
+  return null;
 }

@@ -1358,3 +1358,200 @@ export async function grantCompositeReportAccessToRespondentAction(
     };
   }
 }
+
+export async function grantPartnerReportAccessAction(
+  _previousState: PartnerGrantReportAccessState,
+  formData: FormData,
+): Promise<PartnerGrantReportAccessState> {
+  const tenantSlug = String(formData.get("tenantSlug") ?? "");
+  const assessmentProjectId = String(formData.get("assessmentProjectId") ?? "");
+  const productId = String(formData.get("productId") ?? "");
+  const reportTemplateVersionId = String(
+    formData.get("reportTemplateVersionId") ?? "",
+  );
+  const reportTemplateKind = String(formData.get("reportTemplateKind") ?? "");
+  const subjectType = String(formData.get("subjectType") ?? "");
+  const subjectId = String(formData.get("subjectId") ?? "");
+
+  if (
+    !tenantSlug ||
+    !assessmentProjectId ||
+    !productId ||
+    !reportTemplateVersionId ||
+    !reportTemplateKind ||
+    !subjectType ||
+    !subjectId
+  ) {
+    return {
+      status: "error",
+      message: "Brakuje danych do użycia dostępu raportu partnera.",
+    };
+  }
+
+  try {
+    const ctx = await requireTenantContext({ tenantSlug });
+    requirePermission(ctx, "report:generate");
+
+    const product = await controlDb.query.reportAccessProducts.findFirst({
+      where: and(
+        eq(reportAccessProducts.id, productId),
+        eq(reportAccessProducts.status, "active"),
+        isNull(reportAccessProducts.deletedAt),
+      ),
+    });
+
+    if (!product) {
+      return {
+        status: "error",
+        message: "Nie znaleziono aktywnego produktu raportowego.",
+      };
+    }
+
+    const reportVersion =
+      await controlDb.query.reportTemplateVersions.findFirst({
+        where: and(
+          eq(reportTemplateVersions.id, reportTemplateVersionId),
+          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
+          eq(reportTemplateVersions.status, "active"),
+          isNull(reportTemplateVersions.deletedAt),
+        ),
+      });
+
+    if (!reportVersion) {
+      return {
+        status: "error",
+        message: "Nie znaleziono aktywnej wersji raportu partnera.",
+      };
+    }
+
+    const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
+      where: and(
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.subjectType, subjectType),
+        eq(reportAccessGrants.subjectId, subjectId),
+        eq(reportAccessGrants.assessmentProjectId, assessmentProjectId),
+        eq(reportAccessGrants.reportTemplateVersionId, reportTemplateVersionId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    });
+
+    if (existingGrant) {
+      return {
+        status: "success",
+        message: "Ten raport partnera ma już aktywny dostęp.",
+      };
+    }
+
+    const accessCode = await controlDb.query.reportAccessCodes.findFirst({
+      where: and(
+        eq(reportAccessCodes.tenantSlug, tenantSlug),
+        eq(reportAccessCodes.productId, productId),
+        eq(reportAccessCodes.status, "available"),
+        or(
+          isNull(reportAccessCodes.assessmentProjectId),
+          eq(reportAccessCodes.assessmentProjectId, assessmentProjectId),
+        ),
+        isNull(reportAccessCodes.deletedAt),
+      ),
+      orderBy: (codes, { asc }) => [asc(codes.createdAt)],
+    });
+
+    if (!accessCode) {
+      return {
+        status: "error",
+        message: "Brak wolnych dostępów w puli dla tego raportu partnera.",
+      };
+    }
+
+    const now = new Date();
+
+    const validUntil =
+      typeof product.validityDays === "number" && product.validityDays > 0
+        ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+        : null;
+
+    await controlDb.transaction(async (tx) => {
+      const [grant] = await tx
+        .insert(reportAccessGrants)
+        .values({
+          source: "admin_grant",
+          status: "active",
+
+          productId: product.id,
+          accessCodeId: accessCode.id,
+
+          reportTemplateId: product.reportTemplateId,
+          reportTemplateVersionId,
+
+          tenantSlug,
+          userId: null,
+          email: null,
+
+          subjectType,
+          subjectId,
+
+          assessmentProjectId,
+          assessmentSessionId: null,
+          assessmentAccessLinkId: null,
+
+          validFrom: now,
+          validUntil,
+
+          metadata: {
+            reportKind: reportTemplateKind,
+            partnerGranted: true,
+            assessmentProjectId,
+            subjectType,
+            subjectId,
+          },
+
+          createdAt: now,
+          updatedAt: now,
+          createdBy: ctx.userId,
+          updatedBy: ctx.userId,
+        })
+        .returning({
+          id: reportAccessGrants.id,
+        });
+
+      await tx
+        .update(reportAccessCodes)
+        .set({
+          status: "redeemed",
+          redeemedAt: now,
+          assessmentProjectId,
+          updatedAt: now,
+          updatedBy: ctx.userId,
+          metadata: {
+            grantId: grant.id,
+            reportKind: reportTemplateKind,
+            subjectType,
+            subjectId,
+          },
+        })
+        .where(eq(reportAccessCodes.id, accessCode.id));
+    });
+
+    revalidatePath(
+      `/dashboard/partner-assessment/${tenantSlug}/projects/${assessmentProjectId}`,
+    );
+
+    revalidatePath(
+      `/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/respondents`,
+    );
+
+    return {
+      status: "success",
+      message: "Aktywowano dostęp do raportu partnera.",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nie udało się aktywować dostępu do raportu partnera.",
+    };
+  }
+}

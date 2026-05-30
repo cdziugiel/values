@@ -1,5 +1,7 @@
+// features/assessment-projects/api/partner-assessment-project.queries.ts
 import {
     and,
+    asc,
     count,
     desc,
     eq,
@@ -22,8 +24,8 @@ import {
 } from "@/drizzle/schema";
 
 import {
-  isPartnerReportTemplateKind,
-  isRespondentReportTemplateKind,
+    isPartnerReportTemplateKind,
+    isRespondentReportTemplateKind,
 } from "@/features/report-builder/constants/report-template-audience";
 
 import {
@@ -31,6 +33,8 @@ import {
     assessmentResponses,
     assessmentResultSnapshots,
     assessmentSessions,
+    clientOrganizations,
+    clientUnits,
     respondentIdentities,
     respondents,
 } from "@/drizzle/schema/tenant-schema";
@@ -136,6 +140,7 @@ export async function getPartnerAssessmentProjectRespondents({
         ),
         columns: {
             id: true,
+            clientOrganizationId: true,
             name: true,
             description: true,
             status: true,
@@ -147,6 +152,38 @@ export async function getPartnerAssessmentProjectRespondents({
     if (!project) {
         return null;
     }
+
+    const projectClientOrganization = project.clientOrganizationId
+        ? await db.query.clientOrganizations.findFirst({
+            where: and(
+                eq(clientOrganizations.id, project.clientOrganizationId),
+                isNull(clientOrganizations.deletedAt),
+            ),
+            columns: {
+                id: true,
+                name: true,
+            },
+        })
+        : null;
+
+    const projectClientUnits = project.clientOrganizationId
+        ? await db
+            .select({
+                id: clientUnits.id,
+                name: clientUnits.name,
+                type: clientUnits.type,
+                parentId: clientUnits.parentId,
+                clientOrganizationId: clientUnits.clientOrganizationId,
+            })
+            .from(clientUnits)
+            .where(
+                and(
+                    eq(clientUnits.clientOrganizationId, project.clientOrganizationId),
+                    isNull(clientUnits.deletedAt),
+                ),
+            )
+            .orderBy(asc(clientUnits.name))
+        : [];
 
     const sessionRows = await db
         .select({
@@ -451,30 +488,268 @@ export async function getPartnerAssessmentProjectRespondents({
         },
     );
 
-const respondentReportAccessProducts =
-  reportAccessProductsWithAvailability.filter((product) =>
-    isRespondentReportTemplateKind(product.reportTemplateKind),
-  );
+    const respondentReportAccessProducts =
+        reportAccessProductsWithAvailability.filter((product) =>
+            isRespondentReportTemplateKind(product.reportTemplateKind),
+        );
 
-const partnerReportAccessProducts =
-  reportAccessProductsWithAvailability.filter((product) =>
-    isPartnerReportTemplateKind(product.reportTemplateKind),
-  );
+    const partnerReportAccessProducts =
+        reportAccessProductsWithAvailability.filter((product) =>
+            isPartnerReportTemplateKind(product.reportTemplateKind),
+        );
 
-const sessionReportAccessProducts = respondentReportAccessProducts.filter(
-  (product) => product.reportTemplateKind === "personal",
-);
 
-const compositeReportAccessProducts = respondentReportAccessProducts.filter(
-  (product) => product.reportTemplateKind === "personal_composite",
-);
+
+    const partnerReportTemplateVersionRows =
+        partnerReportAccessProducts.length > 0
+            ? await controlDb
+                .select({
+                    productId: reportAccessProducts.id,
+
+                    reportTemplateId: reportTemplates.id,
+                    reportTemplateCode: reportTemplates.code,
+                    reportTemplateName: reportTemplates.name,
+                    reportTemplateDescription: reportTemplates.description,
+                    reportTemplateKind: reportTemplates.kind,
+
+                    reportTemplateVersionId: reportTemplateVersions.id,
+                    reportTemplateVersionName: reportTemplateVersions.name,
+                    reportTemplateVersion: reportTemplateVersions.version,
+                    isDefault: reportTemplateVersions.isDefault,
+                })
+                .from(reportAccessProducts)
+                .innerJoin(
+                    reportTemplates,
+                    eq(reportTemplates.id, reportAccessProducts.reportTemplateId),
+                )
+                .innerJoin(
+                    reportTemplateVersions,
+                    eq(reportTemplateVersions.reportTemplateId, reportTemplates.id),
+                )
+                .where(
+                    and(
+                        inArray(
+                            reportAccessProducts.id,
+                            partnerReportAccessProducts.map((product) => product.id),
+                        ),
+                        eq(reportAccessProducts.status, "active"),
+                        eq(reportTemplates.status, "active"),
+                        eq(reportTemplateVersions.status, "active"),
+                        isNull(reportAccessProducts.deletedAt),
+                        isNull(reportTemplates.deletedAt),
+                        isNull(reportTemplateVersions.deletedAt),
+                    ),
+                )
+                .orderBy(
+                    desc(reportTemplateVersions.isDefault),
+                    desc(reportTemplateVersions.createdAt),
+                )
+            : [];
+
+
+
+
+    const uniquePartnerVersionsByTemplateId = new Map<
+        string,
+        (typeof partnerReportTemplateVersionRows)[number]
+    >();
+
+    for (const row of partnerReportTemplateVersionRows) {
+        if (!uniquePartnerVersionsByTemplateId.has(row.reportTemplateId)) {
+            uniquePartnerVersionsByTemplateId.set(row.reportTemplateId, row);
+        }
+    }
+
+    const partnerReportTemplateVersions = Array.from(
+        uniquePartnerVersionsByTemplateId.values(),
+    );
+
+    const partnerReportTemplateVersionIds = partnerReportTemplateVersions.map(
+        (row) => row.reportTemplateVersionId,
+    );
+
+    const partnerGrantRows =
+        partnerReportTemplateVersionIds.length > 0
+            ? await controlDb
+                .select({
+                    id: reportAccessGrants.id,
+                    subjectType: reportAccessGrants.subjectType,
+                    subjectId: reportAccessGrants.subjectId,
+                    assessmentProjectId: reportAccessGrants.assessmentProjectId,
+                    reportTemplateId: reportAccessGrants.reportTemplateId,
+                    reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+                    productId: reportAccessGrants.productId,
+                    accessCodeId: reportAccessGrants.accessCodeId,
+                    source: reportAccessGrants.source,
+                    status: reportAccessGrants.status,
+                    validFrom: reportAccessGrants.validFrom,
+                    validUntil: reportAccessGrants.validUntil,
+                    metadata: reportAccessGrants.metadata,
+                })
+                .from(reportAccessGrants)
+                .where(
+                    and(
+                        eq(reportAccessGrants.tenantSlug, tenantSlug),
+                        eq(reportAccessGrants.assessmentProjectId, projectId),
+                        inArray(
+                            reportAccessGrants.reportTemplateVersionId,
+                            partnerReportTemplateVersionIds,
+                        ),
+                        eq(reportAccessGrants.status, "active"),
+                        isNull(reportAccessGrants.deletedAt),
+                    ),
+                )
+            : [];
+
+
+
+    function getPartnerReportSubject({
+        kind,
+        project,
+        clientUnitId = null,
+    }: {
+        kind: string;
+        project: {
+            id: string;
+            clientOrganizationId: string | null;
+        };
+        clientUnitId?: string | null;
+    }) {
+        if (kind === "project_aggregate") {
+            return {
+                subjectType: "assessment_project",
+                subjectId: project.id,
+            };
+        }
+
+        if (kind === "organization_aggregate") {
+            return {
+                subjectType: "client_organization",
+                subjectId: project.clientOrganizationId,
+            };
+        }
+
+        if (kind === "team_aggregate") {
+            return {
+                subjectType: "client_unit",
+                subjectId: clientUnitId,
+            };
+        }
+
+        if (kind === "comparison") {
+            return {
+                subjectType: "assessment_project",
+                subjectId: project.id,
+            };
+        }
+
+        return {
+            subjectType: "assessment_project",
+            subjectId: project.id,
+        };
+    }
+
+    const partnerReports = partnerReportTemplateVersions.map((template) => {
+        const product = reportAccessProductsWithAvailability.find(
+            (item) => item.id === template.productId,
+        );
+
+        const availableCount = Number(product?.availableCount ?? 0);
+
+        const defaultSubject = getPartnerReportSubject({
+            kind: template.reportTemplateKind,
+            project,
+        });
+
+const existingGrant =
+  defaultSubject.subjectId && template.reportTemplateKind !== "team_aggregate"
+    ? partnerGrantRows.find(
+        (grant) =>
+          grant.subjectType === defaultSubject.subjectType &&
+          grant.subjectId === defaultSubject.subjectId &&
+          grant.reportTemplateVersionId === template.reportTemplateVersionId &&
+          isGrantCurrentlyActive(grant),
+      ) ?? null
+    : null;
+
+const href = existingGrant
+  ? `/t/${tenantSlug}/assessment-projects/${projectId}/partner-reports/${existingGrant.id}`
+  : null;
+
+
+        return {
+            product: product
+                ? {
+                    id: product.id,
+                    code: product.code,
+                    name: product.name,
+                    reportTemplateId: product.reportTemplateId,
+                    currency: product.currency,
+                    priceGross: product.priceGross,
+                    availableCount: product.availableCount,
+                    totalCount: product.totalCount,
+                }
+                : null,
+
+            reportTemplateId: template.reportTemplateId,
+            reportTemplateCode: template.reportTemplateCode,
+            reportTemplateName: template.reportTemplateName,
+            reportTemplateDescription: template.reportTemplateDescription,
+            reportTemplateKind: template.reportTemplateKind,
+
+            reportTemplateVersionId: template.reportTemplateVersionId,
+            reportTemplateVersionName: template.reportTemplateVersionName,
+            reportTemplateVersion: template.reportTemplateVersion,
+            href,
+            defaultSubject,
+            existingGrant: existingGrant
+                ? {
+                    id: existingGrant.id,
+                    subjectType: existingGrant.subjectType,
+                    subjectId: existingGrant.subjectId,
+                }
+                : null,
+teamGrants:
+  template.reportTemplateKind === "team_aggregate"
+    ? partnerGrantRows
+        .filter(
+          (grant) =>
+            grant.subjectType === "client_unit" &&
+            grant.reportTemplateVersionId ===
+              template.reportTemplateVersionId &&
+            isGrantCurrentlyActive(grant),
+        )
+        .map((grant) => ({
+          id: grant.id,
+          subjectType: grant.subjectType,
+          subjectId: grant.subjectId,
+          href: `/t/${tenantSlug}/assessment-projects/${projectId}/partner-reports/${grant.id}`,
+        }))
+    : [],
+            availableCount,
+            canGrant: !existingGrant && availableCount > 0 && Boolean(product),
+            status: existingGrant
+                ? "already_granted"
+                : availableCount > 0
+                    ? "ready"
+                    : "missing_pool",
+        };
+    });
+
+    const sessionReportAccessProducts = respondentReportAccessProducts.filter(
+        (product) => product.reportTemplateKind === "personal",
+    );
+
+    const compositeReportAccessProducts = respondentReportAccessProducts.filter(
+        (product) => product.reportTemplateKind === "personal_composite",
+    );
 
     const reportAccessProductById = new Map(
         reportAccessProductsWithAvailability.map((product) => [product.id, product]),
     );
 
     const compositeReportTemplateVersionRows =
-        reportAccessProductsWithAvailability.length > 0
+        compositeReportAccessProducts.length > 0
             ? await controlDb
                 .select({
                     productId: reportAccessProducts.id,
@@ -503,7 +778,7 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
                     and(
                         inArray(
                             reportAccessProducts.id,
-                            reportAccessProductsWithAvailability.map((product) => product.id),
+                            compositeReportAccessProducts.map((product) => product.id),
                         ),
                         eq(reportAccessProducts.status, "active"),
                         eq(reportTemplates.status, "active"),
@@ -517,7 +792,7 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
             : [];
 
     const activeReportTemplateVersionRows =
-        activeReportAccessProducts.length > 0
+        sessionReportAccessProducts.length > 0
             ? await controlDb
                 .select({
                     reportTemplateId: reportTemplateVersions.reportTemplateId,
@@ -529,7 +804,7 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
                     and(
                         inArray(
                             reportTemplateVersions.reportTemplateId,
-                            activeReportAccessProducts.map(
+                            sessionReportAccessProducts.map(
                                 (product) => product.reportTemplateId,
                             ),
                         ),
@@ -538,7 +813,6 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
                     ),
                 )
             : [];
-
 
 
     const compatibleQuestionnaireVersionIdsByReportTemplateId = new Map<
@@ -636,8 +910,8 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
                 ? completedQuestionnaire.questionnaireVersionId
                 : null;
 
-        const compatibleReportAccessProducts = sessionReportAccessProducts
-            ? reportAccessProductsWithAvailability.filter((product) => {
+        const compatibleReportAccessProducts = sessionReportAccessProducts.filter(
+            (product) => {
                 if (product.availableCount <= 0) {
                     return false;
                 }
@@ -648,13 +922,10 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
                     );
 
                 return Boolean(
-                    compatibleQuestionnaireVersionIds?.has(
-                        completedQuestionnaireVersionId,
-                    ),
+                    compatibleQuestionnaireVersionIds?.has(completedQuestionnaireVersionId),
                 );
-            })
-            : [];
-
+            },
+        );
         return {
             ...session,
             compatibleReportAccessProducts,
@@ -857,42 +1128,41 @@ const compositeReportAccessProducts = respondentReportAccessProducts.filter(
         };
     });
 
-console.log("REPORT ACCESS PRODUCTS DEBUG", {
-  activeCount: activeReportAccessProducts.length,
-  products: activeReportAccessProducts.map((product) => ({
-    id: product.id,
-    code: product.code,
-    name: product.name,
-    status: product.status,
-    reportTemplateId: product.reportTemplateId,
-  })),
-});
 
-return {
-  tenant: {
-    id: ctx.tenantId,
-    slug: ctx.tenantSlug,
-    name: ctx.tenantSlug,
-  },
-  project,
-  sessions,
-  respondents: respondentsWithCompositeReports,
 
-  reportAccessProducts: reportAccessProductsWithAvailability,
+    return {
+        tenant: {
+            id: ctx.tenantId,
+            slug: ctx.tenantSlug,
+            name: ctx.tenantSlug,
+        },
 
-  respondentReportAccessProducts,
-  sessionReportAccessProducts,
-  compositeReportAccessProducts,
-  partnerReportAccessProducts,
+        project,
+        projectClientOrganization,
+        projectClientUnits,
 
-  compositeDebug: {
-    activeProductCount: reportAccessProductsWithAvailability.length,
-    respondentProductCount: respondentReportAccessProducts.length,
-    sessionProductCount: sessionReportAccessProducts.length,
-    compositeProductCount: compositeReportAccessProducts.length,
-    partnerProductCount: partnerReportAccessProducts.length,
-  },
+        sessions,
+        respondents: respondentsWithCompositeReports,
 
-  billingProfile,
-};
+        reportAccessProducts: reportAccessProductsWithAvailability,
+
+        respondentReportAccessProducts,
+        sessionReportAccessProducts,
+        compositeReportAccessProducts,
+        partnerReportAccessProducts,
+
+        compositeDebug: {
+            activeProductCount: reportAccessProductsWithAvailability.length,
+            respondentProductCount: respondentReportAccessProducts.length,
+            sessionProductCount: sessionReportAccessProducts.length,
+            compositeProductCount: compositeReportAccessProducts.length,
+            partnerProductCount: partnerReportAccessProducts.length,
+            partnerReportCount: partnerReports.length,
+            partnerTemplateVersionCount: partnerReportTemplateVersions.length,
+        },
+
+        billingProfile,
+        partnerReports,
+
+    };
 }
