@@ -113,8 +113,8 @@ export function RespondentImportExportDialog({
               <p className="mt-1 text-sm leading-6 text-[#6b7280]">
                 Wymagane kolumny:{" "}
                 <span className="font-mono text-xs text-[#171717]">
-                  externalCode, clientOrganizationName, clientUnitName, email,
-                  firstName, lastName, phone
+                  externalCode, clientOrganizationName, clientUnitName, clientUnitRole,
+                  isLeader, email, firstName, lastName, phone
                 </span>
                 . Minimum identyfikacji to email albo externalCode.
               </p>

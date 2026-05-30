@@ -39,6 +39,8 @@ export async function createRespondentAction(
     firstName: String(formData.get("firstName") ?? ""),
     lastName: String(formData.get("lastName") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    clientUnitRole: String(formData.get("clientUnitRole") ?? ""),
+    isLeader: String(formData.get("isLeader") ?? ""),
   };
 
   const parsed = createRespondentSchema.safeParse(rawInput);
@@ -96,6 +98,8 @@ export async function updateRespondentAction(
     firstName: String(formData.get("firstName") ?? ""),
     lastName: String(formData.get("lastName") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    clientUnitRole: String(formData.get("clientUnitRole") ?? ""),
+    isLeader: String(formData.get("isLeader") ?? ""),
   };
 
   const parsed = updateRespondentSchema.safeParse(rawInput);

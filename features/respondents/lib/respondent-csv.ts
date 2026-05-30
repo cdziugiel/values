@@ -5,12 +5,13 @@ export type RespondentCsvRow = {
   externalCode?: string;
   clientOrganizationName?: string;
   clientUnitName?: string;
+  clientUnitRole?: string;
+  isLeader?: boolean;
   email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
 };
-
 export type RespondentImportError = {
   row: number;
   message: string;
@@ -28,11 +29,31 @@ const HEADERS = [
   "externalCode",
   "clientOrganizationName",
   "clientUnitName",
+  "clientUnitRole",
+  "isLeader",
   "email",
   "firstName",
   "lastName",
   "phone",
 ] as const;
+
+function parseBooleanCell(value: string | undefined) {
+  const normalized = normalizeCell(value)?.toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (["true", "1", "yes", "y", "tak", "t"].includes(normalized)) {
+    return true;
+  }
+
+  if (["false", "0", "no", "n", "nie", "false"].includes(normalized)) {
+    return false;
+  }
+
+  return null;
+}
 
 type Header = (typeof HEADERS)[number];
 
@@ -100,6 +121,8 @@ export function buildRespondentsCsvTemplate() {
       "EMP-001",
       "ACME",
       "Sprzedaż",
+      "manager",
+      "true",
       "anna.kowalska@example.com",
       "Anna",
       "Kowalska",
@@ -234,7 +257,23 @@ export async function parseRespondentsCsvFile(
 
       seenEmails.add(email);
     }
+    const isLeader = parseBooleanCell(raw.isLeader);
 
+    if (isLeader === null) {
+      errors.push({
+        row: rowNumber,
+        message: `Niepoprawna wartość isLeader: ${raw.isLeader}. Użyj true/false, tak/nie albo 1/0.`,
+      });
+      continue;
+    }
+
+    if ((raw.clientUnitRole || isLeader) && !raw.clientUnitName) {
+      errors.push({
+        row: rowNumber,
+        message: "clientUnitRole i isLeader wymagają podania clientUnitName.",
+      });
+      continue;
+    }
     if (externalCode) {
       const normalizedCode = externalCode.toLowerCase();
 
@@ -254,6 +293,8 @@ export async function parseRespondentsCsvFile(
       externalCode,
       clientOrganizationName: normalizeCell(raw.clientOrganizationName),
       clientUnitName: normalizeCell(raw.clientUnitName),
+      clientUnitRole: normalizeCell(raw.clientUnitRole) ?? "member",
+      isLeader,
       email,
       firstName: normalizeCell(raw.firstName),
       lastName: normalizeCell(raw.lastName),
@@ -284,6 +325,8 @@ export function respondentsToCsv(items: RespondentListItem[]) {
       item.externalCode,
       item.clientOrganizationName,
       item.clientUnitName,
+      item.clientUnitRole,
+      item.isLeader ? "true" : "false",
       item.email,
       item.firstName,
       item.lastName,

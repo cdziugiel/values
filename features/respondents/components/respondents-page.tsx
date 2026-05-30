@@ -323,7 +323,19 @@ export async function RespondentsPage({ tenantSlug }: RespondentsPageProps) {
                             {respondent.clientUnitName ?? "—"}
                           </dd>
                         </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-[#6b7280]">Rola</dt>
+                          <dd className="text-right font-medium text-[#171717]">
+                            {respondent.clientUnitRole ?? "member"}
+                          </dd>
+                        </div>
 
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-[#6b7280]">Typ</dt>
+                          <dd className="text-right font-medium text-[#171717]">
+                            {respondent.isLeader ? "Lider" : "Zespół"}
+                          </dd>
+                        </div>
                         <div className="flex items-center justify-between gap-3">
                           <dt className="text-[#6b7280]">Telefon</dt>
                           <dd className="text-right font-medium text-[#171717]">
@@ -354,7 +366,7 @@ export async function RespondentsPage({ tenantSlug }: RespondentsPageProps) {
 
                 <div className="hidden overflow-hidden rounded-[1.5rem] border border-black/10 bg-white/70 lg:block">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1100px] text-left text-sm">
+                    <table className="w-full min-w-[1250px] text-left text-sm">
                       <thead className="border-b border-black/10 bg-[#f7f7f8] text-xs uppercase tracking-[0.12em] text-[#6b7280]">
                         <tr>
                           <th className="px-4 py-3 font-semibold">
@@ -368,6 +380,8 @@ export async function RespondentsPage({ tenantSlug }: RespondentsPageProps) {
                           <th className="px-4 py-3 font-semibold">
                             Jednostka
                           </th>
+                          <th className="px-4 py-3 font-semibold">Rola</th>
+                          <th className="px-4 py-3 font-semibold">Typ</th>
                           <th className="px-4 py-3 font-semibold">Telefon</th>
                           <th className="px-4 py-3 font-semibold">
                             Utworzono
@@ -419,7 +433,21 @@ export async function RespondentsPage({ tenantSlug }: RespondentsPageProps) {
                             <td className="px-4 py-4 text-[#171717]">
                               {respondent.clientUnitName ?? "—"}
                             </td>
+                            <td className="px-4 py-4 text-[#171717]">
+                              {respondent.clientUnitRole ?? "member"}
+                            </td>
 
+                            <td className="px-4 py-4">
+                              <Badge
+                                variant="outline"
+                                className={[
+                                  "rounded-full border-black/10 bg-white/70",
+                                  respondent.isLeader ? "text-[#0f766e]" : "text-[#6b7280]",
+                                ].join(" ")}
+                              >
+                                {respondent.isLeader ? "Lider" : "Zespół"}
+                              </Badge>
+                            </td>
                             <td className="px-4 py-4 text-[#171717]">
                               {respondent.phone ? (
                                 <span className="inline-flex items-center gap-1.5">

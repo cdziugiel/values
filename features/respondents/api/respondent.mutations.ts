@@ -1,10 +1,11 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 
 import {
   clientOrganizations,
   clientUnits,
   respondentIdentities,
   respondents,
+  clientUnitMemberships
 } from "@/drizzle/schema/tenant-schema";
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantDb } from "@/server/db/tenant-db";
@@ -18,6 +19,113 @@ import {
   type CreateRespondentInput,
   type UpdateRespondentInput,
 } from "../forms/respondent.schema";
+
+
+function normalizeRole(value: string | undefined | null) {
+  const normalized = value?.trim();
+
+  return normalized || "member";
+}
+
+async function syncPrimaryUnitMembership({
+  db,
+  ctx,
+  respondentId,
+  clientUnitId,
+  role,
+  isLeader,
+}: {
+  db: TenantDb;
+  ctx: TenantContext;
+  respondentId: string;
+  clientUnitId: string | null;
+  role: string | undefined | null;
+  isLeader: boolean;
+}) {
+  const now = new Date();
+
+  if (!clientUnitId) {
+    await db
+      .update(clientUnitMemberships)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+        updatedBy: ctx.userId,
+      })
+      .where(
+        and(
+          eq(clientUnitMemberships.respondentId, respondentId),
+          isNull(clientUnitMemberships.deletedAt),
+        ),
+      );
+
+    return;
+  }
+
+  const existingMembership = await db.query.clientUnitMemberships.findFirst({
+    where: and(
+      eq(clientUnitMemberships.respondentId, respondentId),
+      eq(clientUnitMemberships.clientUnitId, clientUnitId),
+      isNull(clientUnitMemberships.deletedAt),
+    ),
+    columns: {
+      id: true,
+    },
+  });
+
+  if (existingMembership) {
+    await db
+      .update(clientUnitMemberships)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+        updatedBy: ctx.userId,
+      })
+      .where(
+        and(
+          eq(clientUnitMemberships.respondentId, respondentId),
+          isNull(clientUnitMemberships.deletedAt),
+          ne(clientUnitMemberships.id, existingMembership.id),
+        ),
+      );
+
+    await db
+      .update(clientUnitMemberships)
+      .set({
+        role: normalizeRole(role),
+        isLeader,
+        updatedAt: now,
+        updatedBy: ctx.userId,
+      })
+      .where(eq(clientUnitMemberships.id, existingMembership.id));
+
+    return;
+  }
+
+  await db
+    .update(clientUnitMemberships)
+    .set({
+      deletedAt: now,
+      updatedAt: now,
+      updatedBy: ctx.userId,
+    })
+    .where(
+      and(
+        eq(clientUnitMemberships.respondentId, respondentId),
+        isNull(clientUnitMemberships.deletedAt),
+      ),
+    );
+
+  await db.insert(clientUnitMemberships).values({
+    respondentId,
+    clientUnitId,
+    role: normalizeRole(role),
+    isLeader,
+    metadata: {},
+    createdBy: ctx.userId,
+    updatedBy: ctx.userId,
+  });
+}
 
 function normalizeOptionalText(value: string | undefined | null) {
   const normalized = value?.trim();
@@ -173,7 +281,14 @@ export async function createRespondent({
       updatedBy: ctx.userId,
     })
     .returning();
-
+  await syncPrimaryUnitMembership({
+    db,
+    ctx,
+    respondentId: respondent.id,
+    clientUnitId,
+    role: parsed.data.clientUnitRole,
+    isLeader: parsed.data.isLeader,
+  });
   await writeTenantAuditLog({
     db,
     ctx,
@@ -190,6 +305,10 @@ export async function createRespondent({
         email: identity.email,
         firstName: identity.firstName,
         lastName: identity.lastName,
+      },
+      membership: {
+        clientUnitRole: normalizeRole(parsed.data.clientUnitRole),
+        isLeader: parsed.data.isLeader,
       },
     },
   });
@@ -274,7 +393,14 @@ export async function updateRespondent({
       updatedBy: ctx.userId,
     });
   }
-
+  await syncPrimaryUnitMembership({
+    db,
+    ctx,
+    respondentId: updatedRespondent.id,
+    clientUnitId,
+    role: parsed.data.clientUnitRole,
+    isLeader: parsed.data.isLeader,
+  });
   await writeTenantAuditLog({
     db,
     ctx,
@@ -305,6 +431,10 @@ export async function updateRespondent({
         email: normalizeOptionalEmail(parsed.data.email),
         firstName: normalizeOptionalText(parsed.data.firstName),
         lastName: normalizeOptionalText(parsed.data.lastName),
+      },
+      membership: {
+        clientUnitRole: normalizeRole(parsed.data.clientUnitRole),
+        isLeader: parsed.data.isLeader,
       },
     },
   });

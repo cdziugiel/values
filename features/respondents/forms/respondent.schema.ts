@@ -34,11 +34,41 @@ const optionalEmail = z.preprocess(
   normalizeOptionalEmail,
   z.string().email().optional(),
 );
+
+
+const optionalRole = z.preprocess(
+  normalizeOptionalString,
+  z.string().max(80).optional(),
+);
+
+const optionalBoolean = z.preprocess((value) => {
+  if (value === true || value === "true" || value === "on" || value === "1") {
+    return true;
+  }
+
+  if (
+    value === false ||
+    value === "false" ||
+    value === "off" ||
+    value === "0" ||
+    value === "" ||
+    value === undefined ||
+    value === null
+  ) {
+    return false;
+  }
+
+  return value;
+}, z.boolean().default(false));
+
+
 export const createRespondentSchema = z.object({
   tenantSlug: z.string().min(2),
   externalCode: optionalText,
   clientOrganizationId: optionalUuid,
   clientUnitId: optionalUuid,
+  clientUnitRole: optionalRole,
+  isLeader: optionalBoolean,
   email: optionalEmail,
   firstName: optionalText,
   lastName: optionalText,
@@ -51,6 +81,8 @@ export const updateRespondentSchema = z.object({
   externalCode: optionalText,
   clientOrganizationId: optionalUuid,
   clientUnitId: optionalUuid,
+  clientUnitRole: optionalRole,
+  isLeader: optionalBoolean,
   email: optionalEmail,
   firstName: optionalText,
   lastName: optionalText,

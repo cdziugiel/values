@@ -252,7 +252,49 @@ export function CreateRespondentForm({
                   </option>
                 ))}
               </select>
+
+            
             </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="respondent-unit-role" className="text-[#171717]">
+                  Rola w jednostce
+                </Label>
+
+                <Input
+                  id="respondent-unit-role"
+                  name="clientUnitRole"
+                  placeholder="member, manager, director, team_lead"
+                  maxLength={80}
+                  defaultValue="member"
+                  className="rounded-2xl border-black/10 bg-white"
+                />
+
+                <p className="text-xs leading-5 text-[#6b7280]">
+                  Rola opisuje funkcję osoby w jednostce. Do raportów lider vs zespół używana
+                  jest osobna flaga poniżej.
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/70 p-4 text-sm">
+                  <input
+                    type="checkbox"
+                    name="isLeader"
+                    value="true"
+                    className="mt-1 h-4 w-4 rounded border-black/20"
+                  />
+
+                  <span>
+                    <span className="block font-medium text-[#171717]">
+                      Traktuj jako lidera / zwierzchnika jednostki
+                    </span>
+                    <span className="mt-1 block leading-5 text-[#6b7280]">
+                      Ta flaga pozwoli później porównywać wyniki lidera z wynikami zespołu.
+                    </span>
+                  </span>
+                </label>
+              </div>
           </div>
 
           {state.status !== "idle" ? (

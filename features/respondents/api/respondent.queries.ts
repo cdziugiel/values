@@ -1,7 +1,8 @@
-import { asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 import {
   clientOrganizations,
+  clientUnitMemberships,
   clientUnits,
   respondentIdentities,
   respondents,
@@ -52,6 +53,10 @@ export async function listRespondents(
       clientOrganizationName: clientOrganizations.name,
       clientUnitId: respondents.clientUnitId,
       clientUnitName: clientUnits.name,
+
+      clientUnitRole: clientUnitMemberships.role,
+      isLeader: clientUnitMemberships.isLeader,
+
       email: respondentIdentities.email,
       firstName: respondentIdentities.firstName,
       lastName: respondentIdentities.lastName,
@@ -66,11 +71,23 @@ export async function listRespondents(
     )
     .leftJoin(clientUnits, eq(clientUnits.id, respondents.clientUnitId))
     .leftJoin(
+      clientUnitMemberships,
+      and(
+        eq(clientUnitMemberships.respondentId, respondents.id),
+        eq(clientUnitMemberships.clientUnitId, respondents.clientUnitId),
+        isNull(clientUnitMemberships.deletedAt),
+      ),
+    )
+    .leftJoin(
       respondentIdentities,
       eq(respondentIdentities.respondentId, respondents.id),
     )
     .where(isNull(respondents.deletedAt))
     .orderBy(asc(respondentIdentities.lastName), asc(respondentIdentities.email));
 
-  return rows as RespondentListItem[];
+  return rows.map((row) => ({
+    ...row,
+    clientUnitRole: row.clientUnitRole ?? null,
+    isLeader: Boolean(row.isLeader),
+  }));
 }

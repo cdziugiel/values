@@ -5,6 +5,10 @@ export type RespondentListItem = {
   clientOrganizationName: string | null;
   clientUnitId: string | null;
   clientUnitName: string | null;
+
+  clientUnitRole: string | null;
+  isLeader: boolean;
+
   email: string | null;
   firstName: string | null;
   lastName: string | null;

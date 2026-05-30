@@ -8,6 +8,7 @@ import {
     clientUnits,
     respondentIdentities,
     respondents,
+    clientUnitMemberships,
 } from "@/drizzle/schema/tenant-schema";
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import { getTenantDb } from "@/server/db/tenant-db";
@@ -25,6 +26,58 @@ export type ImportRespondentsCsvActionState = {
     errors: RespondentImportError[];
     importedCount: number;
 };
+
+function normalizeRole(value: string | undefined | null) {
+    const normalized = value?.trim();
+
+    return normalized || "member";
+}
+
+async function syncImportedPrimaryUnitMembership({
+    tx,
+    userId,
+    respondentId,
+    clientUnitId,
+    role,
+    isLeader,
+}: {
+    tx: any;
+    userId: string;
+    respondentId: string;
+    clientUnitId: string | null;
+    role: string | undefined | null;
+    isLeader: boolean;
+}) {
+    const now = new Date();
+
+    await tx
+        .update(clientUnitMemberships)
+        .set({
+            deletedAt: now,
+            updatedAt: now,
+            updatedBy: userId,
+        })
+        .where(
+            and(
+                eq(clientUnitMemberships.respondentId, respondentId),
+                isNull(clientUnitMemberships.deletedAt),
+            ),
+        );
+
+    if (!clientUnitId) {
+        return;
+    }
+
+    await tx.insert(clientUnitMemberships).values({
+        respondentId,
+        clientUnitId,
+        role: normalizeRole(role),
+        isLeader,
+        metadata: {},
+        createdBy: userId,
+        updatedBy: userId,
+    });
+}
 
 function normalizeFormText(value: FormDataEntryValue | null) {
     if (typeof value !== "string") {
@@ -323,7 +376,14 @@ export async function importRespondentsCsvAction(
                             updatedBy: ctx.userId,
                         });
                     }
-
+                    await syncImportedPrimaryUnitMembership({
+                        tx,
+                        userId: ctx.userId,
+                        respondentId,
+                        clientUnitId: resolvedRow.clientUnitId,
+                        role: resolvedRow.row.clientUnitRole,
+                        isLeader: Boolean(resolvedRow.row.isLeader),
+                    });
                     updatedCount += 1;
                     continue;
                 }
@@ -355,7 +415,14 @@ export async function importRespondentsCsvAction(
                     createdBy: ctx.userId,
                     updatedBy: ctx.userId,
                 });
-
+                await syncImportedPrimaryUnitMembership({
+                    tx,
+                    userId: ctx.userId,
+                    respondentId: createdRespondent.id,
+                    clientUnitId: resolvedRow.clientUnitId,
+                    role: resolvedRow.row.clientUnitRole,
+                    isLeader: Boolean(resolvedRow.row.isLeader),
+                });
                 createdCount += 1;
             }
         });
@@ -370,6 +437,7 @@ export async function importRespondentsCsvAction(
                 importedCount: resolvedRows.length,
                 createdCount,
                 updatedCount,
+                membershipFieldsImported: true,
             },
         });
 
