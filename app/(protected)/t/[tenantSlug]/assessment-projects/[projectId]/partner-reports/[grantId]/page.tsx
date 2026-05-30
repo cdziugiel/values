@@ -230,6 +230,8 @@ export default async function PartnerAggregateReportGrantPage({
     payload: data.payload,
   });
 
+  console.log("PAYLOAD:", data.payload.aggregate)
+
   return (
     <main className="min-h-screen bg-[#f3f4f6]">
       <header className="sticky top-0 z-20 border-b border-black/10 bg-white/90 px-4 py-3 backdrop-blur sm:px-6">

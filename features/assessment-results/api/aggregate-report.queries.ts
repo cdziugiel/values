@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import {
   reportTemplates,
@@ -11,6 +11,7 @@ import {
   assessmentSessions,
   assessmentResultSnapshots,
   clientOrganizations,
+  clientUnitMemberships,
   clientUnits,
   respondents,
 } from "@/drizzle/schema/tenant-schema";
@@ -34,6 +35,13 @@ type AggregateStatus =
 type ScoreRow = {
   assessmentSessionId: string;
   respondentId: string;
+
+  /**
+   * Używane tylko w raportach team_aggregate.
+   * Dla raportu projektu/organizacji może być undefined.
+   */
+  isLeader?: boolean | null;
+
   questionnaireId: string;
   questionnaireVersionId: string;
   questionnaireDimensionId: string;
@@ -125,6 +133,13 @@ type ClientUnitTreeRow = {
 type CrossScoreSnapshotRow = {
   assessmentSessionId: string;
   respondentId: string;
+
+  /**
+   * Używane tylko w raportach team_aggregate.
+   * Dla raportu projektu/organizacji może być undefined.
+   */
+  isLeader?: boolean | null;
+
   snapshotId: string;
   payload: unknown;
 };
@@ -1111,52 +1126,86 @@ export async function getTeamAggregateReport({
   if (unitIds.length === 0) {
     return null;
   }
+const leaderMembershipRows = await db
+  .select({
+    respondentId: clientUnitMemberships.respondentId,
+  })
+  .from(clientUnitMemberships)
+  .innerJoin(
+    respondents,
+    eq(respondents.id, clientUnitMemberships.respondentId),
+  )
+  .where(
+    and(
+      inArray(clientUnitMemberships.clientUnitId, unitIds),
+      eq(clientUnitMemberships.isLeader, true),
+      isNull(clientUnitMemberships.deletedAt),
+      isNull(respondents.deletedAt),
+    ),
+  );
 
-  const scoreRows = await db
-    .select({
-      assessmentSessionId: assessmentSessions.id,
-      respondentId: assessmentSessions.respondentId,
+const leaderRespondentIds = Array.from(
+  new Set(leaderMembershipRows.map((row) => row.respondentId)),
+);
 
-      questionnaireId: assessmentDimensionScores.questionnaireId,
-      questionnaireVersionId: assessmentDimensionScores.questionnaireVersionId,
-      questionnaireDimensionId:
-        assessmentDimensionScores.questionnaireDimensionId,
-
-      dimensionCode: assessmentDimensionScores.dimensionCode,
-      dimensionName: assessmentDimensionScores.dimensionName,
-
-      rawScore: assessmentDimensionScores.rawScore,
-      weightedScore: assessmentDimensionScores.weightedScore,
-      meanScore: assessmentDimensionScores.meanScore,
-      weightedMeanScore: assessmentDimensionScores.weightedMeanScore,
-      normalizedScore: assessmentDimensionScores.normalizedScore,
-
-      answeredItemsCount: assessmentDimensionScores.answeredItemsCount,
-      expectedItemsCount: assessmentDimensionScores.expectedItemsCount,
-      completeness: assessmentDimensionScores.completeness,
-    })
-    .from(assessmentDimensionScores)
-    .innerJoin(
-      assessmentSessions,
-      eq(
-        assessmentSessions.id,
-        assessmentDimensionScores.assessmentSessionId,
-      ),
-    )
-    .innerJoin(
-      respondents,
-      eq(respondents.id, assessmentSessions.respondentId),
-    )
-    .where(
-      and(
-        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+const reportPopulationCondition =
+  leaderRespondentIds.length > 0
+    ? or(
         inArray(respondents.clientUnitId, unitIds),
-        eq(assessmentSessions.status, "completed"),
-        isNull(assessmentSessions.deletedAt),
-        isNull(respondents.deletedAt),
-        isNull(assessmentDimensionScores.deletedAt),
-      ),
-    );
+        inArray(respondents.id, leaderRespondentIds),
+      )
+    : inArray(respondents.clientUnitId, unitIds);
+
+const isReportLeader = (respondentId: string) =>
+  leaderRespondentIds.includes(respondentId);
+  const scoreRows = await db
+  .select({
+    assessmentSessionId: assessmentSessions.id,
+    respondentId: assessmentSessions.respondentId,
+
+    questionnaireId: assessmentDimensionScores.questionnaireId,
+    questionnaireVersionId: assessmentDimensionScores.questionnaireVersionId,
+    questionnaireDimensionId:
+      assessmentDimensionScores.questionnaireDimensionId,
+
+    dimensionCode: assessmentDimensionScores.dimensionCode,
+    dimensionName: assessmentDimensionScores.dimensionName,
+
+    rawScore: assessmentDimensionScores.rawScore,
+    weightedScore: assessmentDimensionScores.weightedScore,
+    meanScore: assessmentDimensionScores.meanScore,
+    weightedMeanScore: assessmentDimensionScores.weightedMeanScore,
+    normalizedScore: assessmentDimensionScores.normalizedScore,
+
+    answeredItemsCount: assessmentDimensionScores.answeredItemsCount,
+    expectedItemsCount: assessmentDimensionScores.expectedItemsCount,
+    completeness: assessmentDimensionScores.completeness,
+  })
+  .from(assessmentDimensionScores)
+  .innerJoin(
+    assessmentSessions,
+    eq(
+      assessmentSessions.id,
+      assessmentDimensionScores.assessmentSessionId,
+    ),
+  )
+  .innerJoin(
+    respondents,
+    eq(respondents.id, assessmentSessions.respondentId),
+  )
+  .where(
+    and(
+      eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+      reportPopulationCondition,
+      eq(assessmentSessions.status, "completed"),
+      isNull(assessmentSessions.deletedAt),
+      isNull(respondents.deletedAt),
+      isNull(assessmentDimensionScores.deletedAt),
+    ),
+  );
+
+
+
 const snapshotRows = await db
   .select({
     assessmentSessionId: assessmentSessions.id,
@@ -1179,36 +1228,79 @@ const snapshotRows = await db
   .where(
     and(
       eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
-      inArray(respondents.clientUnitId, unitIds),
+      reportPopulationCondition,
       eq(assessmentSessions.status, "completed"),
       isNull(assessmentSessions.deletedAt),
       isNull(respondents.deletedAt),
       isNull(assessmentResultSnapshots.deletedAt),
     ),
   );
-  const rows = scoreRows.map((row) => ({
-    ...row,
-    rawScore: Number(row.rawScore),
-    weightedScore: Number(row.weightedScore),
-    meanScore: Number(row.meanScore),
-    weightedMeanScore: Number(row.weightedMeanScore),
-    normalizedScore:
-      row.normalizedScore === null ? null : Number(row.normalizedScore),
-    answeredItemsCount: Number(row.answeredItemsCount),
-    expectedItemsCount: Number(row.expectedItemsCount),
-    completeness: Number(row.completeness),
-  }));
 
-  const minimumN = readMinimumN(templateVersion.config, 5);
+const rows = scoreRows.map((row) => ({
+  ...row,
+  isLeader: isReportLeader(row.respondentId),
+  rawScore: Number(row.rawScore),
+  weightedScore: Number(row.weightedScore),
+  meanScore: Number(row.meanScore),
+  weightedMeanScore: Number(row.weightedMeanScore),
+  normalizedScore:
+    row.normalizedScore === null ? null : Number(row.normalizedScore),
+  answeredItemsCount: Number(row.answeredItemsCount),
+  expectedItemsCount: Number(row.expectedItemsCount),
+  completeness: Number(row.completeness),
+}));
 
-  const eligibility = buildAggregateEligibility({
-    rows,
-    minimumN,
-  });
 
-  const dimensionScores = aggregateDimensionScores(rows);
+const normalizedSnapshotRows = snapshotRows.map((row) => ({
+  ...row,
+  isLeader: isReportLeader(row.respondentId),
+}));
+
+
+const minimumN = readMinimumN(templateVersion.config, 5);
+
+const eligibility = buildAggregateEligibility({
+  rows,
+  minimumN,
+});
+
+const dimensionScores = aggregateDimensionScores(rows);
 const crossScoreAggregation =
-  aggregateCrossScoresFromSnapshots(snapshotRows);
+  aggregateCrossScoresFromSnapshots(normalizedSnapshotRows);
+
+
+  const leaderRows = rows.filter((row) => row.isLeader);
+const teamWithoutLeaderRows = rows.filter((row) => !row.isLeader);
+
+const leaderSnapshotRows = normalizedSnapshotRows.filter(
+  (row) => row.isLeader,
+);
+
+const teamWithoutLeaderSnapshotRows = normalizedSnapshotRows.filter(
+  (row) => !row.isLeader,
+);
+
+const leaderEligibility = buildAggregateEligibility({
+  rows: leaderRows,
+  minimumN: 1,
+});
+
+const teamWithoutLeaderEligibility = buildAggregateEligibility({
+  rows: teamWithoutLeaderRows,
+  minimumN,
+});
+
+const leaderDimensionScores = aggregateDimensionScores(leaderRows);
+const teamWithoutLeaderDimensionScores =
+  aggregateDimensionScores(teamWithoutLeaderRows);
+
+const leaderCrossScoreAggregation =
+  aggregateCrossScoresFromSnapshots(leaderSnapshotRows);
+
+const teamWithoutLeaderCrossScoreAggregation =
+  aggregateCrossScoresFromSnapshots(teamWithoutLeaderSnapshotRows);
+
+
   const payload = {
     version: 1,
     reportKind: "team_aggregate",
@@ -1250,22 +1342,55 @@ const crossScoreAggregation =
       descendantUnitCount: unitIds.length,
     },
 
-    aggregate: {
-      status: eligibility.status,
-      canRender: eligibility.canRender,
-      warnings: eligibility.warnings,
+aggregate: {
+  status: eligibility.status,
+  canRender: eligibility.canRender,
+  warnings: eligibility.warnings,
 
-      minimumN: eligibility.minimumN,
-      nRespondents: eligibility.nRespondents,
-      nSessions: eligibility.nSessions,
-      nScores: eligibility.nScores,
+  minimumN: eligibility.minimumN,
+  nRespondents: eligibility.nRespondents,
+  nSessions: eligibility.nSessions,
+  nScores: eligibility.nScores,
 
-      dimensionScores,
-      crossScores: crossScoreAggregation.tree,
-crossScoreRows: crossScoreAggregation.rows,
-crossScorePairs: crossScoreAggregation.byPair,
+  dimensionScores,
+  crossScores: crossScoreAggregation.tree,
+  crossScoreRows: crossScoreAggregation.rows,
+  crossScorePairs: crossScoreAggregation.byPair,
 
+  segments: {
+    leaders: {
+      status: leaderEligibility.status,
+      canRender: leaderEligibility.canRender,
+      warnings: leaderEligibility.warnings,
+
+      minimumN: leaderEligibility.minimumN,
+      nRespondents: leaderEligibility.nRespondents,
+      nSessions: leaderEligibility.nSessions,
+      nScores: leaderEligibility.nScores,
+
+      dimensionScores: leaderDimensionScores,
+      crossScores: leaderCrossScoreAggregation.tree,
+      crossScoreRows: leaderCrossScoreAggregation.rows,
+      crossScorePairs: leaderCrossScoreAggregation.byPair,
     },
+
+    teamWithoutLeaders: {
+      status: teamWithoutLeaderEligibility.status,
+      canRender: teamWithoutLeaderEligibility.canRender,
+      warnings: teamWithoutLeaderEligibility.warnings,
+
+      minimumN: teamWithoutLeaderEligibility.minimumN,
+      nRespondents: teamWithoutLeaderEligibility.nRespondents,
+      nSessions: teamWithoutLeaderEligibility.nSessions,
+      nScores: teamWithoutLeaderEligibility.nScores,
+
+      dimensionScores: teamWithoutLeaderDimensionScores,
+      crossScores: teamWithoutLeaderCrossScoreAggregation.tree,
+      crossScoreRows: teamWithoutLeaderCrossScoreAggregation.rows,
+      crossScorePairs: teamWithoutLeaderCrossScoreAggregation.byPair,
+    },
+  },
+},
   };
 
   await writeTenantAuditLog({
@@ -1274,18 +1399,33 @@ crossScorePairs: crossScoreAggregation.byPair,
     action: previewMode ? "report_previewed" : "report_viewed",
     entityType: "client_unit",
     entityId: rootUnit.id,
-    after: {
-      assessmentProjectId,
-      clientUnitId: rootUnit.id,
-      includedUnitIds: unitIds,
-      reportTemplateVersionId,
-      reportKind: "team_aggregate",
-      previewMode,
-      eligibilityStatus: eligibility.status,
-      nRespondents: eligibility.nRespondents,
-      nSessions: eligibility.nSessions,
-      nScores: eligibility.nScores,
-    },
+after: {
+  assessmentProjectId,
+  clientUnitId: rootUnit.id,
+  includedUnitIds: unitIds,
+  reportTemplateVersionId,
+  reportKind: "team_aggregate",
+  previewMode,
+
+  eligibilityStatus: eligibility.status,
+  nRespondents: eligibility.nRespondents,
+  nSessions: eligibility.nSessions,
+  nScores: eligibility.nScores,
+
+  leaderSegment: {
+    status: leaderEligibility.status,
+    nRespondents: leaderEligibility.nRespondents,
+    nSessions: leaderEligibility.nSessions,
+    nScores: leaderEligibility.nScores,
+  },
+
+  teamWithoutLeadersSegment: {
+    status: teamWithoutLeaderEligibility.status,
+    nRespondents: teamWithoutLeaderEligibility.nRespondents,
+    nSessions: teamWithoutLeaderEligibility.nSessions,
+    nScores: teamWithoutLeaderEligibility.nScores,
+  },
+},
   });
 
   return {
