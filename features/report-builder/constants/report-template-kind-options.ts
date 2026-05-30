@@ -199,3 +199,5 @@ export function getReportTemplateKindDescription(
       return "Brak opisu typu raportu.";
   }
 }
+
+

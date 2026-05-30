@@ -363,18 +363,37 @@ export async function PartnerAssessmentProjectRespondentsPage({
 
         <SectionShell
           icon={<KeyRound size={20} />}
-          title="Dostępy raportowe"
+          title="Dostępy dla parnera"
           description="Pula dostępów, z której partner lub admin może nadawać raporty respondentom."
           action={
             <GenerateReportAccessPoolDialog
               tenantSlug={tenantSlug}
               projectId={projectId}
-              products={data.reportAccessProducts}
+              products={data.partnerReportAccessProducts ?? []}
               billingProfile={data.billingProfile}
             />
           }
         >
-          <ReportAccessPoolSummary products={data.reportAccessProducts} />
+          <ReportAccessPoolSummary
+  products={data.partnerReportAccessProducts ?? []}
+/>
+        </SectionShell>
+        <SectionShell
+          icon={<KeyRound size={20} />}
+          title="Dostępy dla respondentów"
+          description="Pula dostępów, z której partner lub admin może nadawać raporty respondentom."
+          action={
+            <GenerateReportAccessPoolDialog
+              tenantSlug={tenantSlug}
+              projectId={projectId}
+              products={data.respondentReportAccessProducts ?? []}
+              billingProfile={data.billingProfile}
+            />
+          }
+        >
+          <ReportAccessPoolSummary
+  products={data.respondentReportAccessProducts ?? []}
+/>
         </SectionShell>
 
         <SectionShell

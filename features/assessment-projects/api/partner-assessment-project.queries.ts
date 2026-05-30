@@ -21,7 +21,10 @@ import {
     questionnaireVersions,
 } from "@/drizzle/schema";
 
-
+import {
+  isPartnerReportTemplateKind,
+  isRespondentReportTemplateKind,
+} from "@/features/report-builder/constants/report-template-audience";
 
 import {
     assessmentProjects,
@@ -448,6 +451,23 @@ export async function getPartnerAssessmentProjectRespondents({
         },
     );
 
+const respondentReportAccessProducts =
+  reportAccessProductsWithAvailability.filter((product) =>
+    isRespondentReportTemplateKind(product.reportTemplateKind),
+  );
+
+const partnerReportAccessProducts =
+  reportAccessProductsWithAvailability.filter((product) =>
+    isPartnerReportTemplateKind(product.reportTemplateKind),
+  );
+
+const sessionReportAccessProducts = respondentReportAccessProducts.filter(
+  (product) => product.reportTemplateKind === "personal",
+);
+
+const compositeReportAccessProducts = respondentReportAccessProducts.filter(
+  (product) => product.reportTemplateKind === "personal_composite",
+);
 
     const reportAccessProductById = new Map(
         reportAccessProductsWithAvailability.map((product) => [product.id, product]),
@@ -616,7 +636,7 @@ export async function getPartnerAssessmentProjectRespondents({
                 ? completedQuestionnaire.questionnaireVersionId
                 : null;
 
-        const compatibleReportAccessProducts = completedQuestionnaireVersionId
+        const compatibleReportAccessProducts = sessionReportAccessProducts
             ? reportAccessProductsWithAvailability.filter((product) => {
                 if (product.availableCount <= 0) {
                     return false;
@@ -848,16 +868,31 @@ console.log("REPORT ACCESS PRODUCTS DEBUG", {
   })),
 });
 
-    return {
-        tenant: {
-            id: ctx.tenantId,
-            slug: ctx.tenantSlug,
-            name: ctx.tenantSlug,
-        },
-        project,
-        sessions,
-        respondents: respondentsWithCompositeReports,
-        reportAccessProducts: reportAccessProductsWithAvailability,
-        billingProfile,
-    };
+return {
+  tenant: {
+    id: ctx.tenantId,
+    slug: ctx.tenantSlug,
+    name: ctx.tenantSlug,
+  },
+  project,
+  sessions,
+  respondents: respondentsWithCompositeReports,
+
+  reportAccessProducts: reportAccessProductsWithAvailability,
+
+  respondentReportAccessProducts,
+  sessionReportAccessProducts,
+  compositeReportAccessProducts,
+  partnerReportAccessProducts,
+
+  compositeDebug: {
+    activeProductCount: reportAccessProductsWithAvailability.length,
+    respondentProductCount: respondentReportAccessProducts.length,
+    sessionProductCount: sessionReportAccessProducts.length,
+    compositeProductCount: compositeReportAccessProducts.length,
+    partnerProductCount: partnerReportAccessProducts.length,
+  },
+
+  billingProfile,
+};
 }
