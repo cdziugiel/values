@@ -1,6 +1,9 @@
-// features/partner-assessment/components/report-access-pool-summary.tsx
-
-import { AlertTriangle, CheckCircle2, KeyRound, PackageCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  KeyRound,
+  PackageCheck,
+} from "lucide-react";
 
 type ReportAccessPoolProduct = {
   id: string;
@@ -34,19 +37,19 @@ function percent(value: number, total: number) {
 }
 
 function formatMoney(value: unknown, currency = "PLN") {
-  const numberValue = Number(value);
+  const parsed = Number(value);
 
-  if (!Number.isFinite(numberValue)) {
+  if (!Number.isFinite(parsed)) {
     return "—";
   }
 
   return new Intl.NumberFormat("pl-PL", {
     style: "currency",
     currency,
-  }).format(numberValue);
+  }).format(parsed);
 }
 
-function MiniMetric({
+function CompactMetric({
   label,
   value,
 }: {
@@ -54,12 +57,30 @@ function MiniMetric({
   value: number;
 }) {
   return (
-    <div className="rounded-[1.25rem] border border-black/10 bg-white/70 p-3 shadow-sm">
-      <div className="text-xs font-medium text-[#6b7280]">{label}</div>
-      <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-[#171717]">
-        {value}
+    <div className="min-w-0">
+      <div className="text-[0.68rem] font-medium uppercase tracking-[0.12em] text-[#8b9099]">
+        {label}
       </div>
+      <div className="mt-0.5 text-sm font-semibold text-[#171717]">{value}</div>
     </div>
+  );
+}
+
+function AvailabilityBadge({ available }: { available: number }) {
+  const hasAvailable = available > 0;
+
+  return (
+    <span
+      className={[
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+        hasAvailable
+          ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+          : "border-amber-200 bg-amber-50 text-amber-800",
+      ].join(" ")}
+    >
+      {hasAvailable ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+      {hasAvailable ? `Wolne: ${available}` : "Brak wolnych"}
+    </span>
   );
 }
 
@@ -68,102 +89,129 @@ export function ReportAccessPoolSummary({
 }: ReportAccessPoolSummaryProps) {
   if (products.length === 0) {
     return (
-      <div className="rounded-[2rem] border border-dashed border-black/10 bg-white/60 p-8 text-sm leading-6 text-[#6b7280] shadow-sm backdrop-blur">
+      <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 px-5 py-4 text-sm leading-6 text-[#6b7280] shadow-sm backdrop-blur">
         Brak aktywnych produktów dostępu do raportów.
       </div>
     );
   }
 
+  const totalAvailable = products.reduce(
+    (sum, product) => sum + numberValue(product.availableCount),
+    0,
+  );
+
+  const totalAll = products.reduce(
+    (sum, product) => sum + numberValue(product.totalCount),
+    0,
+  );
+
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {products.map((product) => {
-        const available = numberValue(product.availableCount);
-        const assigned = numberValue(product.assignedCount);
-        const redeemed = numberValue(product.redeemedCount);
-        const expired = numberValue(product.expiredCount);
-        const cancelled = numberValue(product.cancelledCount);
-        const total = numberValue(product.totalCount);
-        const unavailable = expired + cancelled;
-        const useRate = percent(redeemed, total);
+    <section className="space-y-3">
+      <div className="flex flex-col gap-3 rounded-[1.5rem]  px-5 py-4  md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#171717]">
+            <PackageCheck size={16} className="text-[#0f766e]" />
+            Pula dostępów
+          </div>
 
-        return (
-          <article
-            key={product.id}
-            className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
-          >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+        </div>
 
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[#171717]">
+            Produkty: {products.length}
+          </span>
 
+          <span className="inline-flex items-center rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
+            Wolne: {totalAvailable}
+          </span>
 
-                <h3 className="mt-1 text-lg font-semibold leading-6 tracking-[-0.03em] text-[#171717]">
-                  {product.name}
-                </h3>
+          <span className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[#6b7280]">
+            Wszystkie: {totalAll}
+          </span>
+        </div>
+      </div>
 
-                <p className="mt-2 text-xs text-[#6b7280]">
-                  Cena:{" "}
-                  <span className="font-semibold text-[#171717]">
-                    {formatMoney(product.priceGross, product.currency ?? "PLN")}
-                  </span>
-                </p>
-              </div>
+      <div className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-sm">
+        <div className="hidden grid-cols-[minmax(220px,1.4fr)_120px_90px_90px_90px_120px] gap-4 border-b border-black/10 bg-[#f7f7f8] px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280] lg:grid">
+          <div>Produkt</div>
+          <div>Cena</div>
+          <div>Wolne</div>
+          <div>Użyte</div>
+          <div>Razem</div>
+          <div>Wykorzystanie</div>
+        </div>
 
-              <div
-                className={[
-                  "inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
-                  available > 0
-                    ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
-                    : "border-amber-200 bg-amber-50 text-amber-800",
-                ].join(" ")}
+        <div className="divide-y divide-black/10">
+          {products.map((product) => {
+            const available = numberValue(product.availableCount);
+            const assigned = numberValue(product.assignedCount);
+            const redeemed = numberValue(product.redeemedCount);
+            const expired = numberValue(product.expiredCount);
+            const cancelled = numberValue(product.cancelledCount);
+            const total = numberValue(product.totalCount);
+            const unavailable = expired + cancelled;
+            const useRate = percent(redeemed, total);
+
+            return (
+              <article
+                key={product.id}
+                className="grid gap-4 bg-white px-4 py-4 transition hover:bg-[#fbfbfc] lg:grid-cols-[minmax(220px,1.4fr)_120px_90px_90px_90px_120px] lg:items-center"
               >
-                {available > 0 ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-                wolne: {available}
-              </div>
-            </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="break-words text-sm font-semibold leading-5 text-[#171717]">
+                      {product.name}
+                    </h3>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <MiniMetric label="Wszystkie" value={total} />
-              <MiniMetric label="Wykorzystane" value={redeemed} />
-              <MiniMetric label="Przypisane" value={assigned} />
-              <MiniMetric label="Niedostępne" value={unavailable} />
-            </div>
+                    <AvailabilityBadge available={available} />
+                  </div>
 
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="font-medium text-[#6b7280]">Wykorzystanie</span>
-                <span className="font-semibold text-[#171717]">{useRate}%</span>
-              </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-[#6b7280]">
+                    <span className="font-mono">{product.code}</span>
 
-              <div className="h-2 overflow-hidden rounded-full bg-[#f3f4f6]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]"
-                  style={{ width: `${Math.max(0, Math.min(100, useRate))}%` }}
-                />
-              </div>
-            </div>
+                    {assigned > 0 ? <span>Przypisane: {assigned}</span> : null}
+                    {unavailable > 0 ? (
+                      <span>Niedostępne: {unavailable}</span>
+                    ) : null}
+                  </div>
 
-            {available === 0 ? (
-              <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
-                <div className="mb-1 flex items-center gap-2 font-semibold text-amber-900">
-                  <KeyRound size={14} />
-                  Brak wolnych dostępów
+                  {available === 0 ? (
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                      <KeyRound size={13} />
+                      Dokup lub wygeneruj pulę dostępów
+                    </div>
+                  ) : null}
                 </div>
-                Aby nadać raport kolejnym respondentom, trzeba dokupić lub
-                wygenerować pulę dostępów.
-              </div>
-            ) : (
-              <div className="mt-5 rounded-[1.25rem] border border-black/10 bg-white/60 p-4 text-xs leading-5 text-[#6b7280]">
-                <div className="mb-1 flex items-center gap-2 font-semibold text-[#171717]">
-                  <PackageCheck size={14} />
-                  Pula gotowa do użycia
+
+                <div className="text-sm font-medium text-[#171717]">
+                  {formatMoney(product.priceGross, product.currency ?? "PLN")}
                 </div>
-                Dostępy możesz nadawać respondentom z poziomu listy sesji.
-              </div>
-            )}
-          </article>
-        );
-      })}
+
+                <CompactMetric label="Wolne" value={available} />
+                <CompactMetric label="Użyte" value={redeemed} />
+                <CompactMetric label="Razem" value={total} />
+
+                <div className="min-w-0">
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="font-medium text-[#6b7280]">
+                      {useRate}%
+                    </span>
+                  </div>
+
+                  <div className="h-2 overflow-hidden rounded-full bg-[#f3f4f6]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, useRate))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }

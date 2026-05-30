@@ -837,7 +837,16 @@ export async function getPartnerAssessmentProjectRespondents({
         };
     });
 
-
+console.log("REPORT ACCESS PRODUCTS DEBUG", {
+  activeCount: activeReportAccessProducts.length,
+  products: activeReportAccessProducts.map((product) => ({
+    id: product.id,
+    code: product.code,
+    name: product.name,
+    status: product.status,
+    reportTemplateId: product.reportTemplateId,
+  })),
+});
 
     return {
         tenant: {
