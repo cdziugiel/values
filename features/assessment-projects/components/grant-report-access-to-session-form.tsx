@@ -136,7 +136,7 @@ export function GrantReportAccessToSessionForm({
 
   return (
     <div className="space-y-2">
-      <form action={formAction} className="flex flex-wrap justify-end gap-2">
+      <form action={formAction} className="w-full space-y-2 text-right">
         <input type="hidden" name="tenantSlug" value={tenantSlug} />
         <input type="hidden" name="sessionId" value={sessionId} />
         <input

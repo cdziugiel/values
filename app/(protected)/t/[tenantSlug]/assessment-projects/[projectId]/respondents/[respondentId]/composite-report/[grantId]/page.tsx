@@ -1,14 +1,20 @@
 // app/(protected)/t/[tenantSlug]/assessment-projects/[projectId]/respondents/[respondentId]/composite-report/[reportTemplateVersionId]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { and, eq, isNull } from "drizzle-orm";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+import { reportAccessGrants } from "@/drizzle/schema";
+import { controlDb } from "@/server/db/control-db";
+
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
 import { getReportTemplateVersionEditor } from "@/features/report-builder/api/report-builder.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
+
+import type { FrozenCompositeSelection } from "@/features/assessment-results/types/personal-composite-selection.types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,26 +24,79 @@ type PageProps = {
     tenantSlug: string;
     projectId: string;
     respondentId: string;
-    reportTemplateVersionId: string;
+    grantId: string;
   }>;
 };
 
-export default async function PersonalCompositeReportPage({
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
+function readFrozenSelection(metadata: unknown): FrozenCompositeSelection | null {
+  const record = asRecord(metadata);
+  const selection = record.compositeSelection;
+
+  if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
+    return null;
+  }
+
+  return selection as FrozenCompositeSelection;
+}
+
+export default async function PartnerPersonalCompositeReportPage({
   params,
 }: PageProps) {
-  const { tenantSlug, projectId, respondentId, reportTemplateVersionId } =
-    await params;
+  const { tenantSlug, projectId, respondentId, grantId } = await params;
+
+  const [grant] = await controlDb
+    .select({
+      id: reportAccessGrants.id,
+      tenantSlug: reportAccessGrants.tenantSlug,
+      subjectType: reportAccessGrants.subjectType,
+      subjectId: reportAccessGrants.subjectId,
+      assessmentProjectId: reportAccessGrants.assessmentProjectId,
+      reportTemplateId: reportAccessGrants.reportTemplateId,
+      reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+      status: reportAccessGrants.status,
+      metadata: reportAccessGrants.metadata,
+    })
+    .from(reportAccessGrants)
+    .where(
+      and(
+        eq(reportAccessGrants.id, grantId),
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.subjectType, "respondent"),
+        eq(reportAccessGrants.subjectId, respondentId),
+        eq(reportAccessGrants.assessmentProjectId, projectId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!grant || !grant.reportTemplateVersionId) {
+    notFound();
+  }
+
+  const frozenSelection = readFrozenSelection(grant.metadata);
+
+  if (!frozenSelection) {
+    notFound();
+  }
 
   const [data, reportTemplateVersion] = await Promise.all([
     getPersonalCompositeReport({
       tenantSlug,
       assessmentProjectId: projectId,
       respondentId,
-      reportTemplateVersionId,
+      reportTemplateVersionId: grant.reportTemplateVersionId,
+      frozenSelection,
       previewMode: true,
     }),
     getReportTemplateVersionEditor({
-      reportTemplateVersionId,
+      reportTemplateVersionId: grant.reportTemplateVersionId,
     }),
   ]);
 
@@ -45,51 +104,61 @@ export default async function PersonalCompositeReportPage({
     notFound();
   }
 
+  const backHref = `/t/${tenantSlug}/assessment-projects/${projectId}/respondents`;
 
   if (!data.eligibility.canRender) {
     return (
       <main className="min-h-screen bg-[#f3f4f6] p-6">
         <section className="mx-auto max-w-4xl rounded-[2rem] border border-amber-200 bg-white p-6 shadow-sm">
+          <div className="mb-4">
+            <Button asChild variant="outline" size="sm">
+              <Link href={backHref}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Wróć
+              </Link>
+            </Button>
+          </div>
+
           <h1 className="text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
             Nie można wygenerować raportu złożonego
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-            Brakuje wymaganych kwestionariuszy dla respondenta{" "}
-            <strong>{data.respondent.displayName}</strong>.
+            Raport ma zapisany zamrożony wybór źródeł, ale część danych nie jest
+            już dostępna albo nie spełnia warunków renderowania.
           </p>
 
-          <div className="mt-5 space-y-3">
-            {data.eligibility.missingRequiredSources.map((source) => (
-              <div
-                key={source.slot}
-                className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-              >
-                <div className="font-semibold">{source.questionnaireName}</div>
-                <div className="mt-1 font-mono text-xs">
-                  {source.questionnaireCode}
+          {data.eligibility.missingRequiredSources.length > 0 ? (
+            <div className="mt-5 space-y-3">
+              {data.eligibility.missingRequiredSources.map((source) => (
+                <div
+                  key={source.slot}
+                  className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                >
+                  <div className="font-semibold">
+                    {source.questionnaireName}
+                  </div>
+                  <div className="mt-1 font-mono text-xs">
+                    {source.questionnaireCode}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
         </section>
       </main>
     );
   }
-
 
   const rendered = renderReportDocument({
     reportTemplateVersion,
     payload: data.payload,
   });
 
-  const backHref = `/t/${tenantSlug}/assessment-projects/${projectId}/respondents`;
-
   return (
     <main className="min-h-screen bg-[#f3f4f6]">
       <header className="sticky top-0 z-20 border-b border-black/10 bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm">
@@ -110,7 +179,7 @@ export default async function PersonalCompositeReportPage({
                 variant="outline"
                 className="rounded-full border-black/10 bg-white/70 font-mono text-[#6b7280]"
               >
-                {data.reportTemplate.kind}
+                grant: {grant.id}
               </Badge>
 
               {data.reportTemplate.versionStatus !== "active" ? (
@@ -135,7 +204,8 @@ export default async function PersonalCompositeReportPage({
 
                 <p className="mt-1 text-sm leading-6 text-[#6b7280]">
                   {data.project?.name ?? "Raport złożony"} · źródła:{" "}
-                  {data.payload?.composite?.availableSourceCount ?? 0}
+                  {data.payload?.composite?.availableSourceCount ?? 0} · tryb:{" "}
+                  {data.payload?.composite?.selection?.mode ?? "—"}
                 </p>
               </div>
             </div>
@@ -143,14 +213,16 @@ export default async function PersonalCompositeReportPage({
 
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline">
-              <Link href={`/dashboard/report-builder/${reportTemplateVersionId}`}>
+              <Link
+                href={`/dashboard/report-builder/${grant.reportTemplateVersionId}`}
+              >
                 Otwórz template w builderze
               </Link>
             </Button>
 
             <Button asChild variant="outline">
               <Link
-                href={`/dashboard/report-templates/${data.reportTemplateId}/versions/${reportTemplateVersionId}`}
+                href={`/dashboard/report-templates/${data.reportTemplateId}/versions/${grant.reportTemplateVersionId}`}
               >
                 Ustawienia wersji
               </Link>

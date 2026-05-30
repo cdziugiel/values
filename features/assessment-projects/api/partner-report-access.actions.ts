@@ -1,5 +1,8 @@
 "use server";
 
+import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
+
+
 import crypto from "crypto";
 import { and, desc, eq, isNull, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -1136,4 +1139,222 @@ export async function generateProjectReportAccessPoolAction(
     return success(
         `Utworzono zamówienie placeholder i wygenerowano ${quantity} dostępów do puli projektu. ID zamówienia: ${orderResult.orderId}`,
     );
+}
+
+
+export async function grantCompositeReportAccessToRespondentAction(
+  _previousState: PartnerGrantReportAccessState,
+  formData: FormData,
+): Promise<PartnerGrantReportAccessState> {
+  const tenantSlug = String(formData.get("tenantSlug") ?? "");
+  const assessmentProjectId = String(formData.get("assessmentProjectId") ?? "");
+  const respondentId = String(formData.get("respondentId") ?? "");
+  const productId = String(formData.get("productId") ?? "");
+  const reportTemplateVersionId = String(
+    formData.get("reportTemplateVersionId") ?? "",
+  );
+
+  if (
+    !tenantSlug ||
+    !assessmentProjectId ||
+    !respondentId ||
+    !productId ||
+    !reportTemplateVersionId
+  ) {
+    return {
+      status: "error",
+      message: "Brakuje danych do nadania raportu złożonego.",
+    };
+  }
+
+  try {
+    const ctx = await requireTenantContext({ tenantSlug });
+    requirePermission(ctx, "report:generate");
+
+    const product = await controlDb.query.reportAccessProducts.findFirst({
+      where: and(
+        eq(reportAccessProducts.id, productId),
+        eq(reportAccessProducts.status, "active"),
+        isNull(reportAccessProducts.deletedAt),
+      ),
+    });
+
+    if (!product) {
+      return {
+        status: "error",
+        message: "Nie znaleziono aktywnego produktu raportowego.",
+      };
+    }
+
+    const reportVersion = await controlDb.query.reportTemplateVersions.findFirst({
+      where: and(
+        eq(reportTemplateVersions.id, reportTemplateVersionId),
+        eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
+        eq(reportTemplateVersions.status, "active"),
+        isNull(reportTemplateVersions.deletedAt),
+      ),
+    });
+
+    if (!reportVersion) {
+      return {
+        status: "error",
+        message: "Nie znaleziono aktywnej wersji raportu złożonego.",
+      };
+    }
+
+    const compositeData = await getPersonalCompositeReport({
+      tenantSlug,
+      assessmentProjectId,
+      respondentId,
+      reportTemplateVersionId,
+      previewMode: true,
+      sourceSelection: {
+        mode: "same_project",
+        assessmentProjectId,
+      },
+    });
+
+    if (!compositeData || !compositeData.eligibility.canRender) {
+      return {
+        status: "error",
+        message:
+          "Nie można nadać raportu złożonego, ponieważ brakuje wymaganych źródeł w tym projekcie.",
+      };
+    }
+
+    const frozenSelection = compositeData.payload?.composite?.selection?.frozen;
+
+    if (!frozenSelection) {
+      return {
+        status: "error",
+        message: "Nie udało się zamrozić źródeł raportu złożonego.",
+      };
+    }
+
+    const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
+      where: and(
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.subjectType, "respondent"),
+        eq(reportAccessGrants.subjectId, respondentId),
+        eq(reportAccessGrants.assessmentProjectId, assessmentProjectId),
+        eq(reportAccessGrants.reportTemplateVersionId, reportTemplateVersionId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    });
+
+    if (existingGrant) {
+      return {
+        status: "success",
+        message: "Ten raport złożony został już nadany respondentowi.",
+      };
+    }
+
+    const accessCode = await controlDb.query.reportAccessCodes.findFirst({
+      where: and(
+        eq(reportAccessCodes.tenantSlug, tenantSlug),
+        eq(reportAccessCodes.productId, productId),
+        eq(reportAccessCodes.status, "available"),
+        or(
+          isNull(reportAccessCodes.assessmentProjectId),
+          eq(reportAccessCodes.assessmentProjectId, assessmentProjectId),
+        ),
+        isNull(reportAccessCodes.deletedAt),
+      ),
+      orderBy: (codes, { asc }) => [asc(codes.createdAt)],
+    });
+
+    if (!accessCode) {
+      return {
+        status: "error",
+        message: "Brak wolnych dostępów w puli dla tego raportu.",
+      };
+    }
+
+    const now = new Date();
+
+    const validUntil =
+      typeof product.validityDays === "number" && product.validityDays > 0
+        ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+        : null;
+
+    await controlDb.transaction(async (tx) => {
+      const [grant] = await tx
+        .insert(reportAccessGrants)
+        .values({
+          source: "admin_grant",
+          status: "active",
+
+          productId: product.id,
+          accessCodeId: accessCode.id,
+
+          reportTemplateId: product.reportTemplateId,
+          reportTemplateVersionId,
+
+          tenantSlug,
+          userId: null,
+          email: null,
+
+          subjectType: "respondent",
+          subjectId: respondentId,
+
+          assessmentProjectId,
+          assessmentSessionId: null,
+          assessmentAccessLinkId: null,
+
+          validFrom: now,
+          validUntil,
+
+          metadata: {
+            reportKind: "personal_composite",
+            partnerGranted: true,
+            assessmentProjectId,
+            respondentId,
+            compositeSelection: frozenSelection,
+            compositeSelectionMode: "same_project",
+          },
+
+          createdAt: now,
+          updatedAt: now,
+          createdBy: ctx.userId,
+          updatedBy: ctx.userId,
+        })
+        .returning({
+          id: reportAccessGrants.id,
+        });
+
+      await tx
+        .update(reportAccessCodes)
+        .set({
+          status: "redeemed",
+          redeemedAt: now,
+          assessmentProjectId,
+          updatedAt: now,
+          updatedBy: ctx.userId,
+          metadata: {
+            grantId: grant.id,
+            respondentId,
+            reportKind: "personal_composite",
+          },
+        })
+        .where(eq(reportAccessCodes.id, accessCode.id));
+    });
+
+    revalidatePath(
+      `/dashboard/partner-assessment/${tenantSlug}/projects/${assessmentProjectId}`,
+    );
+
+    return {
+      status: "success",
+      message: "Nadano dostęp do raportu złożonego.",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nie udało się nadać raportu złożonego.",
+    };
+  }
 }

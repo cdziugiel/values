@@ -62,6 +62,57 @@ function isGrantCurrentlyActive(grant: {
     return true;
 }
 
+
+function asRecord(value: unknown): Record<string, any> {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        return value as Record<string, any>;
+    }
+
+    return {};
+}
+
+function readCompositeRequiredSources(dataBindings: unknown) {
+    const bindings = asRecord(dataBindings);
+    const sources = asRecord(bindings.sources);
+    const personalReports = sources.personalReports;
+
+    if (!Array.isArray(personalReports)) {
+        return [];
+    }
+
+    return personalReports
+        .map((item) => {
+            const source = asRecord(item);
+
+            return {
+                slot: typeof source.slot === "string" ? source.slot : "",
+                label: typeof source.label === "string" ? source.label : "",
+                questionnaireId:
+                    typeof source.questionnaireId === "string"
+                        ? source.questionnaireId
+                        : "",
+                questionnaireCode:
+                    typeof source.questionnaireCode === "string"
+                        ? source.questionnaireCode
+                        : "",
+                questionnaireName:
+                    typeof source.questionnaireName === "string"
+                        ? source.questionnaireName
+                        : "",
+                required: Boolean(source.required),
+            };
+        })
+        .filter((source) => source.slot && source.questionnaireId);
+}
+
+function dateTime(value: unknown) {
+    if (!value) return 0;
+
+    const date = value instanceof Date ? value : new Date(String(value));
+
+    return Number.isFinite(date.getTime()) ? date.getTime() : 0;
+}
+
 export async function getPartnerAssessmentProjectRespondents({
     tenantSlug,
     projectId,
@@ -265,6 +316,10 @@ export async function getPartnerAssessmentProjectRespondents({
     const grantsBySessionId = new Map<string, typeof grantRows>();
 
     for (const grant of grantRows) {
+        if (!grant.assessmentSessionId) {
+            continue;
+        }
+
         const existing = grantsBySessionId.get(grant.assessmentSessionId) ?? [];
         existing.push(grant);
         grantsBySessionId.set(grant.assessmentSessionId, existing);
@@ -280,12 +335,22 @@ export async function getPartnerAssessmentProjectRespondents({
             status: reportAccessProducts.status,
             currency: reportAccessProducts.currency,
             priceGross: reportAccessProducts.priceGross,
+
+            reportTemplateKind: reportTemplates.kind,
+            reportTemplateCode: reportTemplates.code,
+            reportTemplateName: reportTemplates.name,
         })
         .from(reportAccessProducts)
+        .innerJoin(
+            reportTemplates,
+            eq(reportTemplates.id, reportAccessProducts.reportTemplateId),
+        )
         .where(
             and(
                 eq(reportAccessProducts.status, "active"),
+                eq(reportTemplates.status, "active"),
                 isNull(reportAccessProducts.deletedAt),
+                isNull(reportTemplates.deletedAt),
             ),
         );
 
@@ -382,160 +447,408 @@ export async function getPartnerAssessmentProjectRespondents({
             };
         },
     );
-    const activeReportTemplateVersionRows =
-    activeReportAccessProducts.length > 0
-        ? await controlDb
-            .select({
-                reportTemplateId: reportTemplateVersions.reportTemplateId,
-                questionnaireVersionId:
-                    reportTemplateVersions.questionnaireVersionId,
-            })
-            .from(reportTemplateVersions)
-            .where(
-                and(
-                    inArray(
-                        reportTemplateVersions.reportTemplateId,
-                        activeReportAccessProducts.map(
-                            (product) => product.reportTemplateId,
+
+
+    const reportAccessProductById = new Map(
+        reportAccessProductsWithAvailability.map((product) => [product.id, product]),
+    );
+
+    const compositeReportTemplateVersionRows =
+        reportAccessProductsWithAvailability.length > 0
+            ? await controlDb
+                .select({
+                    productId: reportAccessProducts.id,
+
+                    reportTemplateId: reportTemplates.id,
+                    reportTemplateCode: reportTemplates.code,
+                    reportTemplateName: reportTemplates.name,
+                    reportTemplateDescription: reportTemplates.description,
+                    reportTemplateKind: reportTemplates.kind,
+
+                    reportTemplateVersionId: reportTemplateVersions.id,
+                    reportTemplateVersionName: reportTemplateVersions.name,
+                    reportTemplateVersion: reportTemplateVersions.version,
+                    dataBindings: reportTemplateVersions.dataBindings,
+                })
+                .from(reportAccessProducts)
+                .innerJoin(
+                    reportTemplates,
+                    eq(reportTemplates.id, reportAccessProducts.reportTemplateId),
+                )
+                .innerJoin(
+                    reportTemplateVersions,
+                    eq(reportTemplateVersions.reportTemplateId, reportTemplates.id),
+                )
+                .where(
+                    and(
+                        inArray(
+                            reportAccessProducts.id,
+                            reportAccessProductsWithAvailability.map((product) => product.id),
                         ),
+                        eq(reportAccessProducts.status, "active"),
+                        eq(reportTemplates.status, "active"),
+                        eq(reportTemplates.kind, "personal_composite"),
+                        eq(reportTemplateVersions.status, "active"),
+                        isNull(reportAccessProducts.deletedAt),
+                        isNull(reportTemplates.deletedAt),
+                        isNull(reportTemplateVersions.deletedAt),
                     ),
-                    eq(reportTemplateVersions.status, "active"),
-                    isNull(reportTemplateVersions.deletedAt),
-                ),
-            )
-        : [];
+                )
+            : [];
+
+    const activeReportTemplateVersionRows =
+        activeReportAccessProducts.length > 0
+            ? await controlDb
+                .select({
+                    reportTemplateId: reportTemplateVersions.reportTemplateId,
+                    questionnaireVersionId:
+                        reportTemplateVersions.questionnaireVersionId,
+                })
+                .from(reportTemplateVersions)
+                .where(
+                    and(
+                        inArray(
+                            reportTemplateVersions.reportTemplateId,
+                            activeReportAccessProducts.map(
+                                (product) => product.reportTemplateId,
+                            ),
+                        ),
+                        eq(reportTemplateVersions.status, "active"),
+                        isNull(reportTemplateVersions.deletedAt),
+                    ),
+                )
+            : [];
 
 
 
-const compatibleQuestionnaireVersionIdsByReportTemplateId = new Map<
-  string,
-  Set<string>
->();
+    const compatibleQuestionnaireVersionIdsByReportTemplateId = new Map<
+        string,
+        Set<string>
+    >();
 
-for (const row of activeReportTemplateVersionRows) {
-  if (!row.questionnaireVersionId) {
-    continue;
-  }
-
-  const current =
-    compatibleQuestionnaireVersionIdsByReportTemplateId.get(
-      row.reportTemplateId,
-    ) ?? new Set<string>();
-
-  current.add(row.questionnaireVersionId);
-
-  compatibleQuestionnaireVersionIdsByReportTemplateId.set(
-    row.reportTemplateId,
-    current,
-  );
-}
-
-const sessionsBase = sessionRows.map((session: any) => {
-  const grants = grantsBySessionId.get(session.sessionId) ?? [];
-
-  const responseQuestionnaires =
-    responseQuestionnairesBySessionId.get(session.sessionId) ?? [];
-
-  const validResponseQuestionnaires = responseQuestionnaires.filter(
-    (row: any) =>
-      typeof row.questionnaireVersionId === "string" &&
-      row.questionnaireVersionId.length > 0,
-  );
-
-  const totalResponseCount = validResponseQuestionnaires.reduce(
-    (sum: number, row: any) => sum + Number(row.responseCount ?? 0),
-    0,
-  );
-
-  const singleResponseQuestionnaire =
-    validResponseQuestionnaires.length === 1
-      ? validResponseQuestionnaires[0]
-      : null;
-
-  const questionnaireMeta =
-    singleResponseQuestionnaire?.questionnaireVersionId
-      ? questionnaireByVersionId.get(
-          singleResponseQuestionnaire.questionnaireVersionId,
-        )
-      : null;
-
-  const completedQuestionnaire = singleResponseQuestionnaire
-    ? {
-        questionnaireId: singleResponseQuestionnaire.questionnaireId ?? null,
-        questionnaireVersionId:
-          singleResponseQuestionnaire.questionnaireVersionId ?? null,
-        questionnaireCode: questionnaireMeta?.questionnaireCode ?? null,
-        questionnaireName: questionnaireMeta?.questionnaireName ?? null,
-        questionnaireVersion: questionnaireMeta?.questionnaireVersion ?? null,
-        responseCount: Number(singleResponseQuestionnaire.responseCount ?? 0),
-        isAmbiguous: false,
-      }
-    : validResponseQuestionnaires.length > 1
-      ? {
-          questionnaireId: null,
-          questionnaireVersionId: null,
-          questionnaireCode: null,
-          questionnaireName: "Niejednoznaczne odpowiedzi",
-          questionnaireVersion: null,
-          responseCount: totalResponseCount,
-          isAmbiguous: true,
-        }
-      : null;
-
-  return {
-    ...session,
-    hasSnapshot: Boolean(session.snapshotId),
-    completedQuestionnaire,
-    grants: grants.map((grant) => ({
-      ...grant,
-      isCurrentlyActive: isGrantCurrentlyActive(grant),
-      partnerReportHref: `/t/${tenantSlug}/assessment-sessions/${session.sessionId}/report/${grant.reportTemplateVersionId}`,
-    })),
-  };
-});
-
-const sessions = sessionsBase.map((session: any) => {
-  const completedQuestionnaire = session.completedQuestionnaire;
-
-  const completedQuestionnaireVersionId =
-    completedQuestionnaire && !completedQuestionnaire.isAmbiguous
-      ? completedQuestionnaire.questionnaireVersionId
-      : null;
-
-  const compatibleReportAccessProducts = completedQuestionnaireVersionId
-    ? reportAccessProductsWithAvailability.filter((product) => {
-        if (product.availableCount <= 0) {
-          return false;
+    for (const row of activeReportTemplateVersionRows) {
+        if (!row.questionnaireVersionId) {
+            continue;
         }
 
-        const compatibleQuestionnaireVersionIds =
-          compatibleQuestionnaireVersionIdsByReportTemplateId.get(
-            product.reportTemplateId,
-          );
+        const current =
+            compatibleQuestionnaireVersionIdsByReportTemplateId.get(
+                row.reportTemplateId,
+            ) ?? new Set<string>();
 
-        return Boolean(
-          compatibleQuestionnaireVersionIds?.has(
-            completedQuestionnaireVersionId,
-          ),
+        current.add(row.questionnaireVersionId);
+
+        compatibleQuestionnaireVersionIdsByReportTemplateId.set(
+            row.reportTemplateId,
+            current,
         );
-      })
-    : [];
+    }
 
-  return {
-    ...session,
-    compatibleReportAccessProducts,
-  };
-});
+    const sessionsBase = sessionRows.map((session: any) => {
+        const grants = grantsBySessionId.get(session.sessionId) ?? [];
 
-return {
-  tenant: {
-    id: ctx.tenantId,
-    slug: ctx.tenantSlug,
-    name: ctx.tenantSlug,
-  },
-  project,
-  sessions,
-  reportAccessProducts: reportAccessProductsWithAvailability,
-  billingProfile,
-};
+        const responseQuestionnaires =
+            responseQuestionnairesBySessionId.get(session.sessionId) ?? [];
+
+        const validResponseQuestionnaires = responseQuestionnaires.filter(
+            (row: any) =>
+                typeof row.questionnaireVersionId === "string" &&
+                row.questionnaireVersionId.length > 0,
+        );
+
+        const totalResponseCount = validResponseQuestionnaires.reduce(
+            (sum: number, row: any) => sum + Number(row.responseCount ?? 0),
+            0,
+        );
+
+        const singleResponseQuestionnaire =
+            validResponseQuestionnaires.length === 1
+                ? validResponseQuestionnaires[0]
+                : null;
+
+        const questionnaireMeta =
+            singleResponseQuestionnaire?.questionnaireVersionId
+                ? questionnaireByVersionId.get(
+                    singleResponseQuestionnaire.questionnaireVersionId,
+                )
+                : null;
+
+        const completedQuestionnaire = singleResponseQuestionnaire
+            ? {
+                questionnaireId: singleResponseQuestionnaire.questionnaireId ?? null,
+                questionnaireVersionId:
+                    singleResponseQuestionnaire.questionnaireVersionId ?? null,
+                questionnaireCode: questionnaireMeta?.questionnaireCode ?? null,
+                questionnaireName: questionnaireMeta?.questionnaireName ?? null,
+                questionnaireVersion: questionnaireMeta?.questionnaireVersion ?? null,
+                responseCount: Number(singleResponseQuestionnaire.responseCount ?? 0),
+                isAmbiguous: false,
+            }
+            : validResponseQuestionnaires.length > 1
+                ? {
+                    questionnaireId: null,
+                    questionnaireVersionId: null,
+                    questionnaireCode: null,
+                    questionnaireName: "Niejednoznaczne odpowiedzi",
+                    questionnaireVersion: null,
+                    responseCount: totalResponseCount,
+                    isAmbiguous: true,
+                }
+                : null;
+
+        return {
+            ...session,
+            hasSnapshot: Boolean(session.snapshotId),
+            completedQuestionnaire,
+            grants: grants.map((grant) => ({
+                ...grant,
+                isCurrentlyActive: isGrantCurrentlyActive(grant),
+                partnerReportHref: `/t/${tenantSlug}/assessment-sessions/${session.sessionId}/report/${grant.reportTemplateVersionId}`,
+            })),
+        };
+    });
+
+    const sessions = sessionsBase.map((session: any) => {
+        const completedQuestionnaire = session.completedQuestionnaire;
+
+        const completedQuestionnaireVersionId =
+            completedQuestionnaire && !completedQuestionnaire.isAmbiguous
+                ? completedQuestionnaire.questionnaireVersionId
+                : null;
+
+        const compatibleReportAccessProducts = completedQuestionnaireVersionId
+            ? reportAccessProductsWithAvailability.filter((product) => {
+                if (product.availableCount <= 0) {
+                    return false;
+                }
+
+                const compatibleQuestionnaireVersionIds =
+                    compatibleQuestionnaireVersionIdsByReportTemplateId.get(
+                        product.reportTemplateId,
+                    );
+
+                return Boolean(
+                    compatibleQuestionnaireVersionIds?.has(
+                        completedQuestionnaireVersionId,
+                    ),
+                );
+            })
+            : [];
+
+        return {
+            ...session,
+            compatibleReportAccessProducts,
+        };
+    });
+
+
+    const respondentIds = Array.from(
+        new Set(
+            sessionsBase
+                .map((session: any) => session.respondentId)
+                .filter((value: unknown): value is string => typeof value === "string"),
+        ),
+    );
+
+    const compositeReportTemplateVersionIds = compositeReportTemplateVersionRows.map(
+        (row) => row.reportTemplateVersionId,
+    );
+
+    const compositeGrantRows =
+        respondentIds.length > 0 && compositeReportTemplateVersionIds.length > 0
+            ? await controlDb
+                .select({
+                    id: reportAccessGrants.id,
+                    subjectId: reportAccessGrants.subjectId,
+                    assessmentProjectId: reportAccessGrants.assessmentProjectId,
+                    reportTemplateId: reportAccessGrants.reportTemplateId,
+                    reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+                    source: reportAccessGrants.source,
+                    status: reportAccessGrants.status,
+                    validFrom: reportAccessGrants.validFrom,
+                    validUntil: reportAccessGrants.validUntil,
+
+                    reportTemplateName: reportTemplates.name,
+                    reportTemplateVersionName: reportTemplateVersions.name,
+                    reportTemplateVersion: reportTemplateVersions.version,
+                })
+                .from(reportAccessGrants)
+                .innerJoin(
+                    reportTemplates,
+                    eq(reportTemplates.id, reportAccessGrants.reportTemplateId),
+                )
+                .innerJoin(
+                    reportTemplateVersions,
+                    eq(reportTemplateVersions.id, reportAccessGrants.reportTemplateVersionId),
+                )
+                .where(
+                    and(
+                        eq(reportAccessGrants.tenantSlug, tenantSlug),
+                        eq(reportAccessGrants.subjectType, "respondent"),
+                        inArray(reportAccessGrants.subjectId, respondentIds),
+                        eq(reportAccessGrants.assessmentProjectId, projectId),
+                        inArray(
+                            reportAccessGrants.reportTemplateVersionId,
+                            compositeReportTemplateVersionIds,
+                        ),
+                        isNull(reportAccessGrants.deletedAt),
+                        isNull(reportTemplates.deletedAt),
+                        isNull(reportTemplateVersions.deletedAt),
+                    ),
+                )
+            : [];
+
+    const compositeGrantsByRespondentAndVersion = new Map<
+        string,
+        typeof compositeGrantRows
+    >();
+
+    for (const grant of compositeGrantRows) {
+        if (!grant.subjectId) continue;
+
+        const key = `${grant.subjectId}::${grant.reportTemplateVersionId}`;
+        const current = compositeGrantsByRespondentAndVersion.get(key) ?? [];
+
+        current.push(grant);
+        compositeGrantsByRespondentAndVersion.set(key, current);
+    }
+
+
+    const sessionsByRespondentId = new Map<string, typeof sessions>();
+
+    for (const session of sessions) {
+        const current = sessionsByRespondentId.get(session.respondentId) ?? [];
+        current.push(session);
+        sessionsByRespondentId.set(session.respondentId, current);
+    }
+
+    const respondentsWithCompositeReports = Array.from(
+        sessionsByRespondentId.entries(),
+    ).map(([respondentId, respondentSessions]) => {
+        const respondentEmail =
+            respondentSessions.find((session: any) => session.respondentEmail)
+                ?.respondentEmail ?? null;
+
+        const compositeReports = compositeReportTemplateVersionRows.map((template) => {
+            const product = reportAccessProductById.get(template.productId);
+            const requiredSources = readCompositeRequiredSources(template.dataBindings);
+
+            const selectedSources = requiredSources.map((source) => {
+                const candidates = respondentSessions
+                    .filter((session: any) => {
+                        const completedQuestionnaire = session.completedQuestionnaire;
+
+                        return (
+                            session.sessionStatus === "completed" &&
+                            session.hasSnapshot &&
+                            completedQuestionnaire &&
+                            !completedQuestionnaire.isAmbiguous &&
+                            completedQuestionnaire.questionnaireId === source.questionnaireId
+                        );
+                    })
+                    .sort(
+                        (a: any, b: any) =>
+                            dateTime(b.sessionCompletedAt) - dateTime(a.sessionCompletedAt),
+                    );
+
+                const selected = candidates[0] ?? null;
+
+                return {
+                    ...source,
+                    available: Boolean(selected),
+                    selectedAssessmentSessionId: selected?.sessionId ?? null,
+                    selectedAssessmentResultSnapshotId: selected?.snapshotId ?? null,
+                    selectedCompletedAt: selected?.sessionCompletedAt ?? null,
+                    candidateCount: candidates.length,
+                };
+            });
+
+            const missingRequiredSources = selectedSources.filter(
+                (source) => source.required && !source.available,
+            );
+
+            const existingGrants =
+                compositeGrantsByRespondentAndVersion.get(
+                    `${respondentId}::${template.reportTemplateVersionId}`,
+                ) ?? [];
+
+            const activeExistingGrant =
+                existingGrants.find((grant) => isGrantCurrentlyActive(grant)) ?? null;
+
+            const availableCount = Number(product?.availableCount ?? 0);
+            const canGrant =
+                !activeExistingGrant &&
+                missingRequiredSources.length === 0 &&
+                availableCount > 0 &&
+                Boolean(product);
+
+            return {
+                product: product
+                    ? {
+                        id: product.id,
+                        code: product.code,
+                        name: product.name,
+                        reportTemplateId: product.reportTemplateId,
+                        currency: product.currency,
+                        priceGross: product.priceGross,
+                        availableCount: product.availableCount,
+                    }
+                    : null,
+
+                reportTemplateId: template.reportTemplateId,
+                reportTemplateCode: template.reportTemplateCode,
+                reportTemplateName: template.reportTemplateName,
+                reportTemplateDescription: template.reportTemplateDescription,
+
+                reportTemplateVersionId: template.reportTemplateVersionId,
+                reportTemplateVersionName: template.reportTemplateVersionName,
+                reportTemplateVersion: template.reportTemplateVersion,
+
+                selectionMode: "same_project",
+                selectedSources,
+                missingRequiredSources,
+
+                existingGrant: activeExistingGrant
+                    ? {
+                        id: activeExistingGrant.id,
+                        reportTemplateVersionId: activeExistingGrant.reportTemplateVersionId,
+                        source: activeExistingGrant.source,
+                    }
+                    : null,
+
+                availableCount,
+                canGrant,
+
+                status: activeExistingGrant
+                    ? "already_granted"
+                    : missingRequiredSources.length > 0
+                        ? "missing_sources"
+                        : availableCount <= 0
+                            ? "missing_pool"
+                            : "ready",
+            };
+        });
+
+        return {
+            respondentId,
+            respondentEmail,
+            sessions: respondentSessions,
+            compositeReports,
+        };
+    });
+
+
+
+    return {
+        tenant: {
+            id: ctx.tenantId,
+            slug: ctx.tenantSlug,
+            name: ctx.tenantSlug,
+        },
+        project,
+        sessions,
+        respondents: respondentsWithCompositeReports,
+        reportAccessProducts: reportAccessProductsWithAvailability,
+        billingProfile,
+    };
 }
