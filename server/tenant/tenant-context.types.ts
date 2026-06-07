@@ -1,3 +1,5 @@
+// server/tenant/tenant-context.types.ts
+
 import type { ControlDb } from "@/server/db/control-db";
 import type { Permission, TenantRole } from "@/server/permissions/roles";
 

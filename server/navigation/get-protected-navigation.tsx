@@ -61,6 +61,11 @@ const respondentNavigationItems: ProtectedNavigationItem[] = [
     href: "/my/assessment?tab=reports",
     icon: <FileText className="h-4 w-4 shrink-0" />,
   },
+  {
+    label: "Porównanie",
+    href: "/my/assessment/compare",
+    icon: <FileText className="h-4 w-4 shrink-0" />,
+  },
 ];
 
 const respondentNavigationGroup: ProtectedNavigationGroup = {

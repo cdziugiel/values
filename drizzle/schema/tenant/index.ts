@@ -13,3 +13,4 @@ export * from "./assessment-responses";
 export * from "./assessment-dimension-scores";
 export * from "./assessment-result-snapshots";
 export * from "./client-unit-memberships";
+export * from "./comparison-shares";

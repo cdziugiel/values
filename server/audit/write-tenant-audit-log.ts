@@ -1,10 +1,15 @@
-import { tenantAuditLog } from "@/drizzle/schema/tenant-schema";
-import type { TenantDb } from "@/server/db/tenant-db";
-import type { TenantContext } from "@/server/tenant/tenant-context.types";
+import type { GlobalRole, TenantRole } from "@/server/permissions/roles";
 
-type WriteTenantAuditLogInput = {
-  db: TenantDb;
-  ctx: TenantContext;
+import { tenantAuditLog } from "@/drizzle/schema/tenant";
+
+export type TenantAuditActorContext = {
+  userId: string;
+  role: TenantRole | GlobalRole;
+};
+
+export type WriteTenantAuditLogInput = {
+  db: any;
+  ctx: TenantAuditActorContext;
   action: string;
   entityType?: string | null;
   entityId?: string | null;
