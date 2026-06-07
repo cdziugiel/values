@@ -7,9 +7,16 @@ import { MyReportPurchaseOpportunities } from "@/features/report-access/componen
 import { MyReportTabs } from "@/features/report-access/components/my-report-tabs";
 
 import { getMyAssessments } from "../api/my-assessment.queries";
-import { MyAssessmentTabs } from "./my-assessment-tabs";
+import {
+  MyAssessmentTabs,
+  type MyAssessmentTabKey,
+} from "./my-assessment-tabs";
 
-export async function MyAssessmentPage() {
+type MyAssessmentPageProps = {
+  activeTab?: MyAssessmentTabKey;
+};
+
+export async function MyAssessmentPage({ activeTab }: MyAssessmentPageProps) {
   const assessment = await getMyAssessments();
 
   return (
@@ -25,15 +32,20 @@ export async function MyAssessmentPage() {
           }
         />
 
-
-
         <MyAssessmentTabs
           publicQuestionnaires={assessment.publicQuestionnaires}
           invitedQuestionnaires={assessment.invitedQuestionnaires}
+          initialActiveTab={activeTab}
           reportsSlot={
             <MyReportTabs
-              purchaseSlot={<MyReportPurchaseOpportunities tenantSlug="humanet" />}
-              ownedSlot={<MyReportAccessList />}
+              key="my-assessment-reports-tabs"
+              purchaseSlot={
+                <MyReportPurchaseOpportunities
+                  key="my-report-purchase-opportunities"
+                  tenantSlug="humanet"
+                />
+              }
+              ownedSlot={<MyReportAccessList key="my-report-access-list" />}
             />
           }
         />

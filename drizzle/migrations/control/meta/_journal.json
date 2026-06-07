@@ -127,6 +127,13 @@
       "when": 1780045868660,
       "tag": "0017_even_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780827845889,
+      "tag": "0018_aromatic_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

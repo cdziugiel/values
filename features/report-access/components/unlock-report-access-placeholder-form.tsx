@@ -2,9 +2,9 @@
 
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { CheckCircle2, CreditCard, TriangleAlert } from "lucide-react";
-
+import { ApplyDiscountCodeForm } from "@/features/discount-codes";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -51,20 +51,40 @@ function ActionMessage({
 export function UnlockReportAccessPlaceholderForm({
   tenantSlug,
   sessionId,
+  originalAmountCents,
+  currency
 }: {
   tenantSlug: string;
   sessionId: string;
+  originalAmountCents: number;
+  currency?: string | null;
 }) {
   const [state, formAction, isPending] = useActionState(
     unlockReportAccessPlaceholderAction,
     initialState,
   );
-
+const [appliedDiscount, setAppliedDiscount] = useState<{
+  discountCode: string;
+  discountAmountCents: number;
+  finalAmountCents: number;
+  isFullyDiscounted: boolean;
+} | null>(null);
   return (
     <form action={formAction} className="mt-5 space-y-4">
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="sessionId" value={sessionId} />
-
+      <input
+        type="hidden"
+        name="discountCode"
+        value={appliedDiscount?.discountCode ?? ""}
+      />
+      <ApplyDiscountCodeForm
+        context="report_unlock"
+        originalAmountCents={originalAmountCents}
+        tenantId={null}
+        assessmentSessionId={sessionId}
+        onApplied={setAppliedDiscount}
+      />
       <Button
         type="submit"
         disabled={isPending}
@@ -72,8 +92,10 @@ export function UnlockReportAccessPlaceholderForm({
       >
         <CreditCard size={16} />
         {isPending
-          ? "Odblokowywanie raportu..."
-          : "Symuluj płatność i odblokuj raport"}
+          ? "Przetwarzanie..."
+          : appliedDiscount?.isFullyDiscounted
+            ? "Odblokuj raport"
+            : "Symuluj płatność i odblokuj raport"}
       </Button>
 
       <ActionMessage status={state.status} message={state.message} />

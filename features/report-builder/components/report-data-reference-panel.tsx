@@ -199,7 +199,7 @@ export function ReportDataReferencePanel() {
             <ReferenceSection
               number="8"
               title="Raport zbiorczy — projekt, organizacja, zespół"
-              description="Raporty zbiorcze mają wspólną strukturę aggregate. Różnią się zakresem: projekt, organizacja lub zespół."
+              description="Raporty zbiorcze mają wspólną strukturę aggregate. W raporcie zespołu dostępne są dodatkowo segmenty: liderzy oraz zespół bez liderów."
             >
               <CodeBlock>{`{{ aggregate.status }}
 {{ aggregate.canRender }}
@@ -212,7 +212,11 @@ export function ReportDataReferencePanel() {
 {{ project.name }}
 {{ organization.name }}
 {{ unit.name }}
-{{ team.name }}`}</CodeBlock>
+{{ team.name }}
+{{ aggregate.segments }} 
+`
+
+              }</CodeBlock>
             </ReferenceSection>
 
             <ReferenceSection
@@ -245,9 +249,50 @@ export function ReportDataReferencePanel() {
 {{ aggregate.crossScoreRows }}
 {{ aggregate.crossScorePairs.VMEME.AREA }}`}</CodeBlock>
             </ReferenceSection>
-
             <ReferenceSection
               number="11"
+              title="Raport zespołu — liderzy i zespół bez liderów"
+              description="Dostępne w raportach typu team_aggregate. aggregate oznacza całą jednostkę razem, a aggregate.segments pozwala osobno pokazać liderów oraz zespół bez liderów."
+            >
+              <CodeBlock>{`// Cała jednostka: liderzy + zespół razem
+{{ aggregate.dimensionScores.byDimensionCode.TRADITION.meanWeightedMeanScore }}
+{{ aggregate.crossScores.VMEME.TRADITION.by.AREA.DECISIONS.meanWeightedMeanScore }}
+
+// Liderzy jednostki
+{{ aggregate.segments.leaders.status }}
+{{ aggregate.segments.leaders.canRender }}
+{{ aggregate.segments.leaders.nRespondents }}
+{{ aggregate.segments.leaders.nSessions }}
+{{ aggregate.segments.leaders.nScores }}
+
+{{ aggregate.segments.leaders.dimensionScores.byDimensionCode.TRADITION.meanWeightedMeanScore }}
+{{ aggregate.segments.leaders.dimensionScores.byDimensionCode.TRADITION.n }}
+
+{{ aggregate.segments.leaders.crossScores.VMEME.TRADITION.by.AREA.DECISIONS.meanWeightedMeanScore }}
+{{ aggregate.segments.leaders.crossScores.VMEME.TRADITION.by.AREA.DECISIONS.nRespondents }}
+
+{{ aggregate.segments.leaders.crossScoreRows }}
+{{ aggregate.segments.leaders.crossScorePairs.VMEME.AREA }}
+
+// Zespół bez liderów
+{{ aggregate.segments.teamWithoutLeaders.status }}
+{{ aggregate.segments.teamWithoutLeaders.canRender }}
+{{ aggregate.segments.teamWithoutLeaders.minimumN }}
+{{ aggregate.segments.teamWithoutLeaders.nRespondents }}
+{{ aggregate.segments.teamWithoutLeaders.nSessions }}
+{{ aggregate.segments.teamWithoutLeaders.nScores }}
+
+{{ aggregate.segments.teamWithoutLeaders.dimensionScores.byDimensionCode.TRADITION.meanWeightedMeanScore }}
+{{ aggregate.segments.teamWithoutLeaders.dimensionScores.byDimensionCode.TRADITION.n }}
+
+{{ aggregate.segments.teamWithoutLeaders.crossScores.VMEME.TRADITION.by.AREA.DECISIONS.meanWeightedMeanScore }}
+{{ aggregate.segments.teamWithoutLeaders.crossScores.VMEME.TRADITION.by.AREA.DECISIONS.nRespondents }}
+
+{{ aggregate.segments.teamWithoutLeaders.crossScoreRows }}
+{{ aggregate.segments.teamWithoutLeaders.crossScorePairs.VMEME.AREA }}`}</CodeBlock>
+            </ReferenceSection>
+            <ReferenceSection
+              number="12"
               title="Raport zbiorczy — debug przecięć"
               description="Użyj tego, gdy nie znasz dokładnych kodów osi, np. VMEME/vMEME, AREA, DECISIONS."
             >
@@ -261,7 +306,7 @@ export function ReportDataReferencePanel() {
 {{ aggregate.debug.crossScores.availableByCodes }}`}</CodeBlock>
             </ReferenceSection>
 
-            <ReferenceSection number="12" title="Przykład HTML — raport personalny">
+            <ReferenceSection number="13" title="Przykład HTML — raport personalny">
               <CodeBlock>{`<div class="report-page-content">
   <h1>{{ project.name }}</h1>
 
@@ -277,7 +322,7 @@ export function ReportDataReferencePanel() {
 </div>`}</CodeBlock>
             </ReferenceSection>
 
-            <ReferenceSection number="13" title="Przykład HTML — raport złożony">
+            <ReferenceSection number="14" title="Przykład HTML — raport złożony">
               <CodeBlock>{`<div class="report-page-content">
   <h1>Raport złożony</h1>
 
@@ -296,7 +341,7 @@ export function ReportDataReferencePanel() {
 </div>`}</CodeBlock>
             </ReferenceSection>
 
-            <ReferenceSection number="14" title="Przykład HTML — raport zbiorczy">
+            <ReferenceSection number="15" title="Przykład HTML — raport zbiorczy">
               <CodeBlock>{`<div class="report-page-content">
   <h1>Raport zbiorczy</h1>
 
@@ -315,7 +360,7 @@ export function ReportDataReferencePanel() {
 </div>`}</CodeBlock>
             </ReferenceSection>
 
-            <ReferenceSection number="15" title="Przykład użycia w JS">
+            <ReferenceSection number="16" title="Przykład użycia w JS">
               <CodeBlock>{`const report = window.__REPORT__;
 
 // Personal

@@ -13,28 +13,38 @@ export type TenantRole =
 export type Permission =
   | "tenant:read"
   | "tenant:manage"
+
   | "user:invite"
+
   | "client_organization:read"
   | "client_organization:create"
+
   | "assessment_project:read"
   | "assessment_project:create"
   | "assessment_project:update"
+
   | "respondent:read"
   | "respondent:invite"
   | "respondent:create"
   | "respondent:update"
-  | "assessment_result:read"
-  | "report:generate"
-  | "report:read"
-  | "report:download"
-  | "questionnaire:manage"
-  | "scoring_model:manage"
-  | "client_unit:read"
-  | "client_unit:create"
-  | "client_unit:update"
+  
   | "assessment_project_respondent:read"
   | "assessment_project_respondent:create"
   | "assessment_project_respondent:update"
+
+  | "assessment_result:read"
+
+  | "report:generate"
+  | "report:read"
+  | "report:download"
+
+  | "questionnaire:manage"
+
+  | "scoring_model:manage"
+
+  | "client_unit:read"
+  | "client_unit:create"
+  | "client_unit:update"
   
   ;
 

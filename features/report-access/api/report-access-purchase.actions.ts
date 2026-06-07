@@ -30,10 +30,55 @@ import {
   getReportAccessOfferForCompletedSession,
 } from "./report-access.queries";
 
+import { redeemDiscountForCheckout } from "@/features/discount-codes/api/discount-code.mutations";
+
 export type UnlockReportAccessActionState = {
   status: "idle" | "success" | "error";
   message: string;
 };
+
+
+function moneyToCents(value: unknown) {
+  return Math.round(moneyToNumber(value) * 100);
+}
+
+function centsToMoneyString(value: number) {
+  return (Math.max(value, 0) / 100).toFixed(2);
+}
+
+function calculateDiscountedTotals({
+  originalNet,
+  originalGross,
+  finalGrossCents,
+}: {
+  originalNet: unknown;
+  originalGross: unknown;
+  finalGrossCents: number;
+}) {
+  const originalNetCents = moneyToCents(originalNet);
+  const originalGrossCents = moneyToCents(originalGross);
+
+  if (originalGrossCents <= 0 || finalGrossCents <= 0) {
+    return {
+      totalNet: "0.00",
+      totalVat: "0.00",
+      totalGross: "0.00",
+    };
+  }
+
+  const finalNetCents = Math.min(
+    finalGrossCents,
+    Math.round((originalNetCents * finalGrossCents) / originalGrossCents),
+  );
+
+  const finalVatCents = Math.max(finalGrossCents - finalNetCents, 0);
+
+  return {
+    totalNet: centsToMoneyString(finalNetCents),
+    totalVat: centsToMoneyString(finalVatCents),
+    totalGross: centsToMoneyString(finalGrossCents),
+  };
+}
 
 function fail(message: string): UnlockReportAccessActionState {
   return {
@@ -156,13 +201,48 @@ export async function unlockReportAccessPlaceholderAction(
   }
 
   const now = new Date();
+  const discountCode = normalizeOptionalString(formData.get("discountCode"));
 
-  const totalNet = moneyString(offer.product.priceNet);
-  const totalGross = moneyString(offer.product.priceGross);
-  const totalVat = calculateVatAmount({
-    priceNet: offer.product.priceNet,
-    priceGross: offer.product.priceGross,
+const originalGrossCents = moneyToCents(offer.product.priceGross);
+
+let discountRedemptionId: string | null = null;
+let discountAmountCents = 0;
+let finalGrossCents = originalGrossCents;
+let isFullyDiscounted = false;
+
+if (discountCode) {
+  const discount = await redeemDiscountForCheckout({
+    code: discountCode,
+    context: "report_unlock",
+    originalAmountCents: originalGrossCents,
+    currency: "PLN",
+    userId: authSession.user.id,
+    tenantId: null,
+    assessmentSessionId: sessionId,
   });
+
+  if (!discount.ok) {
+    return fail(discount.message);
+  }
+
+  discountRedemptionId = discount.redemptionId;
+  discountAmountCents = discount.discountAmountCents;
+  finalGrossCents = discount.finalAmountCents;
+  isFullyDiscounted = discount.isFullyDiscounted;
+}
+
+const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
+  originalNet: offer.product.priceNet,
+  originalGross: offer.product.priceGross,
+  finalGrossCents,
+});
+
+const originalNet = moneyString(offer.product.priceNet);
+const originalGross = moneyString(offer.product.priceGross);
+const originalVat = calculateVatAmount({
+  priceNet: offer.product.priceNet,
+  priceGross: offer.product.priceGross,
+});
 
   const [order] = await controlDb
     .insert(reportAccessOrders)
@@ -174,8 +254,10 @@ export async function unlockReportAccessPlaceholderAction(
 
       status: "paid",
 
-      paymentProvider: "placeholder",
-      paymentProviderOrderId: `placeholder:${crypto.randomUUID()}`,
+      paymentProvider: isFullyDiscounted ? "discount" : "placeholder",
+      paymentProviderOrderId: isFullyDiscounted
+        ? `discount:${randomUUID()}`
+        : `placeholder:${randomUUID()}`,
 
       currency: offer.product.currency ?? "PLN",
 
@@ -186,16 +268,25 @@ export async function unlockReportAccessPlaceholderAction(
       invoiceRequested: false,
       billingSnapshot: {},
 
-      metadata: {
-        placeholder: true,
-        tenantSlug,
-        assessmentSessionId: sessionId,
-        reportTemplateId: offer.reportVersion.reportTemplateId,
-        reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
-        productId: offer.product.id,
-        productCode: offer.product.code,
-        productName: offer.product.name,
-      },
+metadata: {
+  placeholder: !isFullyDiscounted,
+  paidByDiscount: isFullyDiscounted,
+  tenantSlug,
+  assessmentSessionId: sessionId,
+  reportTemplateId: offer.reportVersion.reportTemplateId,
+  reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
+  productId: offer.product.id,
+  productCode: offer.product.code,
+  productName: offer.product.name,
+  discount: discountRedemptionId
+    ? {
+        redemptionId: discountRedemptionId,
+        originalGrossCents,
+        discountAmountCents,
+        finalGrossCents,
+      }
+    : null,
+},
 
       paidAt: now,
       createdAt: now,
@@ -207,23 +298,23 @@ export async function unlockReportAccessPlaceholderAction(
       id: reportAccessOrders.id,
     });
 
-  await controlDb.insert(reportAccessOrderItems).values({
-    orderId: order.id,
-    productId: offer.product.id,
+await controlDb.insert(reportAccessOrderItems).values({
+  orderId: order.id,
+  productId: offer.product.id,
 
-    quantity: 1,
+  quantity: 1,
 
-    unitNet: totalNet,
-    unitVat: totalVat,
-    unitGross: totalGross,
+  unitNet: originalNet,
+  unitVat: originalVat,
+  unitGross: originalGross,
 
-    totalNet,
-    totalVat,
-    totalGross,
+  totalNet,
+  totalVat,
+  totalGross,
 
-    createdAt: now,
-    updatedAt: now,
-  });
+  createdAt: now,
+  updatedAt: now,
+});
 
   const validUntil =
     typeof offer.product.validityDays === "number" &&
@@ -234,7 +325,7 @@ export async function unlockReportAccessPlaceholderAction(
   const [grant] = await controlDb
     .insert(reportAccessGrants)
     .values({
-      source: "placeholder_payment",
+      source: isFullyDiscounted ? "discount" : "placeholder_payment",
       status: "active",
 
       productId: offer.product.id,
@@ -252,12 +343,21 @@ export async function unlockReportAccessPlaceholderAction(
       validFrom: now,
       validUntil,
 
-      metadata: {
-        placeholder: true,
-        productCode: offer.product.code,
-        productName: offer.product.name,
-        orderId: order.id,
-      },
+metadata: {
+  placeholder: !isFullyDiscounted,
+  paidByDiscount: isFullyDiscounted,
+  productCode: offer.product.code,
+  productName: offer.product.name,
+  orderId: order.id,
+  discount: discountRedemptionId
+    ? {
+        redemptionId: discountRedemptionId,
+        originalGrossCents,
+        discountAmountCents,
+        finalGrossCents,
+      }
+    : null,
+},
 
       createdAt: now,
       updatedAt: now,
@@ -370,13 +470,53 @@ export async function purchaseTenantReportAccessAction(
   const totalGrossNumber = unitGrossNumber * quantity;
   const totalVatNumber = unitVatNumber * quantity;
 
-  const unitNet = moneyString(unitNetNumber);
-  const unitVat = moneyString(unitVatNumber);
-  const unitGross = moneyString(unitGrossNumber);
 
-  const totalNet = moneyString(totalNetNumber);
-  const totalVat = moneyString(totalVatNumber);
-  const totalGross = moneyString(totalGrossNumber);
+  const originalTotalNetNumber = unitNetNumber * quantity;
+const originalTotalGrossNumber = unitGrossNumber * quantity;
+const originalTotalVatNumber = unitVatNumber * quantity;
+
+const unitNet = moneyString(unitNetNumber);
+const unitVat = moneyString(unitVatNumber);
+const unitGross = moneyString(unitGrossNumber);
+
+const originalTotalNet = moneyString(originalTotalNetNumber);
+const originalTotalVat = moneyString(originalTotalVatNumber);
+const originalTotalGross = moneyString(originalTotalGrossNumber);
+
+const discountCode = normalizeOptionalString(formData.get("discountCode"));
+
+const originalGrossCents = moneyToCents(originalTotalGrossNumber);
+
+let discountRedemptionId: string | null = null;
+let discountAmountCents = 0;
+let finalGrossCents = originalGrossCents;
+let isFullyDiscounted = false;
+
+if (discountCode) {
+  const discount = await redeemDiscountForCheckout({
+    code: discountCode,
+    context: "report_access_purchase",
+    originalAmountCents: originalGrossCents,
+    currency: "PLN",
+    userId: ctx.userId,
+    tenantId: ctx.tenantId,
+  });
+
+  if (!discount.ok) {
+    return purchaseFail(discount.message);
+  }
+
+  discountRedemptionId = discount.redemptionId;
+  discountAmountCents = discount.discountAmountCents;
+  finalGrossCents = discount.finalAmountCents;
+  isFullyDiscounted = discount.isFullyDiscounted;
+}
+
+const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
+  originalNet: originalTotalNetNumber,
+  originalGross: originalTotalGrossNumber,
+  finalGrossCents,
+});
 
   const invoiceRequested = checkboxValue(formData.get("invoiceRequested"));
   const saveBillingProfile = checkboxValue(formData.get("saveBillingProfile"));
@@ -465,8 +605,10 @@ export async function purchaseTenantReportAccessAction(
 
       status: "paid",
 
-      paymentProvider: "placeholder",
-      paymentProviderOrderId: `tenant-placeholder:${randomUUID()}`,
+paymentProvider: isFullyDiscounted ? "discount" : "placeholder",
+paymentProviderOrderId: isFullyDiscounted
+  ? `tenant-discount:${randomUUID()}`
+  : `tenant-placeholder:${randomUUID()}`,
 
       currency: product.currency ?? "PLN",
 
@@ -478,18 +620,35 @@ export async function purchaseTenantReportAccessAction(
       billingProfileId,
       billingSnapshot,
 
-      metadata: {
-        placeholderPayment: true,
-        source: "tenant_report_access_orders_page",
-        tenantSlug: ctx.tenantSlug,
-        tenantId: ctx.tenantId,
-        productId: product.id,
-        productCode: product.code,
-        productName: product.name,
-        productAccessCount: accessCountPerProduct,
-        quantity,
-        generatedAccessCount,
-      },
+metadata: {
+  placeholderPayment: !isFullyDiscounted,
+  paidByDiscount: isFullyDiscounted,
+  source: "tenant_report_access_orders_page",
+  tenantSlug: ctx.tenantSlug,
+  tenantId: ctx.tenantId,
+  productId: product.id,
+  productCode: product.code,
+  productName: product.name,
+  productAccessCount: accessCountPerProduct,
+  quantity,
+  generatedAccessCount,
+  pricing: {
+    originalTotalNet,
+    originalTotalVat,
+    originalTotalGross,
+    totalNet,
+    totalVat,
+    totalGross,
+  },
+  discount: discountRedemptionId
+    ? {
+        redemptionId: discountRedemptionId,
+        originalGrossCents,
+        discountAmountCents,
+        finalGrossCents,
+      }
+    : null,
+},
 
       paidAt: now,
       createdAt: now,
@@ -501,23 +660,23 @@ export async function purchaseTenantReportAccessAction(
       id: reportAccessOrders.id,
     });
 
-  await controlDb.insert(reportAccessOrderItems).values({
-    orderId: order.id,
-    productId: product.id,
+await controlDb.insert(reportAccessOrderItems).values({
+  orderId: order.id,
+  productId: product.id,
 
-    quantity,
+  quantity,
 
-    unitNet,
-    unitVat,
-    unitGross,
+  unitNet,
+  unitVat,
+  unitGross,
 
-    totalNet,
-    totalVat,
-    totalGross,
+  totalNet,
+  totalVat,
+  totalGross,
 
-    createdAt: now,
-    updatedAt: now,
-  });
+  createdAt: now,
+  updatedAt: now,
+});
 
   const validUntil = buildValidUntil(now, product.validityDays);
 
@@ -552,14 +711,16 @@ export async function purchaseTenantReportAccessAction(
       validFrom: now,
       validUntil,
 
-      metadata: {
-        placeholderPayment: true,
-        source: "tenant_purchase",
-        productCode: product.code,
-        productName: product.name,
-        orderQuantity: quantity,
-        productAccessCount: accessCountPerProduct,
-      },
+metadata: {
+  placeholderPayment: !isFullyDiscounted,
+  paidByDiscount: isFullyDiscounted,
+  source: "tenant_purchase",
+  productCode: product.code,
+  productName: product.name,
+  orderQuantity: quantity,
+  productAccessCount: accessCountPerProduct,
+  discountRedemptionId,
+},
 
       createdAt: now,
       updatedAt: now,
@@ -573,8 +734,10 @@ export async function purchaseTenantReportAccessAction(
   revalidatePath(`/t/${ctx.tenantSlug}/report-access`);
   revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
 
-  return {
-    status: "success",
-    message: `Zakupiono ${generatedAccessCount} dostępów. Dostępy trafiły do puli partnera.`,
-  };
+return {
+  status: "success",
+  message: isFullyDiscounted
+    ? `Kod rabatowy pokrył całą kwotę. Dodano ${generatedAccessCount} dostępów do puli partnera.`
+    : `Zakupiono ${generatedAccessCount} dostępów. Dostępy trafiły do puli partnera.`,
+};
 }

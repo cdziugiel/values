@@ -231,7 +231,21 @@ export default async function PartnerAggregateReportGrantPage({
   });
 
   console.log("PAYLOAD:", data.payload.aggregate)
-
+  const payload = data.payload
+console.dir(
+  {
+    crossScoresKeys: Object.keys(payload.crossScores ?? {}),
+    byResponseSlotKeys: Object.keys(payload.crossScores?.byResponseSlot ?? {}),
+    currentKeys: Object.keys(payload.crossScores?.byResponseSlot?.current ?? {}),
+    desiredKeys: Object.keys(payload.crossScores?.byResponseSlot?.desired ?? {}),
+    crossScoreRowsLength: payload.crossScoreRows?.length,
+    rowsWithResponseSlot: payload.crossScoreRows?.filter((row: any) => row.responseSlot)?.slice(0, 10),
+    anxietyRows: payload.crossScoreRows
+      ?.filter((row: any) => JSON.stringify(row).toUpperCase().includes("ANXIETY"))
+      ?.slice(0, 10),
+  },
+  { depth: 8 },
+);
   return (
     <main className="min-h-screen bg-[#f3f4f6]">
       <header className="sticky top-0 z-20 border-b border-black/10 bg-white/90 px-4 py-3 backdrop-blur sm:px-6">

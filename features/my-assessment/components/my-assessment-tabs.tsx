@@ -1,8 +1,8 @@
 // features/my-assessment/components/my-assessment-tabs.tsx
 
 "use client";
-
-import { useMemo, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
   CheckCircle2,
@@ -23,7 +23,7 @@ import { EmptyState } from "@/shared/ui";
 
 import type { MyAssessmentQuestionnaire } from "../types/my-assessment.types";
 
-type MyAssessmentTabKey =
+export type MyAssessmentTabKey =
   | "todo"
   | "in_progress"
   | "invitations"
@@ -34,6 +34,7 @@ type MyAssessmentTabsProps = {
   publicQuestionnaires: MyAssessmentQuestionnaire[];
   invitedQuestionnaires: MyAssessmentQuestionnaire[];
   reportsSlot: ReactNode;
+  initialActiveTab?: MyAssessmentTabKey;
 };
 
 type TabConfig = {
@@ -136,7 +137,12 @@ export function MyAssessmentTabs({
   publicQuestionnaires,
   invitedQuestionnaires,
   reportsSlot,
+  initialActiveTab,
 }: MyAssessmentTabsProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const allQuestionnaires = useMemo(
     () => [...invitedQuestionnaires, ...publicQuestionnaires],
     [invitedQuestionnaires, publicQuestionnaires],
@@ -171,7 +177,25 @@ export function MyAssessmentTabs({
             ? "completed"
             : "reports";
 
-  const [activeTab, setActiveTab] = useState<MyAssessmentTabKey>(defaultTab);
+  const resolvedInitialTab = initialActiveTab ?? defaultTab;
+
+  const [activeTab, setActiveTab] =
+    useState<MyAssessmentTabKey>(resolvedInitialTab);
+
+  useEffect(() => {
+    setActiveTab(resolvedInitialTab);
+  }, [resolvedInitialTab]);
+
+  function handleActiveTabChange(nextTab: MyAssessmentTabKey) {
+    setActiveTab(nextTab);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+
+    router.replace(`${pathname}?${params.toString()}`, {
+      scroll: false,
+    });
+  }
 
   const tabs: TabConfig[] = [
     {
@@ -276,7 +300,7 @@ export function MyAssessmentTabs({
               return (
                 <DropdownMenuItem
                   key={tab.key}
-                  onSelect={() => setActiveTab(tab.key)}
+                  onSelect={() => handleActiveTabChange(tab.key)}
                   className={[
                     "flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-3",
                     isActive ? "bg-[#f3f4f6]" : "",
@@ -336,7 +360,7 @@ export function MyAssessmentTabs({
                   aria-selected={isActive}
                   aria-controls={getTabPanelId(tab.key)}
                   tabIndex={isActive ? 0 : -1}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleActiveTabChange(tab.key)}
                   className={[
                     "group relative flex min-h-4 items-center justify-center gap-2 rounded-[1.55rem] px-3 py-2.5 text-sm transition",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40",

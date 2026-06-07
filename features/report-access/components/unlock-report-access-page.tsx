@@ -343,17 +343,19 @@ export async function UnlockReportAccessPage({
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
-                  Docelowo tutaj pojawi się integracja z bramką płatniczą oraz
-                  dane do faktury. Na teraz przycisk poniżej tworzy opłacone
-                  zamówienie i aktywny dostęp do raportu.
+                  Możesz odblokować raport płatnością placeholderową albo użyć kodu
+                  rabatowego. Jeśli kod pokryje całą kwotę, raport zostanie odblokowany
+                  bez przechodzenia przez płatność.
                 </p>
               </div>
             </div>
 
-            <UnlockReportAccessPlaceholderForm
-              tenantSlug={tenantSlug}
-              sessionId={sessionId}
-            />
+<UnlockReportAccessPlaceholderForm
+  tenantSlug={tenantSlug}
+  sessionId={sessionId}
+  originalAmountCents={Math.round(Number(product.priceGross ?? 0) * 100)}
+  currency={product.currency ?? "PLN"}
+/>
           </section>
         )}
       </div>

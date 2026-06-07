@@ -1,7 +1,7 @@
 // features/report-access/components/tenant-report-access-purchase-dialog.tsx
 
 "use client";
-
+import { ApplyDiscountCodeForm } from "@/features/discount-codes/components/apply-discount-code-form";
 import { useActionState, useMemo, useState } from "react";
 import {
   CheckCircle2,
@@ -64,6 +64,14 @@ type TenantReportAccessPurchaseDialogProps = {
   tenantSlug: string;
   products: ReportAccessProductOption[];
   billingProfile?: BillingProfile | null;
+};
+
+type AppliedDiscount = {
+  discountCode: string;
+  discountCodeId: string;
+  discountAmountCents: number;
+  finalAmountCents: number;
+  isFullyDiscounted: boolean;
 };
 
 function numberValue(value: unknown) {
@@ -188,7 +196,9 @@ export function TenantReportAccessPurchaseDialog({
   const [billingType, setBillingType] = useState(
     billingProfile?.type ?? "company",
   );
-
+const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(
+  null,
+);
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId) ?? null,
     [products, selectedProductId],
@@ -237,7 +247,11 @@ export function TenantReportAccessPurchaseDialog({
             <form action={formAction} className="space-y-6">
               <input type="hidden" name="tenantSlug" value={tenantSlug} />
               <input type="hidden" name="productId" value={selectedProductId} />
-
+<input
+  type="hidden"
+  name="discountCode"
+  value={appliedDiscount?.discountCode ?? ""}
+/>
               <section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
                 <div className="mb-5">
                   <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
@@ -256,9 +270,10 @@ export function TenantReportAccessPurchaseDialog({
 
                     <select
                       value={selectedProductId}
-                      onChange={(event) =>
-                        setSelectedProductId(event.target.value)
-                      }
+                      onChange={(event) => {
+  setSelectedProductId(event.target.value);
+  setAppliedDiscount(null);
+}}
                       className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     >
                       {products.map((product) => (
@@ -280,9 +295,10 @@ export function TenantReportAccessPurchaseDialog({
                       min={1}
                       max={500}
                       value={quantity}
-                      onChange={(event) =>
-                        setQuantity(Number(event.target.value ?? 1))
-                      }
+                      onChange={(event) => {
+  setQuantity(Number(event.target.value ?? 1));
+  setAppliedDiscount(null);
+}}
                       className="rounded-2xl border-black/10 bg-white h-11"
                     />
                   </div>
@@ -317,7 +333,55 @@ export function TenantReportAccessPurchaseDialog({
                 ) : null}
 
               </section>
+<section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
+  <div className="mb-5">
+    <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
+      Kod rabatowy
+    </h3>
+    <p className="mt-1 text-sm leading-6 text-[#6b7280]">
+      Kod może obniżyć wartość zakupu częściowo albo pokryć całą kwotę.
+    </p>
+  </div>
 
+  <ApplyDiscountCodeForm
+    context="report_access_purchase"
+    originalAmountCents={Math.round(totalGross * 100)}
+    tenantId={null}
+    onApplied={setAppliedDiscount}
+  />
+
+  {appliedDiscount ? (
+    <div className="mt-4 rounded-[1.25rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.12)] px-4 py-3 text-sm leading-6 text-[#0f766e]">
+      <div className="flex items-start gap-2">
+        <CheckCircle2 size={16} className="mt-1 shrink-0" />
+        <div>
+          <p className="font-semibold">
+            Kod zastosowany.
+          </p>
+          <p>
+            Rabat:{" "}
+            {formatMoney(
+              appliedDiscount.discountAmountCents / 100,
+              selectedProduct?.currency ?? "PLN",
+            )}
+          </p>
+          <p>
+            Do zapłaty:{" "}
+            {formatMoney(
+              appliedDiscount.finalAmountCents / 100,
+              selectedProduct?.currency ?? "PLN",
+            )}
+          </p>
+          {appliedDiscount.isFullyDiscounted ? (
+            <p className="mt-1 font-medium">
+              Kod pokrywa całą kwotę. Dostępy zostaną dodane bez płatności.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  ) : null}
+</section>
               <section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
                 <label className="flex items-start gap-3 text-sm font-medium text-[#171717]">
                   <input
@@ -487,8 +551,10 @@ export function TenantReportAccessPurchaseDialog({
                 >
                   <PlusCircle size={16} />
                   {isPending
-                    ? "Przetwarzanie..."
-                    : `Kup dostępy (${quantity})`}
+  ? "Przetwarzanie..."
+  : appliedDiscount?.isFullyDiscounted
+    ? `Dodaj dostępy (${quantity})`
+    : `Kup dostępy (${quantity})`}
                 </Button>
               </div>
             </form>

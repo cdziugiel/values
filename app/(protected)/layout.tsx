@@ -13,10 +13,14 @@ export default async function ProtectedLayout({
   children,
 }: ProtectedLayoutProps) {
   const session = await requireSession();
-  const navigationItems = await getProtectedNavigation(session);
+
+  const navigationGroups = await getProtectedNavigation(session);
 
   return (
-    <ProtectedAppShell session={session} navigationItems={navigationItems}>
+    <ProtectedAppShell
+      session={session}
+      navigationGroups={navigationGroups}
+    >
       {children}
     </ProtectedAppShell>
   );

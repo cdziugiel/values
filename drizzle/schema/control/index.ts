@@ -11,3 +11,5 @@ export * from "./tenant-memberships";
 export * from "./tenants";
 export * from "./users";
 export * from "./assessment-invitation-index";
+export * from "./discount-codes";
+export * from "./discount-code-redemptions";

@@ -1,13 +1,18 @@
+// features/assessment-results/api/aggregate-report.queries.ts
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import {
+  questionnaireDimensions,
+  questionnaireItemDimensionScores,
   reportTemplates,
   reportTemplateVersions,
 } from "@/drizzle/schema";
 
+
 import {
   assessmentDimensionScores,
   assessmentProjects,
+  assessmentResponses,
   assessmentSessions,
   assessmentResultSnapshots,
   clientOrganizations,
@@ -575,62 +580,620 @@ function aggregateCrossScoreObservations(
     };
   }
 
-const byPair: Record<string, AggregatedCrossScore[]> = {};
-const availableAxes = new Set<string>();
-const availablePairs = new Set<string>();
+  const byPair: Record<string, AggregatedCrossScore[]> = {};
+  const availableAxes = new Set<string>();
+  const availablePairs = new Set<string>();
 
-for (const row of rows) {
-  availableAxes.add(row.axis);
-  availableAxes.add(row.byAxis);
-  availablePairs.add(`${row.axis}.${row.byAxis}`);
+  for (const row of rows) {
+    availableAxes.add(row.axis);
+    availableAxes.add(row.byAxis);
+    availablePairs.add(`${row.axis}.${row.byAxis}`);
 
-  const pairKey = `${row.axis}.${row.byAxis}`;
-  byPair[pairKey] ??= [];
-  byPair[pairKey].push(row);
-}
+    const pairKey = `${row.axis}.${row.byAxis}`;
+    byPair[pairKey] ??= [];
+    byPair[pairKey].push(row);
+  }
 
-const availableAxisCodes = Object.fromEntries(
-  Array.from(availableAxes).map((axis) => [
-    axis,
-    Array.from(
-      new Set(
-        rows
-          .filter((row) => row.axis === axis)
-          .map((row) => row.axisCode),
-      ),
-    ).sort(),
-  ]),
-);
-
-const availableByCodes = Object.fromEntries(
-  Array.from(availablePairs).map((pair) => {
-    const [axis, byAxis] = pair.split(".");
-
-    return [
-      pair,
+  const availableAxisCodes = Object.fromEntries(
+    Array.from(availableAxes).map((axis) => [
+      axis,
       Array.from(
         new Set(
           rows
-            .filter((row) => row.axis === axis && row.byAxis === byAxis)
-            .map((row) => row.byCode),
+            .filter((row) => row.axis === axis)
+            .map((row) => row.axisCode),
         ),
       ).sort(),
-    ];
-  }),
-);
+    ]),
+  );
 
-return {
-  rows,
-  tree,
-  byPair,
-  debug: {
-    availableAxes: Array.from(availableAxes).sort(),
-    availablePairs: Array.from(availablePairs).sort(),
-    availableAxisCodes,
-    availableByCodes,
-  },
-};
+  const availableByCodes = Object.fromEntries(
+    Array.from(availablePairs).map((pair) => {
+      const [axis, byAxis] = pair.split(".");
+
+      return [
+        pair,
+        Array.from(
+          new Set(
+            rows
+              .filter((row) => row.axis === axis && row.byAxis === byAxis)
+              .map((row) => row.byCode),
+          ),
+        ).sort(),
+      ];
+    }),
+  );
+
+  return {
+    rows,
+    tree,
+    byPair,
+    debug: {
+      availableAxes: Array.from(availableAxes).sort(),
+      availablePairs: Array.from(availablePairs).sort(),
+      availableAxisCodes,
+      availableByCodes,
+    },
+  };
 }
+
+type CurrentDesiredSlot = "current" | "desired";
+
+type CurrentDesiredAnswer = {
+  current: boolean;
+  desired: boolean;
+};
+
+type CurrentDesiredResponseRow = {
+  assessmentSessionId: string;
+  respondentId: string;
+  questionnaireItemId: string;
+  jsonValue: unknown;
+  numberValue: unknown;
+};
+
+type CurrentDesiredItemDimensionRow = {
+  questionnaireItemId: string;
+  dimensionCode: string;
+  dimensionCategory: string | null;
+  weight: unknown;
+};
+
+type CurrentDesiredObservation = {
+  assessmentSessionId: string;
+  respondentId: string;
+  responseSlot: CurrentDesiredSlot;
+  axis: string;
+  axisCode: string;
+  byAxis: string;
+  byCode: string;
+  value: number;
+};
+
+type CultureWeightObservation = {
+  assessmentSessionId: string;
+  respondentId: string;
+  dimensionCode: string;
+  value: number;
+};
+
+function parseCurrentDesiredRecord(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function readBooleanLike(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (["true", "1", "tak", "yes", "y"].includes(normalized)) {
+      return true;
+    }
+
+    if (["false", "0", "nie", "no", "n"].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return null;
+}
+
+function readCurrentDesiredAnswer(value: unknown): CurrentDesiredAnswer | null {
+  const record = parseCurrentDesiredRecord(value);
+
+  if (!record) {
+    return null;
+  }
+
+  const current = readBooleanLike(
+    record.current ??
+    record.asIs ??
+    record.as_is ??
+    record.actual ??
+    record.now ??
+    record.takJest ??
+    record.tak_jest ??
+    record.TAK_JEST,
+  );
+
+  const desired = readBooleanLike(
+    record.desired ??
+    record.toBe ??
+    record.to_be ??
+    record.expected ??
+    record.wanted ??
+    record.future ??
+    record.takChce ??
+    record.tak_chce ??
+    record.takChceByBylo ??
+    record.tak_chce_by_bylo ??
+    record.TAK_CHCE_BY_BYLO,
+  );
+
+  if (current === null && desired === null) {
+    return null;
+  }
+
+  return {
+    current: current ?? false,
+    desired: desired ?? false,
+  };
+}
+
+function buildDimensionsByItemId(
+  itemDimensionRows: CurrentDesiredItemDimensionRow[],
+) {
+  const dimensionsByItemId = new Map<
+    string,
+    Array<{
+      category: string;
+      code: string;
+      weight: number;
+    }>
+  >();
+
+  for (const row of itemDimensionRows) {
+    const category = normalizeCategory(row.dimensionCategory);
+    const code = normalizeDimensionCode(row.dimensionCode);
+
+    if (category === "__NO_CATEGORY__" || code === "UNKNOWN") {
+      continue;
+    }
+
+    const current = dimensionsByItemId.get(row.questionnaireItemId) ?? [];
+
+    current.push({
+      category,
+      code,
+      weight: numberOrNull(row.weight) ?? 1,
+    });
+
+    dimensionsByItemId.set(row.questionnaireItemId, current);
+  }
+
+  return dimensionsByItemId;
+}
+
+function buildCurrentDesiredObservations({
+  responseRows,
+  itemDimensionRows,
+}: {
+  responseRows: CurrentDesiredResponseRow[];
+  itemDimensionRows: CurrentDesiredItemDimensionRow[];
+}) {
+  const dimensionsByItemId = buildDimensionsByItemId(itemDimensionRows);
+  const observations: CurrentDesiredObservation[] = [];
+
+  for (const response of responseRows) {
+    const answer = readCurrentDesiredAnswer(response.jsonValue);
+
+    if (!answer) {
+      continue;
+    }
+
+    const dimensions = dimensionsByItemId.get(response.questionnaireItemId) ?? [];
+
+    const cultureDimensions = dimensions.filter(
+      (dimension) =>
+        dimension.category === "CULTURE" || dimension.category === "AREA",
+    );
+
+    const vmemeDimensions = dimensions.filter((dimension) => {
+      const normalized = dimension.category.toUpperCase();
+      return normalized === "VMEME" || normalized === "VMEMES";
+    });
+
+    if (cultureDimensions.length === 0 || vmemeDimensions.length === 0) {
+      continue;
+    }
+
+    const slotValues: Array<{
+      responseSlot: CurrentDesiredSlot;
+      value: number;
+    }> = [
+        {
+          responseSlot: "current",
+          value: answer.current ? 1 : 0,
+        },
+        {
+          responseSlot: "desired",
+          value: answer.desired ? 1 : 0,
+        },
+      ];
+
+    for (const cultureDimension of cultureDimensions) {
+      for (const vmemeDimension of vmemeDimensions) {
+        for (const slotValue of slotValues) {
+          observations.push({
+            assessmentSessionId: response.assessmentSessionId,
+            respondentId: response.respondentId,
+            responseSlot: slotValue.responseSlot,
+
+            axis: cultureDimension.category,
+            axisCode: cultureDimension.code,
+
+            byAxis: vmemeDimension.category,
+            byCode: vmemeDimension.code,
+
+            value: slotValue.value,
+          });
+
+          observations.push({
+            assessmentSessionId: response.assessmentSessionId,
+            respondentId: response.respondentId,
+            responseSlot: slotValue.responseSlot,
+
+            axis: vmemeDimension.category,
+            axisCode: vmemeDimension.code,
+
+            byAxis: cultureDimension.category,
+            byCode: cultureDimension.code,
+
+            value: slotValue.value,
+          });
+        }
+      }
+    }
+  }
+
+  return observations;
+}
+
+function buildCultureWeightObservations({
+  responseRows,
+  itemDimensionRows,
+}: {
+  responseRows: CurrentDesiredResponseRow[];
+  itemDimensionRows: CurrentDesiredItemDimensionRow[];
+}) {
+  const dimensionsByItemId = buildDimensionsByItemId(itemDimensionRows);
+  const observations: CultureWeightObservation[] = [];
+
+  for (const response of responseRows) {
+    const value = numberOrNull(response.numberValue);
+
+    if (value === null) {
+      continue;
+    }
+
+    const dimensions = dimensionsByItemId.get(response.questionnaireItemId) ?? [];
+
+    const cultureDimensions = dimensions.filter(
+      (dimension) =>
+        dimension.category === "CULTURE" || dimension.category === "AREA",
+    );
+
+    if (cultureDimensions.length === 0) {
+      continue;
+    }
+
+    for (const cultureDimension of cultureDimensions) {
+      observations.push({
+        assessmentSessionId: response.assessmentSessionId,
+        respondentId: response.respondentId,
+        dimensionCode: cultureDimension.code,
+        value,
+      });
+    }
+  }
+
+  return observations;
+}
+
+function aggregateCurrentDesiredObservations(
+  observations: CurrentDesiredObservation[],
+) {
+  const groups = new Map<string, CurrentDesiredObservation[]>();
+
+  for (const observation of observations) {
+    const key = [
+      observation.responseSlot,
+      observation.axis,
+      observation.axisCode,
+      observation.byAxis,
+      observation.byCode,
+    ].join("::");
+
+    const current = groups.get(key) ?? [];
+    current.push(observation);
+    groups.set(key, current);
+  }
+
+  const rows = Array.from(groups.values()).map((groupRows) => {
+    const first = groupRows[0];
+    const values = groupRows.map((row) => row.value);
+
+    return {
+      responseSlot: first.responseSlot,
+      axis: first.axis,
+      axisCode: first.axisCode,
+      byAxis: first.byAxis,
+      byCode: first.byCode,
+      valueKey: "currentDesiredShare",
+
+      n: groupRows.length,
+      nRespondents: new Set(groupRows.map((row) => row.respondentId)).size,
+      nSessions: new Set(groupRows.map((row) => row.assessmentSessionId)).size,
+
+      meanWeightedMeanScore: round(mean(values)),
+      medianWeightedMeanScore: round(median(values)),
+      stdDevWeightedMeanScore: round(stdDev(values)),
+      minWeightedMeanScore: round(min(values)),
+      maxWeightedMeanScore: round(max(values)),
+    };
+  });
+
+  const tree: Record<string, any> = {
+    byResponseSlot: {},
+  };
+
+  for (const row of rows) {
+    tree.byResponseSlot[row.responseSlot] ??= {};
+    tree.byResponseSlot[row.responseSlot][row.axis] ??= {};
+    tree.byResponseSlot[row.responseSlot][row.axis][row.axisCode] ??= {};
+    tree.byResponseSlot[row.responseSlot][row.axis][row.axisCode].by ??= {};
+    tree.byResponseSlot[row.responseSlot][row.axis][row.axisCode].by[
+      row.byAxis
+    ] ??= {};
+
+    tree.byResponseSlot[row.responseSlot][row.axis][row.axisCode].by[
+      row.byAxis
+    ][row.byCode] = {
+      n: row.n,
+      nRespondents: row.nRespondents,
+      nSessions: row.nSessions,
+
+      valueKey: row.valueKey,
+
+      meanWeightedMeanScore: row.meanWeightedMeanScore,
+      medianWeightedMeanScore: row.medianWeightedMeanScore,
+      stdDevWeightedMeanScore: row.stdDevWeightedMeanScore,
+      minWeightedMeanScore: row.minWeightedMeanScore,
+      maxWeightedMeanScore: row.maxWeightedMeanScore,
+    };
+  }
+
+  return {
+    rows,
+    tree,
+    debug: {
+      observationCount: observations.length,
+      aggregatedRowsCount: rows.length,
+      byResponseSlotKeys: Object.keys(tree.byResponseSlot ?? {}),
+      currentKeys: Object.keys(tree.byResponseSlot?.current ?? {}),
+      desiredKeys: Object.keys(tree.byResponseSlot?.desired ?? {}),
+    },
+  };
+}
+
+function aggregateCultureWeightObservations(
+  observations: CultureWeightObservation[],
+) {
+  const groups = new Map<string, CultureWeightObservation[]>();
+
+  for (const observation of observations) {
+    const current = groups.get(observation.dimensionCode) ?? [];
+    current.push(observation);
+    groups.set(observation.dimensionCode, current);
+  }
+
+  const rows = Array.from(groups.entries()).map(([dimensionCode, groupRows]) => {
+    const values = groupRows.map((row) => row.value);
+
+    return {
+      dimensionCode,
+      n: groupRows.length,
+      nRespondents: new Set(groupRows.map((row) => row.respondentId)).size,
+      nSessions: new Set(groupRows.map((row) => row.assessmentSessionId)).size,
+
+      meanScore: round(mean(values)),
+      medianScore: round(median(values)),
+      stdDevScore: round(stdDev(values)),
+      minScore: round(min(values)),
+      maxScore: round(max(values)),
+    };
+  });
+
+  rows.sort((a, b) => a.dimensionCode.localeCompare(b.dimensionCode));
+
+  return {
+    rows,
+    byDimensionCode: Object.fromEntries(
+      rows.map((row) => [row.dimensionCode, row]),
+    ),
+    debug: {
+      observationCount: observations.length,
+      aggregatedRowsCount: rows.length,
+      dimensionCodes: rows.map((row) => row.dimensionCode),
+    },
+  };
+}
+
+async function aggregateCurrentDesiredCrossScoresFromScopedSnapshots({
+  db,
+  controlDb,
+  snapshotRows,
+}: {
+  db: Awaited<ReturnType<typeof getTenantDb>>;
+  controlDb: typeof import("@/server/db/control-db").controlDb;
+  snapshotRows: CrossScoreSnapshotRow[];
+}) {
+  const sessionIds = Array.from(
+    new Set(snapshotRows.map((row) => row.assessmentSessionId)),
+  );
+
+  const respondentBySessionId = new Map(
+    snapshotRows.map((row) => [row.assessmentSessionId, row.respondentId]),
+  );
+
+  if (sessionIds.length === 0) {
+    return {
+      ...aggregateCurrentDesiredObservations([]),
+      cultureWeights: aggregateCultureWeightObservations([]),
+    };
+  }
+
+  const responseRowsRaw = await db
+    .select({
+      assessmentSessionId: assessmentResponses.assessmentSessionId,
+      questionnaireItemId: assessmentResponses.questionnaireItemId,
+      jsonValue: assessmentResponses.jsonValue,
+      numberValue: assessmentResponses.numberValue,
+    })
+    .from(assessmentResponses)
+    .where(
+      and(
+        inArray(assessmentResponses.assessmentSessionId, sessionIds),
+        isNull(assessmentResponses.deletedAt),
+      ),
+    );
+
+  const responseRows: CurrentDesiredResponseRow[] = responseRowsRaw
+    .map((row) => ({
+      assessmentSessionId: row.assessmentSessionId,
+      respondentId: respondentBySessionId.get(row.assessmentSessionId) ?? "",
+      questionnaireItemId: row.questionnaireItemId,
+      jsonValue: row.jsonValue,
+      numberValue: row.numberValue,
+    }))
+    .filter((row) => row.respondentId);
+
+  const itemIds = Array.from(
+    new Set(responseRows.map((row) => row.questionnaireItemId)),
+  );
+
+  if (itemIds.length === 0) {
+    return {
+      ...aggregateCurrentDesiredObservations([]),
+      cultureWeights: aggregateCultureWeightObservations([]),
+    };
+  }
+
+  const itemDimensionRows = await controlDb
+    .select({
+      questionnaireItemId: questionnaireItemDimensionScores.questionnaireItemId,
+      dimensionCode: questionnaireDimensions.code,
+      dimensionCategory: questionnaireDimensions.category,
+      weight: questionnaireItemDimensionScores.weight,
+    })
+    .from(questionnaireItemDimensionScores)
+    .innerJoin(
+      questionnaireDimensions,
+      eq(
+        questionnaireDimensions.id,
+        questionnaireItemDimensionScores.questionnaireDimensionId,
+      ),
+    )
+    .where(
+      and(
+        inArray(questionnaireItemDimensionScores.questionnaireItemId, itemIds),
+        isNull(questionnaireItemDimensionScores.deletedAt),
+        isNull(questionnaireDimensions.deletedAt),
+      ),
+    );
+
+  const currentDesiredObservations = buildCurrentDesiredObservations({
+    responseRows,
+    itemDimensionRows,
+  });
+
+  const cultureWeightObservations = buildCultureWeightObservations({
+    responseRows,
+    itemDimensionRows,
+  });
+
+  const currentDesired = aggregateCurrentDesiredObservations(
+    currentDesiredObservations,
+  );
+
+  const cultureWeights = aggregateCultureWeightObservations(
+    cultureWeightObservations,
+  );
+
+  return {
+    ...currentDesired,
+    cultureWeights,
+    debug: {
+      ...currentDesired.debug,
+      cultureWeights: cultureWeights.debug,
+    },
+  };
+}
+
+function mergeCurrentDesiredIntoCrossScoreTree({
+  legacyTree,
+  currentDesiredTree,
+}: {
+  legacyTree: Record<string, any>;
+  currentDesiredTree: Record<string, any>;
+}) {
+  const byResponseSlot = currentDesiredTree.byResponseSlot;
+
+  if (
+    !byResponseSlot ||
+    typeof byResponseSlot !== "object" ||
+    Object.keys(byResponseSlot).length === 0
+  ) {
+    return legacyTree;
+  }
+
+  return {
+    ...legacyTree,
+    byResponseSlot,
+  };
+}
+
 
 function aggregateCrossScoresFromSnapshots(rows: CrossScoreSnapshotRow[]) {
   const observations = rows.flatMap((row) =>
@@ -651,6 +1214,37 @@ function aggregateCrossScoresFromSnapshots(rows: CrossScoreSnapshotRow[]) {
     },
   };
 }
+
+
+
+function parseRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+
+
 
 function collectClientUnitDescendantIds({
   units,
@@ -849,35 +1443,35 @@ export async function getOrganizationAggregateReport({
         isNull(assessmentDimensionScores.deletedAt),
       ),
     );
-const snapshotRows = await db
-  .select({
-    assessmentSessionId: assessmentSessions.id,
-    respondentId: assessmentSessions.respondentId,
-    snapshotId: assessmentResultSnapshots.id,
-    payload: assessmentResultSnapshots.payload,
-  })
-  .from(assessmentResultSnapshots)
-  .innerJoin(
-    assessmentSessions,
-    eq(
-      assessmentSessions.id,
-      assessmentResultSnapshots.assessmentSessionId,
-    ),
-  )
-  .innerJoin(
-    respondents,
-    eq(respondents.id, assessmentSessions.respondentId),
-  )
-  .where(
-    and(
-      eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
-      eq(respondents.clientOrganizationId, clientOrganizationId),
-      eq(assessmentSessions.status, "completed"),
-      isNull(assessmentSessions.deletedAt),
-      isNull(respondents.deletedAt),
-      isNull(assessmentResultSnapshots.deletedAt),
-    ),
-  );
+  const snapshotRows = await db
+    .select({
+      assessmentSessionId: assessmentSessions.id,
+      respondentId: assessmentSessions.respondentId,
+      snapshotId: assessmentResultSnapshots.id,
+      payload: assessmentResultSnapshots.payload,
+    })
+    .from(assessmentResultSnapshots)
+    .innerJoin(
+      assessmentSessions,
+      eq(
+        assessmentSessions.id,
+        assessmentResultSnapshots.assessmentSessionId,
+      ),
+    )
+    .innerJoin(
+      respondents,
+      eq(respondents.id, assessmentSessions.respondentId),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+        eq(respondents.clientOrganizationId, clientOrganizationId),
+        eq(assessmentSessions.status, "completed"),
+        isNull(assessmentSessions.deletedAt),
+        isNull(respondents.deletedAt),
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    );
   const rows = scoreRows.map((row) => ({
     ...row,
     rawScore: Number(row.rawScore),
@@ -899,8 +1493,33 @@ const snapshotRows = await db
   });
 
   const dimensionScores = aggregateDimensionScores(rows);
-const crossScoreAggregation =
-  aggregateCrossScoresFromSnapshots(snapshotRows);
+
+  const crossScoreAggregation =
+    aggregateCrossScoresFromSnapshots(snapshotRows);
+
+  const currentDesiredCrossScoreAggregation =
+    await aggregateCurrentDesiredCrossScoresFromScopedSnapshots({
+      db,
+      controlDb: ctx.controlDb,
+      snapshotRows,
+    });
+
+  const mergedCrossScores = mergeCurrentDesiredIntoCrossScoreTree({
+    legacyTree: crossScoreAggregation.tree,
+    currentDesiredTree: currentDesiredCrossScoreAggregation.tree,
+  });
+
+  console.dir(
+    {
+      crossScoresKeys: Object.keys(mergedCrossScores ?? {}),
+      byResponseSlotKeys: Object.keys(mergedCrossScores.byResponseSlot ?? {}),
+      currentKeys: Object.keys(mergedCrossScores.byResponseSlot?.current ?? {}),
+      desiredKeys: Object.keys(mergedCrossScores.byResponseSlot?.desired ?? {}),
+      currentDesiredDebug: currentDesiredCrossScoreAggregation.debug,
+    },
+    { depth: 6 },
+  );
+
   const payload = {
     version: 1,
     reportKind: "organization_aggregate",
@@ -938,15 +1557,15 @@ const crossScoreAggregation =
       nScores: eligibility.nScores,
 
       dimensionScores,
-      crossScores: crossScoreAggregation.tree,
+      crossScores: mergedCrossScores,
       crossScoreRows: crossScoreAggregation.rows,
       crossScorePairs: crossScoreAggregation.byPair,
-
+      cultureWeights: currentDesiredCrossScoreAggregation.cultureWeights,
 
     },
   };
 
-  
+
   await writeTenantAuditLog({
     db,
     ctx,
@@ -1126,180 +1745,216 @@ export async function getTeamAggregateReport({
   if (unitIds.length === 0) {
     return null;
   }
-const leaderMembershipRows = await db
-  .select({
-    respondentId: clientUnitMemberships.respondentId,
-  })
-  .from(clientUnitMemberships)
-  .innerJoin(
-    respondents,
-    eq(respondents.id, clientUnitMemberships.respondentId),
-  )
-  .where(
-    and(
-      inArray(clientUnitMemberships.clientUnitId, unitIds),
-      eq(clientUnitMemberships.isLeader, true),
-      isNull(clientUnitMemberships.deletedAt),
-      isNull(respondents.deletedAt),
-    ),
+  const leaderMembershipRows = await db
+    .select({
+      respondentId: clientUnitMemberships.respondentId,
+    })
+    .from(clientUnitMemberships)
+    .innerJoin(
+      respondents,
+      eq(respondents.id, clientUnitMemberships.respondentId),
+    )
+    .where(
+      and(
+        inArray(clientUnitMemberships.clientUnitId, unitIds),
+        eq(clientUnitMemberships.isLeader, true),
+        isNull(clientUnitMemberships.deletedAt),
+        isNull(respondents.deletedAt),
+      ),
+    );
+
+  const leaderRespondentIds = Array.from(
+    new Set(leaderMembershipRows.map((row) => row.respondentId)),
   );
 
-const leaderRespondentIds = Array.from(
-  new Set(leaderMembershipRows.map((row) => row.respondentId)),
-);
-
-const reportPopulationCondition =
-  leaderRespondentIds.length > 0
-    ? or(
+  const reportPopulationCondition =
+    leaderRespondentIds.length > 0
+      ? or(
         inArray(respondents.clientUnitId, unitIds),
         inArray(respondents.id, leaderRespondentIds),
       )
-    : inArray(respondents.clientUnitId, unitIds);
+      : inArray(respondents.clientUnitId, unitIds);
 
-const isReportLeader = (respondentId: string) =>
-  leaderRespondentIds.includes(respondentId);
+  const isReportLeader = (respondentId: string) =>
+    leaderRespondentIds.includes(respondentId);
   const scoreRows = await db
-  .select({
-    assessmentSessionId: assessmentSessions.id,
-    respondentId: assessmentSessions.respondentId,
+    .select({
+      assessmentSessionId: assessmentSessions.id,
+      respondentId: assessmentSessions.respondentId,
 
-    questionnaireId: assessmentDimensionScores.questionnaireId,
-    questionnaireVersionId: assessmentDimensionScores.questionnaireVersionId,
-    questionnaireDimensionId:
-      assessmentDimensionScores.questionnaireDimensionId,
+      questionnaireId: assessmentDimensionScores.questionnaireId,
+      questionnaireVersionId: assessmentDimensionScores.questionnaireVersionId,
+      questionnaireDimensionId:
+        assessmentDimensionScores.questionnaireDimensionId,
 
-    dimensionCode: assessmentDimensionScores.dimensionCode,
-    dimensionName: assessmentDimensionScores.dimensionName,
+      dimensionCode: assessmentDimensionScores.dimensionCode,
+      dimensionName: assessmentDimensionScores.dimensionName,
 
-    rawScore: assessmentDimensionScores.rawScore,
-    weightedScore: assessmentDimensionScores.weightedScore,
-    meanScore: assessmentDimensionScores.meanScore,
-    weightedMeanScore: assessmentDimensionScores.weightedMeanScore,
-    normalizedScore: assessmentDimensionScores.normalizedScore,
+      rawScore: assessmentDimensionScores.rawScore,
+      weightedScore: assessmentDimensionScores.weightedScore,
+      meanScore: assessmentDimensionScores.meanScore,
+      weightedMeanScore: assessmentDimensionScores.weightedMeanScore,
+      normalizedScore: assessmentDimensionScores.normalizedScore,
 
-    answeredItemsCount: assessmentDimensionScores.answeredItemsCount,
-    expectedItemsCount: assessmentDimensionScores.expectedItemsCount,
-    completeness: assessmentDimensionScores.completeness,
-  })
-  .from(assessmentDimensionScores)
-  .innerJoin(
-    assessmentSessions,
-    eq(
-      assessmentSessions.id,
-      assessmentDimensionScores.assessmentSessionId,
-    ),
-  )
-  .innerJoin(
-    respondents,
-    eq(respondents.id, assessmentSessions.respondentId),
-  )
-  .where(
-    and(
-      eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
-      reportPopulationCondition,
-      eq(assessmentSessions.status, "completed"),
-      isNull(assessmentSessions.deletedAt),
-      isNull(respondents.deletedAt),
-      isNull(assessmentDimensionScores.deletedAt),
-    ),
-  );
-
-
-
-const snapshotRows = await db
-  .select({
-    assessmentSessionId: assessmentSessions.id,
-    respondentId: assessmentSessions.respondentId,
-    snapshotId: assessmentResultSnapshots.id,
-    payload: assessmentResultSnapshots.payload,
-  })
-  .from(assessmentResultSnapshots)
-  .innerJoin(
-    assessmentSessions,
-    eq(
-      assessmentSessions.id,
-      assessmentResultSnapshots.assessmentSessionId,
-    ),
-  )
-  .innerJoin(
-    respondents,
-    eq(respondents.id, assessmentSessions.respondentId),
-  )
-  .where(
-    and(
-      eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
-      reportPopulationCondition,
-      eq(assessmentSessions.status, "completed"),
-      isNull(assessmentSessions.deletedAt),
-      isNull(respondents.deletedAt),
-      isNull(assessmentResultSnapshots.deletedAt),
-    ),
-  );
-
-const rows = scoreRows.map((row) => ({
-  ...row,
-  isLeader: isReportLeader(row.respondentId),
-  rawScore: Number(row.rawScore),
-  weightedScore: Number(row.weightedScore),
-  meanScore: Number(row.meanScore),
-  weightedMeanScore: Number(row.weightedMeanScore),
-  normalizedScore:
-    row.normalizedScore === null ? null : Number(row.normalizedScore),
-  answeredItemsCount: Number(row.answeredItemsCount),
-  expectedItemsCount: Number(row.expectedItemsCount),
-  completeness: Number(row.completeness),
-}));
+      answeredItemsCount: assessmentDimensionScores.answeredItemsCount,
+      expectedItemsCount: assessmentDimensionScores.expectedItemsCount,
+      completeness: assessmentDimensionScores.completeness,
+    })
+    .from(assessmentDimensionScores)
+    .innerJoin(
+      assessmentSessions,
+      eq(
+        assessmentSessions.id,
+        assessmentDimensionScores.assessmentSessionId,
+      ),
+    )
+    .innerJoin(
+      respondents,
+      eq(respondents.id, assessmentSessions.respondentId),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+        reportPopulationCondition,
+        eq(assessmentSessions.status, "completed"),
+        isNull(assessmentSessions.deletedAt),
+        isNull(respondents.deletedAt),
+        isNull(assessmentDimensionScores.deletedAt),
+      ),
+    );
 
 
-const normalizedSnapshotRows = snapshotRows.map((row) => ({
-  ...row,
-  isLeader: isReportLeader(row.respondentId),
-}));
+
+  const snapshotRows = await db
+    .select({
+      assessmentSessionId: assessmentSessions.id,
+      respondentId: assessmentSessions.respondentId,
+      snapshotId: assessmentResultSnapshots.id,
+      payload: assessmentResultSnapshots.payload,
+    })
+    .from(assessmentResultSnapshots)
+    .innerJoin(
+      assessmentSessions,
+      eq(
+        assessmentSessions.id,
+        assessmentResultSnapshots.assessmentSessionId,
+      ),
+    )
+    .innerJoin(
+      respondents,
+      eq(respondents.id, assessmentSessions.respondentId),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+        reportPopulationCondition,
+        eq(assessmentSessions.status, "completed"),
+        isNull(assessmentSessions.deletedAt),
+        isNull(respondents.deletedAt),
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    );
+
+  const rows = scoreRows.map((row) => ({
+    ...row,
+    isLeader: isReportLeader(row.respondentId),
+    rawScore: Number(row.rawScore),
+    weightedScore: Number(row.weightedScore),
+    meanScore: Number(row.meanScore),
+    weightedMeanScore: Number(row.weightedMeanScore),
+    normalizedScore:
+      row.normalizedScore === null ? null : Number(row.normalizedScore),
+    answeredItemsCount: Number(row.answeredItemsCount),
+    expectedItemsCount: Number(row.expectedItemsCount),
+    completeness: Number(row.completeness),
+  }));
 
 
-const minimumN = readMinimumN(templateVersion.config, 5);
+  const normalizedSnapshotRows = snapshotRows.map((row) => ({
+    ...row,
+    isLeader: isReportLeader(row.respondentId),
+  }));
 
-const eligibility = buildAggregateEligibility({
-  rows,
-  minimumN,
-});
 
-const dimensionScores = aggregateDimensionScores(rows);
-const crossScoreAggregation =
-  aggregateCrossScoresFromSnapshots(normalizedSnapshotRows);
+  const minimumN = readMinimumN(templateVersion.config, 5);
+
+  const eligibility = buildAggregateEligibility({
+    rows,
+    minimumN,
+  });
+
+  const dimensionScores = aggregateDimensionScores(rows);
+
+  const crossScoreAggregation =
+    aggregateCrossScoresFromSnapshots(normalizedSnapshotRows);
+
+  const currentDesiredCrossScoreAggregation =
+    await aggregateCurrentDesiredCrossScoresFromScopedSnapshots({
+      db,
+      controlDb: ctx.controlDb,
+      snapshotRows: normalizedSnapshotRows,
+    });
+
+  const mergedCrossScores = mergeCurrentDesiredIntoCrossScoreTree({
+    legacyTree: crossScoreAggregation.tree,
+    currentDesiredTree: currentDesiredCrossScoreAggregation.tree,
+  });
 
 
   const leaderRows = rows.filter((row) => row.isLeader);
-const teamWithoutLeaderRows = rows.filter((row) => !row.isLeader);
+  const teamWithoutLeaderRows = rows.filter((row) => !row.isLeader);
 
-const leaderSnapshotRows = normalizedSnapshotRows.filter(
-  (row) => row.isLeader,
-);
+  const leaderSnapshotRows = normalizedSnapshotRows.filter(
+    (row) => row.isLeader,
+  );
 
-const teamWithoutLeaderSnapshotRows = normalizedSnapshotRows.filter(
-  (row) => !row.isLeader,
-);
+  const teamWithoutLeaderSnapshotRows = normalizedSnapshotRows.filter(
+    (row) => !row.isLeader,
+  );
 
-const leaderEligibility = buildAggregateEligibility({
-  rows: leaderRows,
-  minimumN: 1,
-});
+  const leaderEligibility = buildAggregateEligibility({
+    rows: leaderRows,
+    minimumN: 1,
+  });
 
-const teamWithoutLeaderEligibility = buildAggregateEligibility({
-  rows: teamWithoutLeaderRows,
-  minimumN,
-});
+  const teamWithoutLeaderEligibility = buildAggregateEligibility({
+    rows: teamWithoutLeaderRows,
+    minimumN,
+  });
 
-const leaderDimensionScores = aggregateDimensionScores(leaderRows);
-const teamWithoutLeaderDimensionScores =
-  aggregateDimensionScores(teamWithoutLeaderRows);
+  const leaderDimensionScores = aggregateDimensionScores(leaderRows);
+  const teamWithoutLeaderDimensionScores =
+    aggregateDimensionScores(teamWithoutLeaderRows);
 
-const leaderCrossScoreAggregation =
-  aggregateCrossScoresFromSnapshots(leaderSnapshotRows);
+  const leaderCrossScoreAggregation =
+    aggregateCrossScoresFromSnapshots(leaderSnapshotRows);
 
-const teamWithoutLeaderCrossScoreAggregation =
-  aggregateCrossScoresFromSnapshots(teamWithoutLeaderSnapshotRows);
+  const teamWithoutLeaderCrossScoreAggregation =
+    aggregateCrossScoresFromSnapshots(teamWithoutLeaderSnapshotRows);
 
+  const leaderCurrentDesiredCrossScoreAggregation =
+    await aggregateCurrentDesiredCrossScoresFromScopedSnapshots({
+      db,
+      controlDb: ctx.controlDb,
+      snapshotRows: leaderSnapshotRows,
+    });
+
+  const teamWithoutLeaderCurrentDesiredCrossScoreAggregation =
+    await aggregateCurrentDesiredCrossScoresFromScopedSnapshots({
+      db,
+      controlDb: ctx.controlDb,
+      snapshotRows: teamWithoutLeaderSnapshotRows,
+    });
+
+  const leaderMergedCrossScores = mergeCurrentDesiredIntoCrossScoreTree({
+    legacyTree: leaderCrossScoreAggregation.tree,
+    currentDesiredTree: leaderCurrentDesiredCrossScoreAggregation.tree,
+  });
+
+  const teamWithoutLeaderMergedCrossScores = mergeCurrentDesiredIntoCrossScoreTree({
+    legacyTree: teamWithoutLeaderCrossScoreAggregation.tree,
+    currentDesiredTree: teamWithoutLeaderCurrentDesiredCrossScoreAggregation.tree,
+  });
 
   const payload = {
     version: 1,
@@ -1342,55 +1997,55 @@ const teamWithoutLeaderCrossScoreAggregation =
       descendantUnitCount: unitIds.length,
     },
 
-aggregate: {
-  status: eligibility.status,
-  canRender: eligibility.canRender,
-  warnings: eligibility.warnings,
+    aggregate: {
+      status: eligibility.status,
+      canRender: eligibility.canRender,
+      warnings: eligibility.warnings,
 
-  minimumN: eligibility.minimumN,
-  nRespondents: eligibility.nRespondents,
-  nSessions: eligibility.nSessions,
-  nScores: eligibility.nScores,
+      minimumN: eligibility.minimumN,
+      nRespondents: eligibility.nRespondents,
+      nSessions: eligibility.nSessions,
+      nScores: eligibility.nScores,
 
-  dimensionScores,
-  crossScores: crossScoreAggregation.tree,
-  crossScoreRows: crossScoreAggregation.rows,
-  crossScorePairs: crossScoreAggregation.byPair,
+      dimensionScores,
+      crossScores: mergedCrossScores,
+      crossScoreRows: crossScoreAggregation.rows,
+      crossScorePairs: crossScoreAggregation.byPair,
+cultureWeights: currentDesiredCrossScoreAggregation.cultureWeights,
+      segments: {
+        leaders: {
+          status: leaderEligibility.status,
+          canRender: leaderEligibility.canRender,
+          warnings: leaderEligibility.warnings,
 
-  segments: {
-    leaders: {
-      status: leaderEligibility.status,
-      canRender: leaderEligibility.canRender,
-      warnings: leaderEligibility.warnings,
+          minimumN: leaderEligibility.minimumN,
+          nRespondents: leaderEligibility.nRespondents,
+          nSessions: leaderEligibility.nSessions,
+          nScores: leaderEligibility.nScores,
+cultureWeights: leaderCurrentDesiredCrossScoreAggregation.cultureWeights,
+          dimensionScores: leaderDimensionScores,
+          crossScores: leaderMergedCrossScores,
+          crossScoreRows: leaderCrossScoreAggregation.rows,
+          crossScorePairs: leaderCrossScoreAggregation.byPair,
+        },
 
-      minimumN: leaderEligibility.minimumN,
-      nRespondents: leaderEligibility.nRespondents,
-      nSessions: leaderEligibility.nSessions,
-      nScores: leaderEligibility.nScores,
+        teamWithoutLeaders: {
+          status: teamWithoutLeaderEligibility.status,
+          canRender: teamWithoutLeaderEligibility.canRender,
+          warnings: teamWithoutLeaderEligibility.warnings,
 
-      dimensionScores: leaderDimensionScores,
-      crossScores: leaderCrossScoreAggregation.tree,
-      crossScoreRows: leaderCrossScoreAggregation.rows,
-      crossScorePairs: leaderCrossScoreAggregation.byPair,
+          minimumN: teamWithoutLeaderEligibility.minimumN,
+          nRespondents: teamWithoutLeaderEligibility.nRespondents,
+          nSessions: teamWithoutLeaderEligibility.nSessions,
+          nScores: teamWithoutLeaderEligibility.nScores,
+cultureWeights: teamWithoutLeaderCurrentDesiredCrossScoreAggregation.cultureWeights,
+          dimensionScores: teamWithoutLeaderDimensionScores,
+          crossScores: teamWithoutLeaderMergedCrossScores,
+          crossScoreRows: teamWithoutLeaderCrossScoreAggregation.rows,
+          crossScorePairs: teamWithoutLeaderCrossScoreAggregation.byPair,
+        },
+      },
     },
-
-    teamWithoutLeaders: {
-      status: teamWithoutLeaderEligibility.status,
-      canRender: teamWithoutLeaderEligibility.canRender,
-      warnings: teamWithoutLeaderEligibility.warnings,
-
-      minimumN: teamWithoutLeaderEligibility.minimumN,
-      nRespondents: teamWithoutLeaderEligibility.nRespondents,
-      nSessions: teamWithoutLeaderEligibility.nSessions,
-      nScores: teamWithoutLeaderEligibility.nScores,
-
-      dimensionScores: teamWithoutLeaderDimensionScores,
-      crossScores: teamWithoutLeaderCrossScoreAggregation.tree,
-      crossScoreRows: teamWithoutLeaderCrossScoreAggregation.rows,
-      crossScorePairs: teamWithoutLeaderCrossScoreAggregation.byPair,
-    },
-  },
-},
   };
 
   await writeTenantAuditLog({
@@ -1399,33 +2054,33 @@ aggregate: {
     action: previewMode ? "report_previewed" : "report_viewed",
     entityType: "client_unit",
     entityId: rootUnit.id,
-after: {
-  assessmentProjectId,
-  clientUnitId: rootUnit.id,
-  includedUnitIds: unitIds,
-  reportTemplateVersionId,
-  reportKind: "team_aggregate",
-  previewMode,
+    after: {
+      assessmentProjectId,
+      clientUnitId: rootUnit.id,
+      includedUnitIds: unitIds,
+      reportTemplateVersionId,
+      reportKind: "team_aggregate",
+      previewMode,
 
-  eligibilityStatus: eligibility.status,
-  nRespondents: eligibility.nRespondents,
-  nSessions: eligibility.nSessions,
-  nScores: eligibility.nScores,
+      eligibilityStatus: eligibility.status,
+      nRespondents: eligibility.nRespondents,
+      nSessions: eligibility.nSessions,
+      nScores: eligibility.nScores,
 
-  leaderSegment: {
-    status: leaderEligibility.status,
-    nRespondents: leaderEligibility.nRespondents,
-    nSessions: leaderEligibility.nSessions,
-    nScores: leaderEligibility.nScores,
-  },
+      leaderSegment: {
+        status: leaderEligibility.status,
+        nRespondents: leaderEligibility.nRespondents,
+        nSessions: leaderEligibility.nSessions,
+        nScores: leaderEligibility.nScores,
+      },
 
-  teamWithoutLeadersSegment: {
-    status: teamWithoutLeaderEligibility.status,
-    nRespondents: teamWithoutLeaderEligibility.nRespondents,
-    nSessions: teamWithoutLeaderEligibility.nSessions,
-    nScores: teamWithoutLeaderEligibility.nScores,
-  },
-},
+      teamWithoutLeadersSegment: {
+        status: teamWithoutLeaderEligibility.status,
+        nRespondents: teamWithoutLeaderEligibility.nRespondents,
+        nSessions: teamWithoutLeaderEligibility.nSessions,
+        nScores: teamWithoutLeaderEligibility.nScores,
+      },
+    },
   });
 
   return {
@@ -1796,29 +2451,29 @@ export async function getProjectAggregateReport({
         isNull(assessmentDimensionScores.deletedAt),
       ),
     );
-const snapshotRows = await db
-  .select({
-    assessmentSessionId: assessmentSessions.id,
-    respondentId: assessmentSessions.respondentId,
-    snapshotId: assessmentResultSnapshots.id,
-    payload: assessmentResultSnapshots.payload,
-  })
-  .from(assessmentResultSnapshots)
-  .innerJoin(
-    assessmentSessions,
-    eq(
-      assessmentSessions.id,
-      assessmentResultSnapshots.assessmentSessionId,
-    ),
-  )
-  .where(
-    and(
-      eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
-      eq(assessmentSessions.status, "completed"),
-      isNull(assessmentSessions.deletedAt),
-      isNull(assessmentResultSnapshots.deletedAt),
-    ),
-  );
+  const snapshotRows = await db
+    .select({
+      assessmentSessionId: assessmentSessions.id,
+      respondentId: assessmentSessions.respondentId,
+      snapshotId: assessmentResultSnapshots.id,
+      payload: assessmentResultSnapshots.payload,
+    })
+    .from(assessmentResultSnapshots)
+    .innerJoin(
+      assessmentSessions,
+      eq(
+        assessmentSessions.id,
+        assessmentResultSnapshots.assessmentSessionId,
+      ),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+        eq(assessmentSessions.status, "completed"),
+        isNull(assessmentSessions.deletedAt),
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    );
   const rows = scoreRows.map((row) => ({
     ...row,
     rawScore: Number(row.rawScore),
@@ -1840,8 +2495,22 @@ const snapshotRows = await db
   });
 
   const dimensionScores = aggregateDimensionScores(rows);
-const crossScoreAggregation =
-  aggregateCrossScoresFromSnapshots(snapshotRows);
+
+  const crossScoreAggregation =
+    aggregateCrossScoresFromSnapshots(snapshotRows);
+
+  const currentDesiredCrossScoreAggregation =
+    await aggregateCurrentDesiredCrossScoresFromScopedSnapshots({
+      db,
+      controlDb: ctx.controlDb,
+      snapshotRows,
+    });
+
+  const mergedCrossScores = mergeCurrentDesiredIntoCrossScoreTree({
+    legacyTree: crossScoreAggregation.tree,
+    currentDesiredTree: currentDesiredCrossScoreAggregation.tree,
+  });
+
   const payload = {
     version: 1,
     reportKind: "project_aggregate",
@@ -1871,10 +2540,10 @@ const crossScoreAggregation =
       nScores: eligibility.nScores,
 
       dimensionScores,
-    crossScores: crossScoreAggregation.tree,
-    crossScoreRows: crossScoreAggregation.rows,
-    crossScorePairs: crossScoreAggregation.byPair,
-
+      crossScores: mergedCrossScores,
+      crossScoreRows: crossScoreAggregation.rows,
+      crossScorePairs: crossScoreAggregation.byPair,
+      cultureWeights: currentDesiredCrossScoreAggregation.cultureWeights,
 
     },
   };
