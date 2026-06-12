@@ -1,3 +1,5 @@
+
+// app/(protected)/my/reports/composite/grants/[grantId]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -8,7 +10,7 @@ import { eq, isNull, and } from "drizzle-orm";
 import { controlDb } from "@/server/db/control-db";
 import { requireSession } from "@/server/auth/require-session";
 
-import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
+import { getMyPersonalCompositeReportByGrantForCurrentUser } from "@/features/report-access/api/my-composite-report.queries";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
@@ -27,22 +29,7 @@ type PageProps = {
   }>;
 };
 
-function asRecord(value: unknown): Record<string, any> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, any>)
-    : {};
-}
 
-function readFrozenSelection(metadata: unknown): FrozenCompositeSelection | null {
-  const record = asRecord(metadata);
-  const selection = record.compositeSelection;
-
-  if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
-    return null;
-  }
-
-  return selection as FrozenCompositeSelection;
-}
 
 export default async function Page({ params, searchParams }: PageProps) {
   const { grantId } = await params;
@@ -51,7 +38,10 @@ export default async function Page({ params, searchParams }: PageProps) {
   if (!tenant) {
     notFound();
   }
-
+console.log("MY_COMPOSITE_GRANT_REPORT_ROUTE_HIT", {
+  grantId,
+  tenant,
+});
   const authSession = await requireSession();
 
   const [grant] = await controlDb
@@ -69,28 +59,90 @@ export default async function Page({ params, searchParams }: PageProps) {
     )
     .limit(1);
 
-  if (!grant || !grant.subjectId || !grant.reportTemplateVersionId) {
-    notFound();
-  }
+if (!grant) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "grant_not_found_or_not_owned_by_user",
+    grantId,
+    tenant,
+    userId: authSession.user.id,
+  });
 
-  const frozenSelection = readFrozenSelection(grant.metadata);
+  notFound();
+}
 
-  if (!frozenSelection) {
-    notFound();
-  }
+if (!grant.subjectId) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "missing_subject_id",
+    grantId,
+    tenant,
+    grant,
+  });
 
-  const [data, reportTemplateVersion] = await Promise.all([
-    getPersonalCompositeReport({
-      tenantSlug: tenant,
-      respondentId: grant.subjectId,
-      reportTemplateVersionId: grant.reportTemplateVersionId,
-      frozenSelection,
-      previewMode: false,
-    }),
-    getReportTemplateVersionForRender({
-      reportTemplateVersionId: grant.reportTemplateVersionId,
-    }),
-  ]);
+  notFound();
+}
+
+if (!grant.reportTemplateVersionId) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "missing_report_template_version_id",
+    grantId,
+    tenant,
+    grant,
+  });
+
+  notFound();
+}
+
+const [data, reportTemplateVersion] = await Promise.all([
+  getMyPersonalCompositeReportByGrantForCurrentUser({
+    tenantSlug: tenant,
+    grantId,
+  }),
+  getReportTemplateVersionForRender({
+    reportTemplateVersionId: grant.reportTemplateVersionId,
+  }),
+]);
+
+console.log("MY_COMPOSITE_GRANT_REPORT_DATA_QUERY", {
+  grantId,
+  tenant,
+  hasData: Boolean(data),
+  hasReportTemplateVersion: Boolean(reportTemplateVersion),
+  canRender: data?.eligibility?.canRender ?? null,
+  eligibilityStatus: data?.eligibility?.status ?? null,
+  reportTemplateVersionId: grant.reportTemplateVersionId,
+});
+
+if (!data) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "user_safe_composite_data_null",
+    grantId,
+    tenant,
+  });
+
+  notFound();
+}
+
+if (!reportTemplateVersion) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "report_template_version_for_render_null",
+    grantId,
+    tenant,
+    reportTemplateVersionId: grant.reportTemplateVersionId,
+  });
+
+  notFound();
+}
+
+if (!data.eligibility.canRender) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "composite_cannot_render",
+    grantId,
+    tenant,
+    eligibility: data.eligibility,
+  });
+
+  notFound();
+}
 
   if (!data || !reportTemplateVersion || !data.eligibility.canRender) {
     notFound();

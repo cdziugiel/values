@@ -17,6 +17,7 @@ import {
 
 import { UnlockCompositeReportAccessPlaceholderForm } from "./unlock-composite-report-access-placeholder-form";
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
+import { useMemo } from "react";
 
 type UnlockCompositeReportAccessPageProps = {
     tenantSlug: string;
@@ -135,16 +136,44 @@ function CenteredState({
 }
 
 export async function UnlockCompositeReportAccessPage({
+  tenantSlug,
+  reportTemplateVersionId,
+}: UnlockCompositeReportAccessPageProps) {
+  console.log("COMPOSITE_UNLOCK_COMPONENT_HIT", {
     tenantSlug,
     reportTemplateVersionId,
-}: UnlockCompositeReportAccessPageProps) {
+  });
 
-    const offer = await getCompositeReportAccessOfferForCurrentUser({
-        tenantSlug,
-        reportTemplateVersionId,
+  console.log("COMPOSITE_UNLOCK_BEFORE_OFFER_QUERY", {
+    tenantSlug,
+    reportTemplateVersionId,
+  });
+
+  const offer = await getCompositeReportAccessOfferForCurrentUser({
+    tenantSlug,
+    reportTemplateVersionId,
+  });
+
+  console.log("COMPOSITE_UNLOCK_AFTER_OFFER_QUERY", {
+    ok: offer.ok,
+    tenantSlug,
+    reportTemplateVersionId,
+    message: offer.ok ? null : offer.message,
+    hasAccess: offer.ok ? offer.hasAccess : null,
+    existingGrantId: offer.ok ? offer.existingGrant?.id ?? null : null,
+    productId: offer.ok ? offer.product?.id ?? null : null,
+    eligibilityStatus: offer.ok ? offer.eligibility.status : null,
+    canRender: offer.ok ? offer.eligibility.canRender : null,
+    respondentId: offer.ok ? offer.respondent.id : null,
+  });
+
+  if (!offer.ok) {
+    console.log("COMPOSITE_UNLOCK_RENDER_NOT_OK_STATE", {
+      tenantSlug,
+      reportTemplateVersionId,
+      message: offer.message,
     });
 
-    if (!offer.ok) {
         return (
             <CenteredState
                 icon={<TriangleAlert size={14} />}
@@ -159,25 +188,27 @@ export async function UnlockCompositeReportAccessPage({
             </CenteredState>
         );
     }
-    const candidatePreview = await getPersonalCompositeReport({
-        tenantSlug,
-        respondentId: offer.respondent.id,
-        reportTemplateVersionId,
-        previewMode: true,
-        sourceSelection: {
-            mode: "latest_completed",
-        },
-    });
-
-    const sourceCandidates =
-        candidatePreview?.payload?.composite?.sources?.map((source: any) => ({
-            slot: source.slot,
-            label: source.label,
-            questionnaireName: source.questionnaireName,
-            candidates: source.candidates ?? [],
-        })) ?? [];
     
-    const product = offer.product;
+  console.log("COMPOSITE_UNLOCK_BEFORE_CANDIDATE_PREVIEW", {
+    tenantSlug,
+    reportTemplateVersionId,
+    respondentId: offer.respondent.id,
+  });
+
+const sourceCandidates = offer.sourceCandidates ?? [];
+
+  console.log("COMPOSITE_UNLOCK_BEFORE_RENDER_FORM", {
+    tenantSlug,
+    reportTemplateVersionId,
+    sourceCandidatesCount: sourceCandidates.length,
+    sourceCandidatesSummary: sourceCandidates.map((source: any) => ({
+      slot: source.slot,
+      questionnaireName: source.questionnaireName,
+      candidatesCount: source.candidates.length,
+    })),
+  });
+
+  const product = offer.product;
 
     return (
         <main className="min-h-screen hv-brand-surface px-4 py-8 sm:px-6 lg:px-8">

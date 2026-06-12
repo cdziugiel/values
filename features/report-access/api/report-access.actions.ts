@@ -347,33 +347,34 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
       }
     }
 
-    const compositeData = await getPersonalCompositeReport({
-      tenantSlug,
-      respondentId: offer.respondent.id,
-      reportTemplateVersionId,
-      previewMode: true,
-      sourceSelection: {
-        mode: selectionMode,
-        manual: manualSelection,
-      },
-    });
+    const selectionResult = buildFrozenCompositeSelectionForUserUnlock({
+  respondentId: offer.respondent.id,
+  reportTemplateVersionId,
+  assessmentProjectId: null,
+  configuredSources: offer.eligibility.configuredSources,
+  sourceCandidates: offer.sourceCandidates ?? [],
+  sourceSelection: {
+    mode: selectionMode,
+    manual: manualSelection,
+  },
+});
 
-    if (!compositeData || !compositeData.eligibility.canRender) {
-      return {
-        status: "error",
-        message:
-          "Nie można odblokować raportu złożonego dla wybranego zestawu źródeł.",
-      };
-    }
+if (!selectionResult.eligibility.canRender) {
+  return {
+    status: "error",
+    message:
+      "Nie można odblokować raportu złożonego dla wybranego zestawu źródeł.",
+  };
+}
 
-    const frozenSelection = compositeData.payload?.composite?.selection?.frozen;
+const frozenSelection = selectionResult.frozenSelection;
 
-    if (!frozenSelection) {
-      return {
-        status: "error",
-        message: "Nie udało się zamrozić wyboru źródeł raportu złożonego.",
-      };
-    }
+if (!frozenSelection) {
+  return {
+    status: "error",
+    message: "Nie udało się zamrozić wyboru źródeł raportu złożonego.",
+  };
+}
 
     const now = new Date();
 
@@ -414,7 +415,7 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
               offer.reportVersion.reportTemplateVersionId,
             compositeSelection: frozenSelection,
             compositeSelectionMode: selectionMode,
-            eligibility: compositeData.eligibility,
+            eligibility: selectionResult.eligibility,
           },
 
           paidAt: now,
@@ -487,7 +488,7 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
               offer.reportVersion.reportTemplateVersionName,
             purchasedReportTemplateVersion:
               offer.reportVersion.reportTemplateVersion,
-            eligibility: compositeData.eligibility,
+            eligibility: selectionResult.eligibility,
           },
 
           createdAt: now,
@@ -511,4 +512,154 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
   } catch (error) {
     return fail(error);
   }
+}
+
+
+type CompositeUnlockSourceCandidate = {
+  slot: string;
+  label: string;
+  questionnaireName: string;
+  questionnaireId?: string | null;
+  questionnaireCode?: string | null;
+  required?: boolean;
+  candidates: {
+    assessmentSessionId: string;
+    assessmentProjectName: string | null;
+    completedAt: string | Date | null;
+  }[];
+};
+
+type CompositeUnlockSourceSelection = {
+  mode: "latest_completed" | "same_project" | "manual";
+  manual?: {
+    bySlot?: Record<string, string>;
+    byQuestionnaireId?: Record<string, string>;
+  };
+};
+
+function buildFrozenCompositeSelectionForUserUnlock({
+  respondentId,
+  reportTemplateVersionId,
+  assessmentProjectId,
+  configuredSources,
+  sourceCandidates,
+  sourceSelection,
+}: {
+  respondentId: string;
+  reportTemplateVersionId: string;
+  assessmentProjectId: string | null;
+  configuredSources: any[];
+  sourceCandidates: CompositeUnlockSourceCandidate[];
+  sourceSelection: CompositeUnlockSourceSelection;
+}) {
+  const candidateBySlot = new Map(
+    sourceCandidates.map((source) => [source.slot, source]),
+  );
+
+  const selectedSources = configuredSources.map((source, index) => {
+    const sourceRecord = source as Record<string, any>;
+
+    const slot = String(sourceRecord.slot ?? `source_${index + 1}`);
+    const questionnaireId =
+      typeof sourceRecord.questionnaireId === "string"
+        ? sourceRecord.questionnaireId
+        : null;
+
+    const questionnaireCode =
+      typeof sourceRecord.questionnaireCode === "string"
+        ? sourceRecord.questionnaireCode
+        : null;
+
+    const required = Boolean(sourceRecord.required);
+
+    const candidateGroup = candidateBySlot.get(slot);
+    const candidates = candidateGroup?.candidates ?? [];
+
+    let selectedSessionId: string | null = null;
+
+    if (sourceSelection.mode === "manual") {
+      selectedSessionId =
+        sourceSelection.manual?.bySlot?.[slot] ??
+        (questionnaireId
+          ? sourceSelection.manual?.byQuestionnaireId?.[questionnaireId]
+          : undefined) ??
+        null;
+    }
+
+    if (!selectedSessionId) {
+      selectedSessionId = candidates[0]?.assessmentSessionId ?? null;
+    }
+
+    const selectedCandidate = selectedSessionId
+      ? candidates.find(
+          (candidate) => candidate.assessmentSessionId === selectedSessionId,
+        )
+      : null;
+
+    const available = Boolean(selectedCandidate);
+
+    return {
+      slot,
+      required,
+      available,
+
+      questionnaireId,
+      questionnaireCode,
+      questionnaireName:
+        String(sourceRecord.questionnaireName ?? "").trim() ||
+        candidateGroup?.questionnaireName ||
+        questionnaireCode ||
+        questionnaireId ||
+        slot,
+
+      assessmentSessionId: selectedCandidate?.assessmentSessionId ?? null,
+      assessmentProjectName: selectedCandidate?.assessmentProjectName ?? null,
+      completedAt: selectedCandidate?.completedAt ?? null,
+    };
+  });
+
+  const missingRequiredSources = selectedSources.filter(
+    (source) => source.required && !source.available,
+  );
+
+  const missingOptionalSources = selectedSources.filter(
+    (source) => !source.required && !source.available,
+  );
+
+  const eligibility = {
+    status:
+      missingRequiredSources.length > 0
+        ? ("missing_required_sources" as const)
+        : ("ready" as const),
+    canRender: missingRequiredSources.length === 0,
+    warnings: [] as string[],
+    missingRequiredSources,
+    missingOptionalSources,
+  };
+
+  const frozenSelection = {
+    version: 1,
+    mode: sourceSelection.mode,
+    respondentId,
+    reportTemplateVersionId,
+    assessmentProjectId,
+    frozenAt: new Date().toISOString(),
+    selectedSources: selectedSources
+      .filter((source) => source.available)
+      .map((source) => ({
+        slot: source.slot,
+        questionnaireId: source.questionnaireId,
+        questionnaireCode: source.questionnaireCode,
+        questionnaireName: source.questionnaireName,
+        assessmentSessionId: source.assessmentSessionId,
+        assessmentProjectName: source.assessmentProjectName,
+        completedAt: source.completedAt,
+      })),
+  };
+
+  return {
+    eligibility,
+    frozenSelection,
+    selectedSources,
+  };
 }

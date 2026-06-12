@@ -25,7 +25,7 @@ import type {
   PersonalCompositeSourceSelection,
 } from "../types/personal-composite-selection.types";
 
-function getDisplayName(input: {
+export function getDisplayName(input: {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
@@ -116,7 +116,7 @@ function asRecord(value: unknown): Record<string, any> {
 }
 
 
-function getSnapshotQuestionnaireMeta(payload: unknown) {
+export function getSnapshotQuestionnaireMeta(payload: unknown) {
   const record = asRecord(payload);
 
   const questionnaires = Array.isArray(record.questionnaires)
@@ -485,7 +485,7 @@ function resolveManualCompositeSources({
   });
 }
 
-function resolveCompositeSources({
+export function resolveCompositeSources({
   configuredSources,
   availableSources,
   sourceSelection,
@@ -661,7 +661,7 @@ function stripSourcePayload(source: CompositeAvailableSource) {
   };
 }
 
-function readPersonalCompositeSourceConfig(
+export function readPersonalCompositeSourceConfig(
   dataBindings: unknown,
 ): CompositeSourceConfig[] {
   const bindings = asRecord(dataBindings);
@@ -697,7 +697,7 @@ function readPersonalCompositeSourceConfig(
     );
 }
 
-function buildCompositeEligibility({
+export function buildCompositeEligibility({
   configuredSources,
   resolvedSources,
 }: {
@@ -990,7 +990,7 @@ function extractCompositeDimensionObservationsFromSource(
   return observations;
 }
 
-function aggregateCompositeMergedDimensionScores(
+export function aggregateCompositeMergedDimensionScores(
   sources: CompositeResolvedSource[],
 ) {
   const observations = sources.flatMap((source) =>
@@ -1118,7 +1118,7 @@ function aggregateCompositeMergedDimensionScores(
   };
 }
 
-function aggregateCompositeSourceDimensionScores(
+export function aggregateCompositeSourceDimensionScores(
   sources: CompositeResolvedSource[],
 ) {
   const result: Record<string, any> = {};
@@ -1200,16 +1200,82 @@ export async function getPersonalCompositeReport({
   sourceSelection?: PersonalCompositeSourceSelection | null;
   frozenSelection?: FrozenCompositeSelection | null;
 }): Promise<PersonalCompositeReportData | null> {
+
+const pcrDebug = {
+  tenantSlug,
+  assessmentProjectId,
+  respondentId,
+  reportTemplateVersionId,
+  previewMode,
+  sourceSelectionMode: sourceSelection?.mode ?? null,
+  hasFrozenSelection: Boolean(frozenSelection),
+};
+
+const logPcr = (step: string, extra: Record<string, unknown> = {}) => {
+  console.log(`PCR_${step}`, {
+    ...pcrDebug,
+    ...extra,
+  });
+};
+
+logPcr("HIT");
 if (!tenantSlug || !respondentId || !reportTemplateVersionId) {
+  logPcr("RETURN_NULL", {
+    reason: "missing_required_input",
+    hasTenantSlug: Boolean(tenantSlug),
+    hasRespondentId: Boolean(respondentId),
+    hasReportTemplateVersionId: Boolean(reportTemplateVersionId),
+  });
+
   return null;
 }
 
-  const ctx = await requireTenantContext({ tenantSlug });
-  requirePermission(ctx, "report:read");
+logPcr("BEFORE_REQUIRE_TENANT_CONTEXT");
+
+let ctx: Awaited<ReturnType<typeof requireTenantContext>>;
+
+try {
+  ctx = await requireTenantContext({ tenantSlug });
+
+  logPcr("AFTER_REQUIRE_TENANT_CONTEXT", {
+    ctxTenantId: ctx.tenantId,
+    ctxTenantSlug: ctx.tenantSlug,
+    ctxUserId: ctx.userId,
+    ctxRole: ctx.role,
+    ctxPermissions: ctx.permissions,
+  });
+} catch (error) {
+  const err = error as Error & {
+    digest?: string;
+    statusCode?: number;
+  };
+
+  logPcr("REQUIRE_TENANT_CONTEXT_THROWN", {
+    name: err.name,
+    message: err.message,
+    digest: err.digest,
+    statusCode: err.statusCode,
+  });
+
+  throw error;
+}
+
+logPcr("BEFORE_REQUIRE_PERMISSION", {
+  permission: "report:read",
+});
+
+requirePermission(ctx, "report:read");
+
+logPcr("AFTER_REQUIRE_PERMISSION", {
+  permission: "report:read",
+});
 
   const templateVersionStatusCondition = previewMode
     ? undefined
     : eq(reportTemplateVersions.status, "active");
+
+
+logPcr("BEFORE_TEMPLATE_VERSION_QUERY");
 
   const [templateVersion] = await ctx.controlDb
     .select({
@@ -1236,16 +1302,42 @@ if (!tenantSlug || !respondentId || !reportTemplateVersionId) {
       ),
     )
     .limit(1);
+logPcr("AFTER_TEMPLATE_VERSION_QUERY", {
+  found: Boolean(templateVersion),
+  templateVersionId: templateVersion?.id ?? null,
+  reportTemplateId: templateVersion?.reportTemplateId ?? null,
+  reportTemplateKind: templateVersion?.reportTemplateKind ?? null,
+  reportTemplateStatus: templateVersion?.status ?? null,
+});
+if (!templateVersion || templateVersion.reportTemplateKind !== "personal_composite") {
+  logPcr("RETURN_NULL", {
+    reason: "missing_or_wrong_template_kind",
+    found: Boolean(templateVersion),
+    reportTemplateKind: templateVersion?.reportTemplateKind ?? null,
+  });
 
-  if (!templateVersion || templateVersion.reportTemplateKind !== "personal_composite") {
-    return null;
-  }
+  return null;
+}
 
   const configuredSources = readPersonalCompositeSourceConfig(
     templateVersion.dataBindings,
   );
+logPcr("AFTER_CONFIGURED_SOURCES", {
+  configuredSourcesCount: configuredSources.length,
+  configuredSources: configuredSources.map((source) => ({
+    slot: source.slot,
+    required: source.required,
+    questionnaireId: source.questionnaireId,
+    questionnaireCode: source.questionnaireCode,
+  })),
+});
+  logPcr("BEFORE_GET_TENANT_DB");
 
-  const db = await getTenantDb(ctx);
+const db = await getTenantDb(ctx);
+
+logPcr("AFTER_GET_TENANT_DB", {
+  hasDb: Boolean(db),
+});
 const project = assessmentProjectId
   ? (
       await db
@@ -1264,8 +1356,18 @@ const project = assessmentProjectId
         .limit(1)
     )[0]
   : null;
-
+logPcr("AFTER_PROJECT_QUERY", {
+  assessmentProjectId,
+  hasProject: Boolean(project),
+  projectId: project?.id ?? null,
+  projectName: project?.name ?? null,
+});
 if (assessmentProjectId && !project) {
+  logPcr("RETURN_NULL", {
+    reason: "assessment_project_not_found",
+    assessmentProjectId,
+  });
+
   return null;
 }
 
@@ -1288,20 +1390,27 @@ const [subject] = await db
   )
   .where(and(eq(respondents.id, respondentId), isNull(respondents.deletedAt)))
   .limit(1);
-
+logPcr("AFTER_SUBJECT_QUERY", {
+  hasSubject: Boolean(subject),
+  subjectRespondentId: subject?.respondentId ?? null,
+  subjectEmail: subject?.respondentEmail ?? null,
+});
 if (!subject) {
+  logPcr("RETURN_NULL", {
+    reason: "subject_not_found",
+    respondentId,
+  });
+
   return null;
 }
-
-  if (!subject) {
-    return null;
-  }
 
 
   const projectCondition = assessmentProjectId
   ? eq(assessmentSessions.assessmentProjectId, assessmentProjectId)
   : undefined;
-
+logPcr("BEFORE_ROWS_QUERY", {
+  hasAssessmentProjectCondition: Boolean(assessmentProjectId),
+});
   const rows = await db
     .select({
       sessionId: assessmentSessions.id,
@@ -1354,7 +1463,18 @@ sessionAssessmentProjectId: assessmentSessions.assessmentProjectId,
     )
     .orderBy(desc(assessmentSessions.completedAt));
 
-
+logPcr("AFTER_ROWS_QUERY", {
+  rowsCount: rows.length,
+  rows: rows.map((row) => ({
+    sessionId: row.sessionId,
+    sessionStatus: row.sessionStatus,
+    sessionCompletedAt: row.sessionCompletedAt,
+    projectId: row.projectId,
+    projectName: row.projectName,
+    snapshotId: row.snapshotId,
+    snapshotCreatedAt: row.snapshotCreatedAt,
+  })),
+});
 const availableSources: CompositeAvailableSource[] = rows.map((row, index) => {
   const questionnaireMeta = getSnapshotQuestionnaireMeta(row.snapshotPayload);
 
@@ -1379,6 +1499,21 @@ const availableSources: CompositeAvailableSource[] = rows.map((row, index) => {
   };
 });
 
+
+logPcr("AFTER_AVAILABLE_SOURCES", {
+  availableSourcesCount: availableSources.length,
+  availableSources: availableSources.map((source) => ({
+    code: source.code,
+    questionnaireId: source.questionnaireId,
+    questionnaireVersionId: source.questionnaireVersionId,
+    questionnaireCode: source.questionnaireCode,
+    questionnaireName: source.questionnaireName,
+    assessmentSessionId: source.assessmentSessionId,
+    assessmentProjectId: source.assessmentProjectId,
+    completedAt: source.completedAt,
+  })),
+});
+
 const resolvedSources = resolveCompositeSources({
   configuredSources,
   availableSources,
@@ -1386,7 +1521,18 @@ const resolvedSources = resolveCompositeSources({
   frozenSelection,
   assessmentProjectId,
 });
-
+logPcr("AFTER_RESOLVE_SOURCES", {
+  resolvedSourcesCount: resolvedSources.length,
+  resolvedSources: resolvedSources.map((source) => ({
+    slot: source.slot,
+    required: source.required,
+    available: source.available,
+    questionnaireId: source.questionnaireId,
+    questionnaireCode: source.questionnaireCode,
+    questionnaireName: source.questionnaireName,
+    assessmentSessionId: source.assessmentSessionId ?? null,
+  })),
+});
 const effectiveSelectionMode =
   frozenSelection?.mode ?? sourceSelection?.mode ?? "latest_completed";
 
@@ -1410,7 +1556,21 @@ const availableSourcesByQuestionnaireCode =
     configuredSources,
     resolvedSources,
   });
-
+logPcr("AFTER_ELIGIBILITY", {
+  eligibilityStatus: eligibility.status,
+  canRender: eligibility.canRender,
+  warnings: eligibility.warnings,
+  missingRequiredSources: eligibility.missingRequiredSources.map((source) => ({
+    slot: source.slot,
+    questionnaireId: source.questionnaireId,
+    questionnaireCode: source.questionnaireCode,
+  })),
+  missingOptionalSources: eligibility.missingOptionalSources.map((source) => ({
+    slot: source.slot,
+    questionnaireId: source.questionnaireId,
+    questionnaireCode: source.questionnaireCode,
+  })),
+});
   const availableResolvedSources = resolvedSources.filter(
     (source) => source.available,
   );
@@ -1520,27 +1680,38 @@ composite: {
       : {}),
   };
 
-  await writeTenantAuditLog({
-    db,
-    ctx,
-    action: previewMode ? "report_previewed" : "report_viewed",
-    entityType: "respondent",
-    entityId: subject.respondentId,
-    after: {
-      assessmentProjectId,
-      reportTemplateVersionId,
-      accessMode: "tenant_partner",
-      reportKind: "personal_composite",
-      previewMode,
-      eligibilityStatus: eligibility.status,
-      sourceSessionIds: availableResolvedSources
-        .map((source) => source.assessmentSessionId)
-        .filter(Boolean),
-      missingRequiredSourceCodes: eligibility.missingRequiredSources.map(
-        (source) => source.questionnaireCode,
-      ),
-    },
-  });
+  logPcr("BEFORE_AUDIT_LOG", {
+  action: previewMode ? "report_previewed" : "report_viewed",
+  entityType: "respondent",
+  entityId: subject.respondentId,
+  sourceSessionIds: availableResolvedSources
+    .map((source) => source.assessmentSessionId)
+    .filter(Boolean),
+});
+
+await writeTenantAuditLog({
+  db,
+  ctx,
+  action: previewMode ? "report_previewed" : "report_viewed",
+  entityType: "respondent",
+  entityId: subject.respondentId,
+  after: {
+    assessmentProjectId,
+    reportTemplateVersionId,
+    accessMode: "tenant_partner",
+    reportKind: "personal_composite",
+    previewMode,
+    eligibilityStatus: eligibility.status,
+    sourceSessionIds: availableResolvedSources
+      .map((source) => source.assessmentSessionId)
+      .filter(Boolean),
+    missingRequiredSourceCodes: eligibility.missingRequiredSources.map(
+      (source) => source.questionnaireCode,
+    ),
+  },
+});
+
+logPcr("AFTER_AUDIT_LOG");
 
   return {
     tenant: {

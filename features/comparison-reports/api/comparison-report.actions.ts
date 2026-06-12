@@ -481,6 +481,7 @@ function isUnusedComparisonGrant(grant: {
 }
 
 export async function createMyComparisonReportWithTokenAction(input: unknown) {
+  
   try {
     const session = await requireSession();
 
@@ -781,9 +782,15 @@ export async function createMyComparisonReportWithTokenAction(input: unknown) {
       },
     });
 
-    const reportHref = assessmentProjectId
-      ? `/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/partner-reports/${result.grantId}`
-      : `/my/comparison-reports/grants/${result.grantId}`;
+    const reportHref = `/my/assessment/comparison-reports/grants/${result.grantId}`;
+
+    console.log("MY_COMPARISON_ACTION_RETURN_OK", {
+      grantId: result.grantId,
+      reportHref,
+      assessmentProjectId,
+      tenantSlug,
+      audience: "my_user",
+    });
 
     return {
       ok: true as const,

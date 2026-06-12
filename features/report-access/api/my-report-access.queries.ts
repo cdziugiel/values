@@ -1,3 +1,4 @@
+// features/report-access/api/my-report-access.queries.ts
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 
 import {
@@ -116,9 +117,11 @@ function buildReportHref(row: {
     )}`;
   }
 
+  const metadata = asRecord(row.metadata);
+
   if (
     row.reportTemplateKind === "personal_composite" ||
-    row.subjectType === "respondent"
+    metadata.reportKind === "personal_composite"
   ) {
     return `/my/reports/composite/grants/${row.id}?tenant=${encodeURIComponent(
       row.tenantSlug,
@@ -218,3 +221,5 @@ export async function getMyReportAccesses() {
     };
   });
 }
+
+

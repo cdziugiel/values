@@ -13,6 +13,7 @@ import {
 
 import {
   assessmentProjectQuestionnaires,
+  assessmentProjects,
   assessmentResultSnapshots,
   assessmentSessions,
   respondentIdentities,
@@ -603,6 +604,7 @@ export async function getCompositeReportAccessOfferForCurrentUser({
   tenantSlug: string;
   reportTemplateVersionId: string;
 }) {
+  
   const resolved = await resolveRespondentForCurrentUser({ tenantSlug });
 
   if (!resolved.ok) {
@@ -661,27 +663,37 @@ export async function getCompositeReportAccessOfferForCurrentUser({
     };
   }
 
-  const snapshotRows = await resolved.tenant.db
-    .select({
-      sessionId: assessmentSessions.id,
-      sessionStatus: assessmentSessions.status,
-      snapshotId: assessmentResultSnapshots.id,
-      payload: assessmentResultSnapshots.payload,
-      createdAt: assessmentResultSnapshots.createdAt,
-    })
-    .from(assessmentResultSnapshots)
-    .innerJoin(
-      assessmentSessions,
-      eq(assessmentSessions.id, assessmentResultSnapshots.assessmentSessionId),
-    )
-    .where(
-      and(
-        eq(assessmentSessions.respondentId, resolved.respondent.id),
-        eq(assessmentSessions.status, "completed"),
-        isNull(assessmentSessions.deletedAt),
-        isNull(assessmentResultSnapshots.deletedAt),
-      ),
-    );
+const snapshotRows = await resolved.tenant.db
+  .select({
+    sessionId: assessmentSessions.id,
+    sessionStatus: assessmentSessions.status,
+    completedAt: assessmentSessions.completedAt,
+
+    assessmentProjectId: assessmentProjects.id,
+    assessmentProjectName: assessmentProjects.name,
+
+    snapshotId: assessmentResultSnapshots.id,
+    payload: assessmentResultSnapshots.payload,
+    createdAt: assessmentResultSnapshots.createdAt,
+  })
+  .from(assessmentResultSnapshots)
+  .innerJoin(
+    assessmentSessions,
+    eq(assessmentSessions.id, assessmentResultSnapshots.assessmentSessionId),
+  )
+  .innerJoin(
+    assessmentProjects,
+    eq(assessmentProjects.id, assessmentSessions.assessmentProjectId),
+  )
+  .where(
+    and(
+      eq(assessmentSessions.respondentId, resolved.respondent.id),
+      eq(assessmentSessions.status, "completed"),
+      isNull(assessmentSessions.deletedAt),
+      isNull(assessmentProjects.deletedAt),
+      isNull(assessmentResultSnapshots.deletedAt),
+    ),
+  );
 
   const completedQuestionnaireIds = new Set(
     snapshotRows
@@ -698,6 +710,38 @@ export async function getCompositeReportAccessOfferForCurrentUser({
     (source) =>
       !source.required && !completedQuestionnaireIds.has(source.questionnaireId),
   );
+
+
+const sourceCandidates = configuredSources.map((source, index) => {
+  const sourceRecord = source as Record<string, any>;
+
+  const questionnaireId = String(sourceRecord.questionnaireId ?? "");
+  const questionnaireCode = String(sourceRecord.questionnaireCode ?? "");
+  const slot = String(sourceRecord.slot ?? `source_${index + 1}`);
+
+  const candidates = snapshotRows
+    .filter((row) => getSnapshotQuestionnaireId(row.payload) === questionnaireId)
+    .map((row) => ({
+      assessmentSessionId: row.sessionId,
+      assessmentProjectName: row.assessmentProjectName ?? null,
+      completedAt: row.completedAt ?? row.createdAt ?? null,
+    }));
+
+  return {
+    slot,
+    label:
+      String(sourceRecord.label ?? "").trim() ||
+      questionnaireCode ||
+      questionnaireId ||
+      slot,
+    questionnaireName:
+      String(sourceRecord.questionnaireName ?? "").trim() ||
+      questionnaireCode ||
+      questionnaireId ||
+      slot,
+    candidates,
+  };
+});
 
   const eligibility = {
     status:
@@ -727,18 +771,19 @@ export async function getCompositeReportAccessOfferForCurrentUser({
     ),
   });
 
-  return {
-    ok: true as const,
-    tenantSlug,
-    actorUserId: resolved.actorUserId,
-    actorEmail: resolved.actorEmail,
-    respondent: resolved.respondent,
-    reportVersion,
-    product: product ?? null,
-    existingGrant,
-    hasAccess: Boolean(existingGrant),
-    eligibility,
-  };
+return {
+  ok: true as const,
+  tenantSlug,
+  actorUserId: resolved.actorUserId,
+  actorEmail: resolved.actorEmail,
+  respondent: resolved.respondent,
+  reportVersion,
+  product: product ?? null,
+  existingGrant,
+  hasAccess: Boolean(existingGrant),
+  eligibility,
+  sourceCandidates,
+};
 }
 
 

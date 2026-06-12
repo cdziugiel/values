@@ -190,12 +190,12 @@ export function LoginForm() {
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-4 text-sm text-[#6b7280]">
-        <Link href="/regulamin" className="transition hover:text-[#171717]">
+        <Link href="/legal/regulamin" className="transition hover:text-[#171717]">
           Regulamin
         </Link>
 
         <Link
-          href="/polityka-prywatnosci"
+          href="/legal/polityka-prywatnosci"
           className="transition hover:text-[#171717]"
         >
           Polityka prywatności
