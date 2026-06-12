@@ -23,6 +23,34 @@ export type ReportAccessActionState = {
   message: string;
 };
 
+function buildScopedReportHref({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  reportTemplateVersionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
+}
+
 function fail(error: unknown): ReportAccessActionState {
   if (isRedirectError(error)) {
     throw error;

@@ -48,6 +48,53 @@ function ActionMessage({
   );
 }
 
+
+function buildUnlockReportPermalink({
+  tenantSlug,
+  sessionId,
+  mode,
+  productId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  mode?: "standard" | "comparison";
+  productId?: string | null;
+  reportTemplateVersionId?: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (mode && mode !== "standard") {
+    params.set("mode", mode);
+  }
+
+  if (productId) {
+    params.set("product", productId);
+  }
+
+  if (reportTemplateVersionId) {
+    params.set("reportTemplateVersionId", reportTemplateVersionId);
+  }
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/unlock-report?${params.toString()}`;
+}
+
+
+
 export function UnlockReportAccessPlaceholderForm({
   tenantSlug,
   sessionId,
@@ -56,6 +103,8 @@ export function UnlockReportAccessPlaceholderForm({
   mode = "standard",
   productId = null,
   reportTemplateVersionId = null,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
@@ -64,11 +113,35 @@ export function UnlockReportAccessPlaceholderForm({
   mode?: "standard" | "comparison";
   productId?: string | null;
   reportTemplateVersionId?: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
-  const [state, formAction, isPending] = useActionState(
-    unlockReportAccessPlaceholderAction,
-    initialState,
-  );
+
+  
+const actionPermalink = buildUnlockReportPermalink({
+  tenantSlug,
+  sessionId,
+  mode,
+  productId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+});
+console.log("UNLOCK_REPORT_CLIENT_FORM_PROPS", {
+  tenantSlug,
+  sessionId,
+  mode,
+  productId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+  actionPermalink,
+});
+const [state, formAction, isPending] = useActionState(
+  unlockReportAccessPlaceholderAction,
+  initialState,
+  actionPermalink,
+);
 const [appliedDiscount, setAppliedDiscount] = useState<{
   discountCode: string;
   discountAmountCents: number;
@@ -76,10 +149,39 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
   isFullyDiscounted: boolean;
 } | null>(null);
   return (
-    <form action={formAction} className="mt-5 space-y-4">
+    <form
+  action={formAction}
+  className="mt-5 space-y-4"
+  onSubmit={(event) => {
+    const form = event.currentTarget;
+    const data = new FormData(form);
+
+    console.log("UNLOCK_REPORT_FORM_SUBMIT_VALUES", {
+      tenantSlug: data.get("tenantSlug"),
+      sessionId: data.get("sessionId"),
+      mode: data.get("mode"),
+      productId: data.get("productId"),
+      reportTemplateVersionId: data.get("reportTemplateVersionId"),
+      projectQuestionnaireId: data.get("projectQuestionnaireId"),
+      questionnaireVersionId: data.get("questionnaireVersionId"),
+      discountCode: data.get("discountCode"),
+    });
+  }}
+>
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="sessionId" value={sessionId} />
       <input type="hidden" name="mode" value={mode} />
+      <input
+  type="hidden"
+  name="projectQuestionnaireId"
+  value={projectQuestionnaireId ?? ""}
+/>
+
+<input
+  type="hidden"
+  name="questionnaireVersionId"
+  value={questionnaireVersionId ?? ""}
+/>
 
 {productId ? (
   <input type="hidden" name="productId" value={productId} />

@@ -1,4 +1,5 @@
 // app/a/[token]/session/[sessionId]/page.tsx
+import { redirect } from "next/navigation";
 
 import { PublicAssessmentSessionOverview } from "@/features/public-assessment/components/public-assessment-session-overview";
 import { resolveAssessmentSessionOverview } from "@/server/assessment/resolve-assessment-session-overview";
@@ -38,7 +39,11 @@ export default async function PublicAssessmentSessionPage({
     );
   }
 
-  const { data } = result;
+const { data } = result;
+
+if (data.session.status === "completed") {
+  redirect(`/a/${token}/session/${sessionId}/completed`);
+}
 
   return (
     <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-8 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">

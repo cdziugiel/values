@@ -77,11 +77,12 @@ export default async function PublicAssessmentQuestionnairePage({
           </div>
         </section>
 
-        <AssessmentResponseForm
-          token={token}
-          sessionId={sessionId}
-          items={data.items}
-        />
+<AssessmentResponseForm
+  token={token}
+  sessionId={sessionId}
+  projectQuestionnaireId={projectQuestionnaireId}
+  items={data.items}
+/>
       </div>
     </main>
   );

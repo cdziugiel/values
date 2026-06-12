@@ -134,6 +134,20 @@
       "when": 1780827845889,
       "tag": "0018_aromatic_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781292559536,
+      "tag": "0019_lame_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781292748887,
+      "tag": "0020_clever_ironclad",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,8 @@ type ReportPdfDownloadButtonProps = {
   tenantSlug: string;
   sessionId: string;
   reportTemplateVersionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -27,18 +29,92 @@ type PageProps = {
   }>;
   searchParams: Promise<{
     tenant?: string;
+    projectQuestionnaireId?: string;
+    questionnaireVersionId?: string;
   }>;
 };
+
+function buildScopedParams({
+  tenantSlug,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return params;
+}
+
+function buildUnlockReportHref({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = buildScopedParams({
+    tenantSlug,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
+  return `/my/assessment/sessions/${sessionId}/unlock-report?${params.toString()}`;
+}
+
+function buildCompletedHref({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = buildScopedParams({
+    tenantSlug,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
+  return `/my/assessment/sessions/${sessionId}/completed?${params.toString()}`;
+}
 
 export function ReportPdfDownloadButton({
   tenantSlug,
   sessionId,
   reportTemplateVersionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: ReportPdfDownloadButtonProps) {
+  const params = buildScopedParams({
+    tenantSlug,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
   const href =
     `/my/assessment/sessions/${sessionId}` +
     `/report/${reportTemplateVersionId}/pdf` +
-    `?tenant=${encodeURIComponent(tenantSlug)}`;;
+    `?${params.toString()}`;
 
   return (
     <Button asChild>
@@ -55,49 +131,74 @@ export default async function Page({
   searchParams,
 }: PageProps) {
   const { sessionId, reportTemplateVersionId } = await params;
-  const { tenant } = await searchParams;
+  const { tenant, projectQuestionnaireId, questionnaireVersionId } =
+  await searchParams;
 
   if (!tenant) {
     notFound();
   }
 
-  
+  console.log("MY_REPORT_PAGE_PARAMS", {
+  tenant,
+  sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+});
 
   const authSession = await requireSession();
 
 
-  const access = await assertCanViewMyAssessmentReport({
-    tenantSlug: tenant,
-    sessionId,
-    reportTemplateVersionId,
-  });
+const access = await assertCanViewMyAssessmentReport({
+  tenantSlug: tenant,
+  sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId: projectQuestionnaireId ?? null,
+  questionnaireVersionId: questionnaireVersionId ?? null,
+});
 
-  if (!access.ok) {
-    redirect(
-      `/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenant}`,
-    );
-  }
+if (!access.ok) {
+  redirect(
+    buildUnlockReportHref({
+      tenantSlug: tenant,
+      sessionId,
+      projectQuestionnaireId: projectQuestionnaireId ?? null,
+      questionnaireVersionId: questionnaireVersionId ?? null,
+    }),
+  );
+}
 
 
-  const result = await getMyAssessmentCompletedResult({
-    tenantSlug: tenant,
-    sessionId,
-  });
+const result = await getMyAssessmentCompletedResult({
+  tenantSlug: tenant,
+  sessionId,
+  projectQuestionnaireId: projectQuestionnaireId ?? null,
+  questionnaireVersionId: questionnaireVersionId ?? null,
+});
 
   if (!result?.payload) {
     notFound();
   }
 
-  const grant = await getActiveReportAccessGrantForSession({
-    tenantSlug: tenant,
-    sessionId,
-    reportTemplateVersionId,
-    userId: authSession.user.id,
-  });
+const grant = await getActiveReportAccessGrantForSession({
+  tenantSlug: tenant,
+  sessionId,
+  reportTemplateVersionId,
+  userId: authSession.user.id,
+  projectQuestionnaireId: projectQuestionnaireId ?? null,
+  questionnaireVersionId: questionnaireVersionId ?? null,
+});
 
-  if (!grant) {
-    redirect(`/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenant}`);
-  }
+if (!grant) {
+  redirect(
+    buildUnlockReportHref({
+      tenantSlug: tenant,
+      sessionId,
+      projectQuestionnaireId: projectQuestionnaireId ?? null,
+      questionnaireVersionId: questionnaireVersionId ?? null,
+    }),
+  );
+}
 
   const reportTemplateVersion = await getReportTemplateVersionForRender({
     reportTemplateVersionId,
@@ -130,17 +231,24 @@ export default async function Page({
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <ReportPdfDownloadButton
-            tenantSlug={tenant}
-            sessionId={sessionId}
-            reportTemplateVersionId={reportTemplateVersionId}
-          />
-          <Link
-            href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenant}`}
-            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-          >
-            Wróć do wyniku
-          </Link>
+<ReportPdfDownloadButton
+  tenantSlug={tenant}
+  sessionId={sessionId}
+  reportTemplateVersionId={reportTemplateVersionId}
+  projectQuestionnaireId={projectQuestionnaireId ?? null}
+  questionnaireVersionId={questionnaireVersionId ?? null}
+/>
+<Link
+  href={buildCompletedHref({
+    tenantSlug: tenant,
+    sessionId,
+    projectQuestionnaireId: projectQuestionnaireId ?? null,
+    questionnaireVersionId: questionnaireVersionId ?? null,
+  })}
+  className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
+>
+  Wróć do wyniku
+</Link>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 // features/my-assessment/api/my-assessment-result.queries.ts
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import {
   tenantDatabaseConnections,
@@ -68,9 +68,13 @@ async function getTenantDbBySlug(tenantSlug: string) {
 export async function getMyAssessmentCompletedResult({
   tenantSlug,
   sessionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
   const authSession = await requireSession();
   const email = normalizeEmail(authSession.user.email);
@@ -117,19 +121,59 @@ export async function getMyAssessmentCompletedResult({
     throw new Error("Ta sesja badania nie należy do zalogowanego użytkownika.");
   }
 
-  if (ownership.sessionStatus !== "completed") {
-    throw new Error("Ta sesja nie została jeszcze zakończona.");
-  }
+const snapshotConditions = [
+  eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
+  isNull(assessmentResultSnapshots.deletedAt),
+];
 
-  const snapshot =
-    await tenant.db.query.assessmentResultSnapshots.findFirst({
-      where: and(
-        eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
-        isNull(assessmentResultSnapshots.deletedAt),
-      ),
-    });
+if (projectQuestionnaireId) {
+  snapshotConditions.push(
+    eq(
+      assessmentResultSnapshots.projectQuestionnaireId,
+      projectQuestionnaireId,
+    ),
+  );
+}
 
+if (questionnaireVersionId) {
+  snapshotConditions.push(
+    eq(
+      assessmentResultSnapshots.questionnaireVersionId,
+      questionnaireVersionId,
+    ),
+  );
+}
+
+const snapshot =
+  await tenant.db.query.assessmentResultSnapshots.findFirst({
+    where: and(
+      eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
+      projectQuestionnaireId
+        ? eq(
+            assessmentResultSnapshots.projectQuestionnaireId,
+            projectQuestionnaireId,
+          )
+        : undefined,
+      questionnaireVersionId
+        ? eq(
+            assessmentResultSnapshots.questionnaireVersionId,
+            questionnaireVersionId,
+          )
+        : undefined,
+      isNull(assessmentResultSnapshots.deletedAt),
+    ),
+    orderBy: desc(assessmentResultSnapshots.createdAt),
+  });
+  /**
+   * Po zmianie modelu jedna assessment_session może obejmować kilka
+   * kwestionariuszy. Dlatego sesja może być nadal "in_progress",
+   * mimo że jeden z kwestionariuszy ma już snapshot i może mieć raport.
+   */
   if (!snapshot) {
+    if (ownership.sessionStatus !== "completed") {
+      throw new Error("Ta sesja nie została jeszcze zakończona.");
+    }
+
     return {
       tenantSlug: tenant.tenantSlug,
       sessionId,

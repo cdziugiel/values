@@ -29,6 +29,8 @@ type UnlockReportAccessPageProps = {
   mode?: "standard" | "comparison";
   productId?: string | null;
   reportTemplateVersionId?: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 };
 
 type ExtendedReportVersion = {
@@ -51,12 +53,16 @@ function buildUnlockedReportHref({
   sessionId,
   productId,
   reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
 }: {
   mode?: "standard" | "comparison";
   tenantSlug: string;
   sessionId: string;
   productId?: string | null;
   reportTemplateVersionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
   if (mode === "comparison") {
     return `/my/assessment/compare?product=${encodeURIComponent(
@@ -66,9 +72,19 @@ function buildUnlockedReportHref({
     )}&ownSessionId=${encodeURIComponent(sessionId)}`;
   }
 
-  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?tenant=${encodeURIComponent(
-    tenantSlug,
-  )}`;
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
 }
 
 
@@ -214,7 +230,21 @@ export async function UnlockReportAccessPage({
   mode = "standard",
   productId = null,
   reportTemplateVersionId = null,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: UnlockReportAccessPageProps) {
+
+  console.log("UNLOCK_REPORT_ACCESS_PAGE_PROPS", {
+  tenantSlug,
+  sessionId,
+  mode,
+  productId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+});
+
+
   const authSession = await requireSession();
 
 const offer =
@@ -225,10 +255,12 @@ const offer =
         reportTemplateVersionId,
         expectedKind: "comparison",
       })
-    : await getReportAccessOfferForCompletedSession({
-        tenantSlug,
-        sessionId,
-      });
+: await getReportAccessOfferForCompletedSession({
+    tenantSlug,
+    sessionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
 
   if (!offer.ok) {
     return (
@@ -272,6 +304,8 @@ const offer =
     sessionId,
     productId: productId ?? offer.product?.id ?? null,
     reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
   })}
 >
   <FileText size={16} />
@@ -279,7 +313,17 @@ const offer =
 </BrandLinkButton>
 
         <BrandLinkButton
-          href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
+          href={
+  `/my/assessment/sessions/${sessionId}/completed?tenant=${encodeURIComponent(
+    tenantSlug,
+  )}` +
+  (projectQuestionnaireId
+    ? `&projectQuestionnaireId=${encodeURIComponent(projectQuestionnaireId)}`
+    : "") +
+  (questionnaireVersionId
+    ? `&questionnaireVersionId=${encodeURIComponent(questionnaireVersionId)}`
+    : "")
+}
           variant="secondary"
         >
           <ArrowLeft size={16} />
@@ -290,6 +334,20 @@ const offer =
   }
 
   const product = offer.product;
+  console.log("OFFER", offer)
+
+  if (!offer.ok) {
+    return (
+      <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
+        <div className="rounded-[1.5rem] border border-black/10 bg-white/80 p-6">
+          <h1 className="text-xl font-semibold">
+            Raport niedostępny do odblokowania
+          </h1>
+
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen hv-brand-surface px-4 py-8 sm:px-6 lg:px-8">
@@ -318,10 +376,20 @@ const offer =
             </div>
 
             <div className="flex flex-col gap-2 md:min-w-56">
-              <BrandLinkButton
-                href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
-                variant="secondary"
-              >
+<BrandLinkButton
+  href={
+    `/my/assessment/sessions/${sessionId}/completed?tenant=${encodeURIComponent(
+      tenantSlug,
+    )}` +
+    (projectQuestionnaireId
+      ? `&projectQuestionnaireId=${encodeURIComponent(projectQuestionnaireId)}`
+      : "") +
+    (questionnaireVersionId
+      ? `&questionnaireVersionId=${encodeURIComponent(questionnaireVersionId)}`
+      : "")
+  }
+  variant="secondary"
+>
                 <ArrowLeft size={16} />
                 Wróć do wyniku
               </BrandLinkButton>
@@ -406,6 +474,8 @@ const offer =
   mode={mode}
   productId={productId ?? product.id}
   reportTemplateVersionId={reportVersion.reportTemplateVersionId}
+  projectQuestionnaireId={projectQuestionnaireId}
+  questionnaireVersionId={questionnaireVersionId}
   originalAmountCents={Math.round(Number(product.priceGross ?? 0) * 100)}
   currency={product.currency ?? "PLN"}
 />

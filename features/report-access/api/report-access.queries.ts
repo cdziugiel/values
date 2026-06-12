@@ -1,5 +1,6 @@
 // features/report-access/api/report-access.queries.ts
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+
 
 import {
   questionnaireReportTemplateBindings,
@@ -184,6 +185,65 @@ export async function getSessionQuestionnaireVersionIds({
   return rows.map((row: any) => row.questionnaireVersionId).filter(Boolean);
 }
 
+export async function getCompletedSessionQuestionnaireVersionIds({
+  db,
+  assessmentProjectId,
+  sessionId,
+}: {
+  db: any;
+  assessmentProjectId: string;
+  sessionId: string;
+}) {
+  const snapshotRows = await db
+    .select({
+      payload: assessmentResultSnapshots.payload,
+    })
+    .from(assessmentResultSnapshots)
+    .where(
+      and(
+        eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    );
+
+const questionnaireIds: string[] = Array.from(
+  new Set<string>(
+    snapshotRows
+      .map((row: any) => getSnapshotQuestionnaireId(row.payload))
+      .filter((value: unknown): value is string => {
+        return typeof value === "string" && value.length > 0;
+      }),
+  ),
+);
+
+  if (questionnaireIds.length === 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      questionnaireVersionId:
+        assessmentProjectQuestionnaires.questionnaireVersionId,
+    })
+    .from(assessmentProjectQuestionnaires)
+    .where(
+      and(
+        eq(
+          assessmentProjectQuestionnaires.assessmentProjectId,
+          assessmentProjectId,
+        ),
+        inArray(
+          assessmentProjectQuestionnaires.questionnaireId,
+          questionnaireIds,
+        ),
+        eq(assessmentProjectQuestionnaires.status, "active"),
+        isNull(assessmentProjectQuestionnaires.deletedAt),
+      ),
+    );
+
+  return rows.map((row: any) => row.questionnaireVersionId).filter(Boolean);
+}
+
 /**
  * Znajduje aktywną wersję raportu dla danej sesji.
  *
@@ -195,8 +255,10 @@ export async function getSessionQuestionnaireVersionIds({
  */
 export async function resolveCurrentActiveReportTemplateVersionForSession({
   questionnaireVersionIds,
+  expectedKind = "personal",
 }: {
   questionnaireVersionIds: string[];
+  expectedKind?: string;
 }) {
   if (questionnaireVersionIds.length === 0) {
     return null;
@@ -213,6 +275,8 @@ export async function resolveCurrentActiveReportTemplateVersionForSession({
 
       reportTemplateCode: reportTemplates.code,
       reportTemplateName: reportTemplates.name,
+      reportTemplateKind: reportTemplates.kind,
+      reportTemplateQuestionnaireId: reportTemplates.questionnaireId,
 
       isDefault: questionnaireReportTemplateBindings.isDefault,
       updatedAt: questionnaireReportTemplateBindings.updatedAt,
@@ -238,12 +302,16 @@ export async function resolveCurrentActiveReportTemplateVersionForSession({
         eq(questionnaireReportTemplateBindings.status, "active"),
         eq(reportTemplateVersions.status, "active"),
         eq(reportTemplates.status, "active"),
+        eq(reportTemplates.kind, expectedKind),
         isNull(questionnaireReportTemplateBindings.deletedAt),
         isNull(reportTemplateVersions.deletedAt),
         isNull(reportTemplates.deletedAt),
       ),
     )
-    .orderBy(desc(questionnaireReportTemplateBindings.isDefault), desc(questionnaireReportTemplateBindings.updatedAt));
+    .orderBy(
+      desc(questionnaireReportTemplateBindings.isDefault),
+      desc(questionnaireReportTemplateBindings.updatedAt),
+    );
 
   const bound = bindingRows[0];
 
@@ -253,6 +321,8 @@ export async function resolveCurrentActiveReportTemplateVersionForSession({
       reportTemplateVersionId: bound.reportTemplateVersionId,
       reportTemplateName: bound.reportTemplateName,
       reportTemplateCode: bound.reportTemplateCode,
+      reportTemplateKind: bound.reportTemplateKind,
+      reportTemplateQuestionnaireId: bound.reportTemplateQuestionnaireId,
       reportTemplateVersionName: bound.reportTemplateVersionName,
       reportTemplateVersion: bound.reportTemplateVersion,
     };
@@ -269,6 +339,8 @@ export async function resolveCurrentActiveReportTemplateVersionForSession({
 
       reportTemplateCode: reportTemplates.code,
       reportTemplateName: reportTemplates.name,
+      reportTemplateKind: reportTemplates.kind,
+      reportTemplateQuestionnaireId: reportTemplates.questionnaireId,
     })
     .from(reportTemplateVersions)
     .innerJoin(
@@ -277,14 +349,21 @@ export async function resolveCurrentActiveReportTemplateVersionForSession({
     )
     .where(
       and(
-        inArray(reportTemplateVersions.questionnaireVersionId, questionnaireVersionIds),
+        inArray(
+          reportTemplateVersions.questionnaireVersionId,
+          questionnaireVersionIds,
+        ),
         eq(reportTemplateVersions.status, "active"),
         eq(reportTemplates.status, "active"),
+        eq(reportTemplates.kind, expectedKind),
         isNull(reportTemplateVersions.deletedAt),
         isNull(reportTemplates.deletedAt),
       ),
     )
-    .orderBy(desc(reportTemplateVersions.isDefault), desc(reportTemplateVersions.updatedAt));
+    .orderBy(
+      desc(reportTemplateVersions.isDefault),
+      desc(reportTemplateVersions.updatedAt),
+    );
 
   const direct = directRows[0];
 
@@ -297,9 +376,46 @@ export async function resolveCurrentActiveReportTemplateVersionForSession({
     reportTemplateVersionId: direct.reportTemplateVersionId,
     reportTemplateName: direct.reportTemplateName,
     reportTemplateCode: direct.reportTemplateCode,
+    reportTemplateKind: direct.reportTemplateKind,
+    reportTemplateQuestionnaireId: direct.reportTemplateQuestionnaireId,
     reportTemplateVersionName: direct.reportTemplateVersionName,
     reportTemplateVersion: direct.reportTemplateVersion,
   };
+}
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
+function readGrantProjectQuestionnaireId(metadata: unknown) {
+  const record = asRecord(metadata);
+  const scope = asRecord(record.reportScope);
+
+  if (typeof record.projectQuestionnaireId === "string") {
+    return record.projectQuestionnaireId;
+  }
+
+  if (typeof scope.projectQuestionnaireId === "string") {
+    return scope.projectQuestionnaireId;
+  }
+
+  return null;
+}
+
+function readGrantQuestionnaireVersionId(metadata: unknown) {
+  const record = asRecord(metadata);
+  const scope = asRecord(record.reportScope);
+
+  if (typeof record.questionnaireVersionId === "string") {
+    return record.questionnaireVersionId;
+  }
+
+  if (typeof scope.questionnaireVersionId === "string") {
+    return scope.questionnaireVersionId;
+  }
+
+  return null;
 }
 
 export async function getActiveReportAccessGrantForSession({
@@ -307,11 +423,15 @@ export async function getActiveReportAccessGrantForSession({
   sessionId,
   reportTemplateVersionId,
   userId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
   reportTemplateVersionId: string;
   userId?: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
   const grants = await controlDb
     .select()
@@ -325,7 +445,7 @@ export async function getActiveReportAccessGrantForSession({
         isNull(reportAccessGrants.deletedAt),
       ),
     )
-    .limit(10);
+    .limit(50);
 
   const now = new Date();
 
@@ -343,7 +463,34 @@ export async function getActiveReportAccessGrantForSession({
         return false;
       }
 
-      return true;
+      const grantProjectQuestionnaireId = readGrantProjectQuestionnaireId(
+        grant.metadata,
+      );
+
+      const grantQuestionnaireVersionId = readGrantQuestionnaireVersionId(
+        grant.metadata,
+      );
+
+      /**
+       * Nowy model:
+       * jedna assessment_session może mieć kilka ukończonych kwestionariuszy,
+       * więc grant musi pasować do konkretnego projectQuestionnaireId
+       * albo questionnaireVersionId.
+       */
+      if (projectQuestionnaireId) {
+        return grantProjectQuestionnaireId === projectQuestionnaireId;
+      }
+
+      if (questionnaireVersionId) {
+        return grantQuestionnaireVersionId === questionnaireVersionId;
+      }
+
+      /**
+       * Legacy fallback:
+       * bez scope uznajemy tylko stare granty, które same nie mają scope.
+       * Dzięki temu grant dla jednego kwestionariusza nie odblokuje drugiego.
+       */
+      return !grantProjectQuestionnaireId && !grantQuestionnaireVersionId;
     }) ?? null
   );
 }
@@ -351,9 +498,15 @@ export async function getActiveReportAccessGrantForSession({
 export async function getReportAccessOfferForCompletedSession({
   tenantSlug,
   sessionId,
+  expectedKind = "personal",
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
+  expectedKind?: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
   const resolved = await resolveCompletedSessionForCurrentUser({
     tenantSlug,
@@ -367,29 +520,81 @@ export async function getReportAccessOfferForCompletedSession({
     };
   }
 
-  const questionnaireVersionIds = await getSessionQuestionnaireVersionIds({
-    db: resolved.tenant.db,
-    assessmentProjectId: resolved.session.assessmentProjectId,
-  });
+  let questionnaireVersionIds: string[] = [];
+
+  if (questionnaireVersionId) {
+    questionnaireVersionIds = [questionnaireVersionId];
+  } else if (projectQuestionnaireId) {
+    const rows = await resolved.tenant.db
+      .select({
+        questionnaireVersionId:
+          assessmentProjectQuestionnaires.questionnaireVersionId,
+      })
+      .from(assessmentProjectQuestionnaires)
+      .where(
+        and(
+          eq(assessmentProjectQuestionnaires.id, projectQuestionnaireId),
+          eq(
+            assessmentProjectQuestionnaires.assessmentProjectId,
+            resolved.session.assessmentProjectId,
+          ),
+          eq(assessmentProjectQuestionnaires.status, "active"),
+          isNull(assessmentProjectQuestionnaires.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    const row = rows[0];
+
+    questionnaireVersionIds = row?.questionnaireVersionId
+      ? [row.questionnaireVersionId]
+      : [];
+  } else {
+    questionnaireVersionIds =
+      await getCompletedSessionQuestionnaireVersionIds({
+        db: resolved.tenant.db,
+        assessmentProjectId: resolved.session.assessmentProjectId,
+        sessionId: resolved.session.sessionId,
+      });
+  }
+
+  if (questionnaireVersionIds.length === 0) {
+    return {
+      ok: false as const,
+      message:
+        "Nie udało się ustalić kwestionariusza dla odblokowywanego raportu.",
+    };
+  }
 
   const reportVersion =
     await resolveCurrentActiveReportTemplateVersionForSession({
       questionnaireVersionIds,
+      expectedKind,
     });
 
   if (!reportVersion) {
     return {
       ok: false as const,
-      message: "Dla tego badania nie ma aktywnego template’u raportu.",
+      message:
+        expectedKind === "personal"
+          ? "Dla tego badania nie ma aktywnego raportu indywidualnego do odblokowania."
+          : "Dla tego badania nie ma aktywnego template’u raportu.",
     };
   }
 
-  const existingGrant = await getActiveReportAccessGrantForSession({
-    tenantSlug,
-    sessionId,
-    reportTemplateVersionId: reportVersion.reportTemplateVersionId,
-    userId: resolved.actorUserId,
-  });
+  if (reportVersion.reportTemplateKind !== expectedKind) {
+    return {
+      ok: false as const,
+      message: "Wybrany template raportu ma nieprawidłowy typ.",
+    };
+  }
+
+const existingGrant = await getActiveReportAccessGrantForSession({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId: reportVersion.reportTemplateVersionId,
+  userId: resolved.actorUserId,
+});
 
   const product = await controlDb.query.reportAccessProducts.findFirst({
     where: and(
@@ -410,17 +615,12 @@ export async function getReportAccessOfferForCompletedSession({
     product: product ?? null,
     existingGrant,
     hasAccess: Boolean(existingGrant),
+    projectQuestionnaireId,
+    questionnaireVersionId: questionnaireVersionIds[0] ?? null,
   };
 }
 
 
-function asRecord(value: unknown): Record<string, any> {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, any>;
-  }
-
-  return {};
-}
 
 function readCompositeRequiredSources(dataBindings: unknown) {
   const bindings = asRecord(dataBindings);

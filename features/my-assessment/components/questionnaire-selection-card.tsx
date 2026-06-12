@@ -24,6 +24,33 @@ type QuestionnaireSelectionCardProps = {
   questionnaire: MyAssessmentQuestionnaire;
 };
 
+function appendQuestionnaireScopeToHref(
+  href: string | null | undefined,
+  questionnaire: MyAssessmentQuestionnaire,
+) {
+  if (!href) return href;
+
+  if (questionnaire.status !== "completed") {
+    return href;
+  }
+
+  const separator = href.includes("?") ? "&" : "?";
+
+  const params = new URLSearchParams();
+
+  if (questionnaire.projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", questionnaire.projectQuestionnaireId);
+  }
+
+  if (questionnaire.questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaire.questionnaireVersionId);
+  }
+
+  const query = params.toString();
+
+  return query ? `${href}${separator}${query}` : href;
+}
+
 function formatAssessmentDate(value: Date | string | null | undefined) {
   if (!value) return null;
 
@@ -178,8 +205,15 @@ function DetailRow({
 export function QuestionnaireSelectionCard({
   questionnaire,
 }: QuestionnaireSelectionCardProps) {
-  const disabled = isActionDisabled(questionnaire);
-  const metaLine = getMetaLine(questionnaire);
+const rawActionHref = questionnaire.actionHref;
+const actionHref = appendQuestionnaireScopeToHref(rawActionHref, questionnaire);
+const disabled =
+  questionnaire.status === "locked" ||
+  questionnaire.status === "coming_soon" ||
+  questionnaire.status === "disabled" ||
+  !actionHref;
+
+const metaLine = getMetaLine(questionnaire);
 
   return (
     <article className="rounded-2xl border bg-background p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md">
@@ -218,7 +252,7 @@ export function QuestionnaireSelectionCard({
             </Button>
           ) : (
             <Button asChild className="min-w-32 gap-2">
-              <Link href={questionnaire.actionHref!}>
+              <Link href={actionHref!}>
                 {getActionIcon(questionnaire.status)}
                 {getActionLabel(questionnaire.status)}
               </Link>

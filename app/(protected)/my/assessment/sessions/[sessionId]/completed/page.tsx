@@ -11,9 +11,11 @@ type PageProps = {
   params: Promise<{
     sessionId: string;
   }>;
-  searchParams: Promise<{
-    tenant?: string;
-  }>;
+searchParams: Promise<{
+  tenant?: string;
+  projectQuestionnaireId?: string;
+  questionnaireVersionId?: string;
+}>;
 };
 
 export default async function Page({
@@ -21,7 +23,8 @@ export default async function Page({
   searchParams,
 }: PageProps) {
   const { sessionId } = await params;
-  const { tenant } = await searchParams;
+  const { tenant, projectQuestionnaireId, questionnaireVersionId } =
+  await searchParams;
 
   if (!tenant) {
     return (
@@ -47,10 +50,12 @@ export default async function Page({
     );
   }
 
-  const result = await getMyAssessmentCompletedResult({
-    tenantSlug: tenant,
-    sessionId,
-  });
+const result = await getMyAssessmentCompletedResult({
+  tenantSlug: tenant,
+  sessionId,
+  projectQuestionnaireId: projectQuestionnaireId ?? null,
+  questionnaireVersionId: questionnaireVersionId ?? null,
+});
 
   if (!result) {
     return (
@@ -110,12 +115,14 @@ export default async function Page({
   }
 
   return (
-    <MyAssessmentCompletedResultView
-      result={{
-        tenantSlug: result.tenantSlug,
-        sessionId: result.sessionId,
-        payload: result.payload,
-      }}
-    />
+<MyAssessmentCompletedResultView
+  result={{
+    tenantSlug: result.tenantSlug,
+    sessionId: result.sessionId,
+    payload: result.payload,
+    projectQuestionnaireId: projectQuestionnaireId ?? null,
+    questionnaireVersionId: questionnaireVersionId ?? null,
+  }}
+/>
   );
 }

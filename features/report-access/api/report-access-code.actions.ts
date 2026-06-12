@@ -48,15 +48,36 @@ function hashAccessCode(code: string) {
 }
 
 function buildReportHref({
+  tenantSlug,
   sessionId,
   reportTemplateVersionId,
-  tenantSlug,
+  projectQuestionnaireId,
+  questionnaireVersionId,
 }: {
+  tenantSlug: string;
   sessionId: string;
   reportTemplateVersionId: string;
-  tenantSlug: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
-  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?tenant=${tenantSlug}`;
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
+}
+
+function normalizeOptionalString(value: FormDataEntryValue | null) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
 }
 
 export async function redeemReportAccessCodeAction(
@@ -69,6 +90,12 @@ export async function redeemReportAccessCodeAction(
   const sessionId = normalizeString(formData.get("sessionId"));
   const code = normalizeCode(formData.get("accessCode"));
 
+const projectQuestionnaireId =
+  normalizeOptionalString(formData.get("projectQuestionnaireId"));
+
+const questionnaireVersionId =
+  normalizeOptionalString(formData.get("questionnaireVersionId"));
+
   if (!tenantSlug || !sessionId) {
     return fail("Brakuje danych sesji lub tenanta.");
   }
@@ -77,33 +104,39 @@ export async function redeemReportAccessCodeAction(
     return fail("Wpisz kod dostępu.");
   }
 
-  const offer = await getReportAccessOfferForCompletedSession({
-    tenantSlug,
-    sessionId,
-  });
+const offer = await getReportAccessOfferForCompletedSession({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+});
 
   if (!offer.ok) {
     return fail(offer.message);
   }
 
-  const existingGrant =
-    offer.existingGrant ??
-    (await getActiveReportAccessGrantForSession({
-      tenantSlug,
-      sessionId,
-      reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
-      userId: authSession.user.id,
-    }));
+const existingGrant =
+  offer.existingGrant ??
+  (await getActiveReportAccessGrantForSession({
+    tenantSlug,
+    sessionId,
+    reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
+    userId: authSession.user.id,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  }));
 
-  if (existingGrant) {
-    redirect(
-      buildReportHref({
-        sessionId,
-        tenantSlug,
-        reportTemplateVersionId: existingGrant.reportTemplateVersionId,
-      }),
-    );
-  }
+if (existingGrant) {
+  redirect(
+    buildReportHref({
+      sessionId,
+      tenantSlug,
+      reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+      projectQuestionnaireId,
+      questionnaireVersionId,
+    }),
+  );
+}
 
   const codeHash = hashAccessCode(code);
 
@@ -186,7 +219,7 @@ export async function redeemReportAccessCodeAction(
     return fail("Aktywna wersja raportu nie jest już dostępna.");
   }
 
-  const existingGrantByReportType =
+  /* const existingGrantByReportType =
     await controlDb.query.reportAccessGrants.findFirst({
       where: and(
         eq(reportAccessGrants.tenantSlug, tenantSlug),
@@ -206,7 +239,7 @@ export async function redeemReportAccessCodeAction(
           existingGrantByReportType.reportTemplateVersionId,
       }),
     );
-  }
+  } */
 
   const validUntil =
     typeof product.validityDays === "number" && product.validityDays > 0
@@ -234,11 +267,19 @@ export async function redeemReportAccessCodeAction(
       validFrom: now,
       validUntil,
 
-      metadata: {
-        accessCodePreview: accessCode.codePreview,
-        productCode: product.code,
-        productName: product.name,
-      },
+metadata: {
+  accessCodePreview: accessCode.codePreview,
+  productCode: product.code,
+  productName: product.name,
+
+  projectQuestionnaireId,
+  questionnaireVersionId,
+  reportScope: {
+    type: "project_questionnaire",
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  },
+},
 
       createdAt: now,
       updatedAt: now,
@@ -264,11 +305,13 @@ export async function redeemReportAccessCodeAction(
 
   revalidatePath("/my/assessment");
 
-  redirect(
-    buildReportHref({
-      sessionId,
-      tenantSlug,
-      reportTemplateVersionId: grant.reportTemplateVersionId,
-    }),
-  );
+redirect(
+  buildReportHref({
+    sessionId,
+    tenantSlug,
+    reportTemplateVersionId: grant.reportTemplateVersionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  }),
+);
 }

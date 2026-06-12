@@ -24,5 +24,9 @@ export async function startPublicAssessmentAction(
     };
   }
 
-  redirect(`/a/${token}/session/${result.sessionId}`);
+if (result.sessionStatus === "completed") {
+  redirect(`/a/${token}/session/${result.sessionId}/completed`);
+}
+
+redirect(`/a/${token}/session/${result.sessionId}`);
 }

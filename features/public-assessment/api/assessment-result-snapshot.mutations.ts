@@ -809,28 +809,81 @@ if (questionnaireVersionIds.length > 1) {
 
   const now = new Date();
 
-  const [snapshot] = await db
-    .insert(assessmentResultSnapshots)
-    .values({
-      assessmentSessionId: sessionId,
+  if (!projectQuestionnaireId) {
+  throw new Error("Brakuje identyfikatora kwestionariusza projektu dla snapshotu.");
+}
+
+const [currentProjectQuestionnaire] = await db
+  .select({
+    projectQuestionnaireId: assessmentProjectQuestionnaires.id,
+    questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
+    questionnaireVersionId:
+      assessmentProjectQuestionnaires.questionnaireVersionId,
+  })
+  .from(assessmentProjectQuestionnaires)
+  .where(
+    and(
+      eq(assessmentProjectQuestionnaires.id, projectQuestionnaireId),
+      isNull(assessmentProjectQuestionnaires.deletedAt),
+    ),
+  )
+  .limit(1);
+
+if (!currentProjectQuestionnaire) {
+  throw new Error("Nie znaleziono kwestionariusza projektu dla snapshotu.");
+}
+  const [existingSnapshot] = await db
+  .select({
+    id: assessmentResultSnapshots.id,
+  })
+  .from(assessmentResultSnapshots)
+  .where(
+    and(
+      eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
+      eq(
+        assessmentResultSnapshots.projectQuestionnaireId,
+        currentProjectQuestionnaire.projectQuestionnaireId,
+      ),
+      isNull(assessmentResultSnapshots.deletedAt),
+    ),
+  )
+  .limit(1);
+
+if (existingSnapshot) {
+  const [updatedSnapshot] = await db
+    .update(assessmentResultSnapshots)
+    .set({
+      questionnaireId: currentProjectQuestionnaire.questionnaireId,
+      questionnaireVersionId:
+        currentProjectQuestionnaire.questionnaireVersionId,
       tenantSlug,
       payload,
-      createdBy: actorUserId,
+      deletedAt: null,
       updatedBy: actorUserId,
-      createdAt: now,
       updatedAt: now,
     })
-    .onConflictDoUpdate({
-      target: assessmentResultSnapshots.assessmentSessionId,
-      set: {
-        tenantSlug,
-        payload,
-        deletedAt: null,
-        updatedBy: actorUserId,
-        updatedAt: now,
-      },
-    })
+    .where(eq(assessmentResultSnapshots.id, existingSnapshot.id))
     .returning();
 
-  return snapshot;
+  return updatedSnapshot;
+}
+
+const [createdSnapshot] = await db
+  .insert(assessmentResultSnapshots)
+  .values({
+    assessmentSessionId: sessionId,
+    projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
+    questionnaireId: currentProjectQuestionnaire.questionnaireId,
+    questionnaireVersionId:
+      currentProjectQuestionnaire.questionnaireVersionId,
+    tenantSlug,
+    payload,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: actorUserId,
+    updatedBy: actorUserId,
+  })
+  .returning();
+
+return createdSnapshot;
 }

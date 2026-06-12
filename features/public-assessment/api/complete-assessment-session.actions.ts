@@ -88,9 +88,71 @@ function isResponseFilled(response: {
   return false;
 }
 
+
+
+
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
   return normalized || null;
+}
+
+async function listActiveProjectQuestionnaires({
+  db,
+  assessmentProjectId,
+}: {
+  db: any;
+  assessmentProjectId: string;
+}) {
+  return db
+    .select({
+      projectQuestionnaireId: assessmentProjectQuestionnaires.id,
+      questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
+      questionnaireVersionId:
+        assessmentProjectQuestionnaires.questionnaireVersionId,
+    })
+    .from(assessmentProjectQuestionnaires)
+    .where(
+      and(
+        eq(
+          assessmentProjectQuestionnaires.assessmentProjectId,
+          assessmentProjectId,
+        ),
+        eq(assessmentProjectQuestionnaires.status, "active"),
+        isNull(assessmentProjectQuestionnaires.deletedAt),
+      ),
+    );
+}
+
+async function listCompletedProjectQuestionnaireIdsFromIndex({
+  tenantId,
+  projectRespondentId,
+}: {
+  tenantId: string;
+  projectRespondentId: string;
+}) {
+  const rows = await controlDb
+    .select({
+      tenantProjectQuestionnaireId:
+        assessmentInvitationIndex.tenantProjectQuestionnaireId,
+      status: assessmentInvitationIndex.status,
+    })
+    .from(assessmentInvitationIndex)
+    .where(
+      and(
+        eq(assessmentInvitationIndex.tenantId, tenantId),
+        eq(
+          assessmentInvitationIndex.tenantProjectRespondentId,
+          projectRespondentId,
+        ),
+        isNull(assessmentInvitationIndex.deletedAt),
+      ),
+    );
+
+  return new Set(
+    rows
+      .filter((row: any) => row.status === "completed")
+      .map((row: any) => row.tenantProjectQuestionnaireId),
+  );
 }
 
 async function getTenantDbBySlug(tenantSlug: string) {
@@ -565,14 +627,15 @@ await createAssessmentResultSnapshot({
       databaseUrl,
     });
 
-    const sessionRows = await db
-      .select({
-        sessionId: assessmentSessions.id,
-        sessionStatus: assessmentSessions.status,
-        assessmentProjectId: assessmentSessions.assessmentProjectId,
-        accessLinkId: assessmentAccessLinks.id,
-        respondentEmail: respondentIdentities.email,
-      })
+const sessionRows = await db
+  .select({
+    sessionId: assessmentSessions.id,
+    sessionStatus: assessmentSessions.status,
+    assessmentProjectId: assessmentSessions.assessmentProjectId,
+    projectRespondentId: assessmentSessions.projectRespondentId,
+    accessLinkId: assessmentAccessLinks.id,
+    respondentEmail: respondentIdentities.email,
+  })
       .from(assessmentSessions)
       .innerJoin(
         assessmentAccessLinks,
@@ -615,151 +678,269 @@ await createAssessmentResultSnapshot({
         message: "Ta sesja nie jest aktywna.",
       };
     }
-
-   if (!projectQuestionnaireId) {
-  return {
-    status: "error",
-    message: "Brakuje identyfikatora kwestionariusza.",
-  };
-}
-
-const projectQuestionnaireRows = await db
-  .select({
-    projectQuestionnaireId: assessmentProjectQuestionnaires.id,
-    questionnaireId: assessmentProjectQuestionnaires.questionnaireId,
-    questionnaireVersionId:
-      assessmentProjectQuestionnaires.questionnaireVersionId,
-  })
-  .from(assessmentProjectQuestionnaires)
-  .where(
-    and(
-      eq(assessmentProjectQuestionnaires.id, projectQuestionnaireId),
-      eq(
-        assessmentProjectQuestionnaires.assessmentProjectId,
-        session.assessmentProjectId,
-      ),
-      eq(assessmentProjectQuestionnaires.status, "active"),
-      isNull(assessmentProjectQuestionnaires.deletedAt),
-    ),
-  )
-  .limit(1);
-
-const currentProjectQuestionnaire = projectQuestionnaireRows[0] ?? null;
-
-if (!currentProjectQuestionnaire) {
-  return {
-    status: "error",
-    message: "Nie znaleziono aktywnego kwestionariusza dla tej sesji.",
-  };
-}
-
-const requiredItems = await controlDb
-  .select({
-    id: questionnaireItems.id,
-  })
-  .from(questionnaireItems)
-  .where(
-    and(
-      eq(
-        questionnaireItems.questionnaireVersionId,
-        currentProjectQuestionnaire.questionnaireVersionId,
-      ),
-      eq(questionnaireItems.required, true),
-      isNull(questionnaireItems.deletedAt),
-    ),
-  );
-    const responses = await db
-      .select({
-        questionnaireItemId: assessmentResponses.questionnaireItemId,
-        valueType: assessmentResponses.valueType,
-        numberValue: assessmentResponses.numberValue,
-        textValue: assessmentResponses.textValue,
-        booleanValue: assessmentResponses.booleanValue,
-        jsonValue: assessmentResponses.jsonValue,
-      })
-      .from(assessmentResponses)
-      .where(
-        and(
-          eq(assessmentResponses.assessmentSessionId, session.sessionId),
-          isNull(assessmentResponses.deletedAt),
-        ),
-      );
-
-    const filledResponseItemIds = new Set(
-      responses
-        .filter((response) => isResponseFilled(response))
-        .map((response) => response.questionnaireItemId),
-    );
-
-    const missingRequiredCount = requiredItems.filter(
-      (item) => !filledResponseItemIds.has(item.id),
-    ).length;
-
-    if (missingRequiredCount > 0) {
-      return {
-        status: "error",
-        message: `Nie wszystkie wymagane pytania mają odpowiedzi. Brakuje: ${missingRequiredCount}.`,
-      };
-    }
-
-    const now = new Date();
-
-    await db
-      .update(assessmentSessions)
-      .set({
-        status: "completed",
-        completedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(assessmentSessions.id, session.sessionId));
-
-    const scoringResult = await calculateAssessmentSessionScores({
-      db,
-      sessionId: session.sessionId,
-    });
-await createAssessmentResultSnapshot({
+const activeProjectQuestionnaires = await listActiveProjectQuestionnaires({
   db,
-  tenantSlug: connection.tenantSlug,
-  sessionId: session.sessionId,
-  actorUserId: null,
-  projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
-  questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
+  assessmentProjectId: session.assessmentProjectId,
 });
 
-/*     const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
-      db,
-      tenantSlug: connection.tenantSlug,
-      sessionId: session.sessionId,
-      actorUserId: null,
-      actorEmail: session.respondentEmail ?? null,
-      projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
-      questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
-    }); */
-    const reportAccessGrantResult = {
-  granted: false,
-  mode: "manual_partner_grant_required",
-  message:
-    "Dostęp do raportu nie jest nadawany automatycznie. Może go nadać partner po zakończeniu sesji.",
-};
-    await db.insert(tenantAuditLog).values({
-      actorUserId: null,
-      actorRole: "PUBLIC_RESPONDENT",
-      action: "assessment_session_completed",
-      entityType: "assessment_session",
-      entityId: session.sessionId,
-      after: {
-        completedAt: now.toISOString(),
-        scoring: scoringResult,
-        reportAccessGrant: reportAccessGrantResult,
-        mode: "token",
-        projectQuestionnaireId:
-          currentProjectQuestionnaire.projectQuestionnaireId,
-        questionnaireVersionId:
+if (activeProjectQuestionnaires.length === 0) {
+  return {
+    status: "error",
+    message: "Ten projekt nie ma aktywnych kwestionariuszy.",
+  };
+}
+
+/**
+ * TRYB 1:
+ * Kończymy jeden konkretny kwestionariusz.
+ * Nie kończymy jeszcze całej assessment_session.
+ */
+if (projectQuestionnaireId) {
+  const currentProjectQuestionnaire =
+    activeProjectQuestionnaires.find(
+      (row: any) => row.projectQuestionnaireId === projectQuestionnaireId,
+    ) ?? null;
+
+  if (!currentProjectQuestionnaire) {
+    return {
+      status: "error",
+      message: "Nie znaleziono aktywnego kwestionariusza dla tej sesji.",
+    };
+  }
+
+  const requiredItems = await controlDb
+    .select({
+      id: questionnaireItems.id,
+    })
+    .from(questionnaireItems)
+    .where(
+      and(
+        eq(
+          questionnaireItems.questionnaireVersionId,
           currentProjectQuestionnaire.questionnaireVersionId,
-      },
+        ),
+        eq(questionnaireItems.required, true),
+        isNull(questionnaireItems.deletedAt),
+      ),
+    );
+
+  const responses = await db
+    .select({
+      questionnaireItemId: assessmentResponses.questionnaireItemId,
+      valueType: assessmentResponses.valueType,
+      numberValue: assessmentResponses.numberValue,
+      textValue: assessmentResponses.textValue,
+      booleanValue: assessmentResponses.booleanValue,
+      jsonValue: assessmentResponses.jsonValue,
+    })
+    .from(assessmentResponses)
+    .where(
+      and(
+        eq(assessmentResponses.assessmentSessionId, session.sessionId),
+        eq(
+          assessmentResponses.questionnaireVersionId,
+          currentProjectQuestionnaire.questionnaireVersionId,
+        ),
+        isNull(assessmentResponses.deletedAt),
+      ),
+    );
+
+  const filledResponseItemIds = new Set(
+    responses
+      .filter((response) => isResponseFilled(response))
+      .map((response) => response.questionnaireItemId),
+  );
+
+  const missingRequiredCount = requiredItems.filter(
+    (item) => !filledResponseItemIds.has(item.id),
+  ).length;
+
+  if (missingRequiredCount > 0) {
+    return {
+      status: "error",
+      message: `Nie wszystkie wymagane pytania mają odpowiedzi. Brakuje: ${missingRequiredCount}.`,
+    };
+  }
+
+  const now = new Date();
+
+  await db
+    .update(assessmentSessions)
+    .set({
+      status: "in_progress",
+      updatedAt: now,
+    })
+    .where(eq(assessmentSessions.id, session.sessionId));
+
+  await db
+    .update(assessmentProjectRespondents)
+    .set({
+      status: "started",
+      startedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
+
+  const scoringResult = await calculateAssessmentSessionScores({
+    db,
+    sessionId: session.sessionId,
+  });
+
+  const snapshot = await createAssessmentResultSnapshot({
+    db,
+    tenantSlug: connection.tenantSlug,
+    sessionId: session.sessionId,
+    actorUserId: null,
+    projectQuestionnaireId:
+      currentProjectQuestionnaire.projectQuestionnaireId,
+    questionnaireVersionId:
+      currentProjectQuestionnaire.questionnaireVersionId,
+  });
+
+  await markAssessmentInvitationIndexSession({
+    tenantId: connection.tenantId,
+    tenantProjectRespondentId: session.projectRespondentId,
+    tenantProjectQuestionnaireId:
+      currentProjectQuestionnaire.projectQuestionnaireId,
+    tenantSessionId: session.sessionId,
+    status: "completed",
+    userId: null,
+  });
+
+  const completedProjectQuestionnaireIds =
+    await listCompletedProjectQuestionnaireIdsFromIndex({
+      tenantId: connection.tenantId,
+      projectRespondentId: session.projectRespondentId,
     });
 
-    redirect(`/a/${token}/session/${sessionId}/completed`);
+  completedProjectQuestionnaireIds.add(
+    currentProjectQuestionnaire.projectQuestionnaireId,
+  );
+
+  const allQuestionnairesCompleted = activeProjectQuestionnaires.every((row: any) =>
+    completedProjectQuestionnaireIds.has(row.projectQuestionnaireId),
+  );
+
+  await db.insert(tenantAuditLog).values({
+    actorUserId: null,
+    actorRole: "PUBLIC_RESPONDENT",
+    action: "assessment_questionnaire_completed",
+    entityType: "assessment_session",
+    entityId: session.sessionId,
+    after: {
+      completedAt: now.toISOString(),
+      scoring: scoringResult,
+      mode: "token",
+      projectQuestionnaireId:
+        currentProjectQuestionnaire.projectQuestionnaireId,
+      questionnaireVersionId:
+        currentProjectQuestionnaire.questionnaireVersionId,
+      snapshot,
+      allQuestionnairesCompleted,
+    },
+  });
+
+  if (!allQuestionnairesCompleted) {
+    redirect(`/a/${token}/session/${sessionId}`);
+  }
+
+  await db
+    .update(assessmentSessions)
+    .set({
+      status: "completed",
+      completedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(assessmentSessions.id, session.sessionId));
+
+  await db
+    .update(assessmentProjectRespondents)
+    .set({
+      status: "completed",
+      completedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
+
+  await db.insert(tenantAuditLog).values({
+    actorUserId: null,
+    actorRole: "PUBLIC_RESPONDENT",
+    action: "assessment_session_completed",
+    entityType: "assessment_session",
+    entityId: session.sessionId,
+    after: {
+      completedAt: now.toISOString(),
+      mode: "token",
+      reason: "all_project_questionnaires_completed",
+      projectQuestionnaireIds: activeProjectQuestionnaires.map(
+        (row: any) => row.projectQuestionnaireId,
+      ),
+    },
+  });
+
+  redirect(`/a/${token}/session/${sessionId}/completed`);
+}
+
+/**
+ * TRYB 2:
+ * Próba zakończenia całej sesji z overview.
+ * Wolno to zrobić tylko wtedy, gdy wszystkie kwestionariusze są completed
+ * w assessmentInvitationIndex.
+ */
+const completedProjectQuestionnaireIds =
+  await listCompletedProjectQuestionnaireIdsFromIndex({
+    tenantId: connection.tenantId,
+    projectRespondentId: session.projectRespondentId,
+  });
+
+const missingProjectQuestionnaires = activeProjectQuestionnaires.filter(
+  (row: any) => !completedProjectQuestionnaireIds.has(row.projectQuestionnaireId),
+);
+
+if (missingProjectQuestionnaires.length > 0) {
+  return {
+    status: "error",
+    message: `Nie można jeszcze zakończyć całego badania. Pozostałe niewypełnione części: ${missingProjectQuestionnaires.length}.`,
+  };
+}
+
+const now = new Date();
+
+await db
+  .update(assessmentSessions)
+  .set({
+    status: "completed",
+    completedAt: now,
+    updatedAt: now,
+  })
+  .where(eq(assessmentSessions.id, session.sessionId));
+
+await db
+  .update(assessmentProjectRespondents)
+  .set({
+    status: "completed",
+    completedAt: now,
+    updatedAt: now,
+  })
+  .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
+
+await db.insert(tenantAuditLog).values({
+  actorUserId: null,
+  actorRole: "PUBLIC_RESPONDENT",
+  action: "assessment_session_completed",
+  entityType: "assessment_session",
+  entityId: session.sessionId,
+  after: {
+    completedAt: now.toISOString(),
+    mode: "token",
+    reason: "manual_finish_from_overview",
+    projectQuestionnaireIds: activeProjectQuestionnaires.map(
+      (row: any) => row.projectQuestionnaireId,
+    ),
+  },
+});
+
+redirect(`/a/${token}/session/${sessionId}/completed`);
   }
 
   return {

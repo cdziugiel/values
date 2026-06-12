@@ -122,12 +122,16 @@ function buildReportHref({
   tenantSlug,
   mode,
   productId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
 }: {
   sessionId: string;
   reportTemplateVersionId: string;
   tenantSlug: string;
   mode?: string | null;
   productId?: string | null;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
   if (mode === "comparison") {
     return `/my/assessment/compare?product=${encodeURIComponent(
@@ -137,26 +141,57 @@ function buildReportHref({
     )}&ownSessionId=${encodeURIComponent(sessionId)}`;
   }
 
-  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?tenant=${encodeURIComponent(
-    tenantSlug,
-  )}`;
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
 }
 
 export async function unlockReportAccessPlaceholderAction(
   _previousState: UnlockReportAccessActionState,
   formData: FormData,
 ): Promise<UnlockReportAccessActionState> {
+
+  console.error("ACTION DEFINITELY HIT")
   const authSession = await requireSession();
 
   const tenantSlug = normalizeString(formData.get("tenantSlug"));
   const sessionId = normalizeString(formData.get("sessionId"));
 
-  const mode = normalizeString(formData.get("mode")) || "standard";
-const productIdFromInput = normalizeOptionalString(formData.get("productId"));
-const reportTemplateVersionIdFromInput = normalizeOptionalString(
-  formData.get("reportTemplateVersionId"),
-);
+    const mode = normalizeString(formData.get("mode")) || "standard";
 
+  const projectQuestionnaireIdFromInput =
+    normalizeOptionalString(formData.get("projectQuestionnaireId"));
+
+  const questionnaireVersionIdFromInput =
+    normalizeOptionalString(formData.get("questionnaireVersionId"));
+
+  const productIdFromInput = normalizeOptionalString(formData.get("productId"));
+
+  const reportTemplateVersionIdFromInput = normalizeOptionalString(
+    formData.get("reportTemplateVersionId"),
+  );
+
+  console.log("UNLOCK_REPORT_ACTION_INPUT", {
+    tenantSlug,
+    sessionId,
+    mode,
+    productIdFromInput,
+    reportTemplateVersionIdFromInput,
+    projectQuestionnaireIdFromInput,
+    questionnaireVersionIdFromInput,
+    rawProjectQuestionnaireId: formData.get("projectQuestionnaireId"),
+    rawQuestionnaireVersionId: formData.get("questionnaireVersionId"),
+  });
   if (!tenantSlug || !sessionId) {
     return fail("Brakuje danych sesji lub tenanta.");
   }
@@ -172,15 +207,37 @@ const offer =
     : await getReportAccessOfferForCompletedSession({
         tenantSlug,
         sessionId,
+        expectedKind: "personal",
+        projectQuestionnaireId: projectQuestionnaireIdFromInput,
+        questionnaireVersionId: questionnaireVersionIdFromInput,
       });
 
-  if (!offer.ok) {
-    return fail(offer.message);
-  }
+if (!offer.ok) {
+  console.log("UNLOCK_REPORT_ACTION_OFFER_FAILED", {
+    message: offer.message,
+    tenantSlug,
+    sessionId,
+    mode,
+    projectQuestionnaireIdFromInput,
+    questionnaireVersionIdFromInput,
+  });
 
-  if (!offer.product) {
-    return fail("Dla tego raportu nie ma aktywnego produktu sprzedażowego.");
-  }
+  return fail(offer.message);
+}
+
+if (!offer.product) {
+  console.log("UNLOCK_REPORT_ACTION_NO_PRODUCT", {
+    tenantSlug,
+    sessionId,
+    mode,
+    reportTemplateVersionId:
+      offer.ok ? offer.reportVersion.reportTemplateVersionId : null,
+    projectQuestionnaireIdFromInput,
+    questionnaireVersionIdFromInput,
+  });
+
+  return fail("Dla tego raportu nie ma aktywnego produktu sprzedażowego.");
+}
 
   const existingGrant =
     offer.existingGrant ??
@@ -189,18 +246,30 @@ const offer =
       sessionId,
       reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
       userId: authSession.user.id,
+      projectQuestionnaireId: projectQuestionnaireIdFromInput,
+      questionnaireVersionId: questionnaireVersionIdFromInput,
     }));
 
 if (existingGrant) {
-  redirect(
-    buildReportHref({
-      sessionId,
-      tenantSlug,
-      reportTemplateVersionId: existingGrant.reportTemplateVersionId,
-      mode,
-      productId: productIdFromInput ?? offer.product?.id ?? null,
-    }),
-  );
+  const href = buildReportHref({
+    sessionId,
+    tenantSlug,
+    reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+    mode,
+    productId: productIdFromInput ?? offer.product?.id ?? null,
+    projectQuestionnaireId: projectQuestionnaireIdFromInput,
+    questionnaireVersionId: questionnaireVersionIdFromInput,
+  });
+
+  console.log("UNLOCK_REPORT_ACTION_EXISTING_GRANT_REDIRECT", {
+    href,
+    grantId: existingGrant.id,
+    projectQuestionnaireIdFromInput,
+    questionnaireVersionIdFromInput,
+    grantMetadata: existingGrant.metadata,
+  });
+
+  redirect(href);
 }
 
   /**
@@ -209,7 +278,7 @@ if (existingGrant) {
    * assessmentSessionId + reportTemplateId + active,
    * sprawdzamy też po typie raportu.
    */
-  const existingGrantByReportType =
+  /* const existingGrantByReportType =
     await controlDb.query.reportAccessGrants.findFirst({
       where: and(
         eq(reportAccessGrants.tenantSlug, tenantSlug),
@@ -231,7 +300,7 @@ if (existingGrantByReportType) {
       productId: productIdFromInput ?? offer.product?.id ?? null,
     }),
   );
-}
+} */
 
   const now = new Date();
   const discountCode = normalizeOptionalString(formData.get("discountCode"));
@@ -255,6 +324,18 @@ if (discountCode) {
   });
 
   if (!discount.ok) {
+    console.log("UNLOCK_REPORT_ACTION_FAIL_DISCOUNT", {
+      message: discount.message,
+      tenantSlug,
+      sessionId,
+      mode,
+      discountCode,
+      productIdFromInput,
+      reportTemplateVersionIdFromInput,
+      projectQuestionnaireIdFromInput,
+      questionnaireVersionIdFromInput,
+    });
+
     return fail(discount.message);
   }
 
@@ -308,6 +389,15 @@ metadata: {
   mode,
   reportKind: mode === "comparison" ? "comparison" : "personal",
   assessmentSessionId: sessionId,
+
+  projectQuestionnaireId: projectQuestionnaireIdFromInput,
+  questionnaireVersionId: questionnaireVersionIdFromInput,
+  reportScope: {
+    type: "project_questionnaire",
+    projectQuestionnaireId: projectQuestionnaireIdFromInput,
+    questionnaireVersionId: questionnaireVersionIdFromInput,
+  },
+
   reportTemplateId: offer.reportVersion.reportTemplateId,
   reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
   productId: offer.product.id,
@@ -383,6 +473,15 @@ metadata: {
   paidByDiscount: isFullyDiscounted,
   mode,
   reportKind: mode === "comparison" ? "comparison" : "personal",
+
+  projectQuestionnaireId: projectQuestionnaireIdFromInput,
+  questionnaireVersionId: questionnaireVersionIdFromInput,
+  reportScope: {
+    type: "project_questionnaire",
+    projectQuestionnaireId: projectQuestionnaireIdFromInput,
+    questionnaireVersionId: questionnaireVersionIdFromInput,
+  },
+
   productCode: offer.product.code,
   productName: offer.product.name,
   orderId: order.id,
@@ -405,16 +504,24 @@ metadata: {
       id: reportAccessGrants.id,
       reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
     });
+const href = buildReportHref({
+  sessionId,
+  tenantSlug,
+  reportTemplateVersionId: grant.reportTemplateVersionId,
+  mode,
+  productId: productIdFromInput ?? offer.product.id,
+  projectQuestionnaireId: projectQuestionnaireIdFromInput,
+  questionnaireVersionId: questionnaireVersionIdFromInput,
+});
 
-redirect(
-  buildReportHref({
-    sessionId,
-    tenantSlug,
-    reportTemplateVersionId: grant.reportTemplateVersionId,
-    mode,
-    productId: productIdFromInput ?? offer.product.id,
-  }),
-);
+console.log("UNLOCK_REPORT_ACTION_CREATED_GRANT_REDIRECT", {
+  href,
+  grantId: grant.id,
+  projectQuestionnaireIdFromInput,
+  questionnaireVersionIdFromInput,
+});
+
+redirect(href);
 }
 
 

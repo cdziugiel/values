@@ -350,7 +350,12 @@ export function PublicAssessmentSessionOverview({
           </div>
 
           {canComplete ? (
-            <CompleteAssessmentSessionForm token={token} sessionId={sessionId} />
+            <CompleteAssessmentSessionForm
+              mode="token"
+              token={token}
+              sessionId={sessionId}
+              
+            />
           ) : (
             <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white/60 p-5 text-sm leading-6 text-[#6b7280]">
               Badanie będzie można zakończyć po uzupełnieniu wszystkich

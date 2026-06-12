@@ -384,13 +384,24 @@ export const reportAccessGrants = pgTable(
       table.reportTemplateVersionId,
     ),
 
-    oneActiveGrantPerSessionAndReportType: uniqueIndex(
-      "rag_one_active_grant_per_session_report_type_idx",
-    )
-      .on(table.assessmentSessionId, table.reportTemplateId)
-      .where(
-        sql`deleted_at is null and status = 'active' and assessment_session_id is not null`,
-      ),
+oneActiveGrantPerSessionReportAndScope: uniqueIndex(
+  "rag_one_active_grant_per_session_report_scope_idx",
+)
+  .on(
+    table.tenantSlug,
+    table.assessmentSessionId,
+    table.reportTemplateId,
+    sql`COALESCE(metadata->>'projectQuestionnaireId', '')`,
+    sql`COALESCE(metadata->>'questionnaireVersionId', '')`,
+  )
+  .where(
+    sql`
+      deleted_at is null
+      and status = 'active'
+      and assessment_session_id is not null
+      and report_template_id is not null
+    `,
+  ),
   }),
 );
 

@@ -1,5 +1,5 @@
-import { and, eq, isNull } from "drizzle-orm";
-
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { markAssessmentInvitationIndexSession } from "@/features/my-assessment/api/assessment-invitation-index.mutations";
 import { tenantDatabaseConnections, tenants } from "@/drizzle/schema";
 import {
   assessmentAccessLinks,
@@ -7,6 +7,7 @@ import {
   assessmentProjects,
   assessmentSessions,
   tenantAuditLog,
+  assessmentProjectQuestionnaires
 } from "@/drizzle/schema/tenant-schema";
 import { controlDb } from "@/server/db/control-db";
 import { getTenantDbByConnection } from "@/server/db/tenant-db-by-connection";
@@ -18,6 +19,7 @@ export type StartAssessmentSessionResult =
       ok: true;
       tenantSlug: string;
       sessionId: string;
+      sessionStatus: string;
     }
   | {
       ok: false;
@@ -34,6 +36,47 @@ export type StartAssessmentSessionResult =
 
 function isTokenShapeValid(token: string) {
   return /^[A-Za-z0-9_-]{32,160}$/.test(token);
+}
+
+async function markStartedInvitationIndexForTokenSession({
+  db,
+  tenantId,
+  assessmentProjectId,
+  projectRespondentId,
+  sessionId,
+}: {
+  db: any;
+  tenantId: string;
+  assessmentProjectId: string;
+  projectRespondentId: string;
+  sessionId: string;
+}) {
+  const projectQuestionnaireRows = await db
+    .select({
+      projectQuestionnaireId: assessmentProjectQuestionnaires.id,
+    })
+    .from(assessmentProjectQuestionnaires)
+    .where(
+      and(
+        eq(
+          assessmentProjectQuestionnaires.assessmentProjectId,
+          assessmentProjectId,
+        ),
+        eq(assessmentProjectQuestionnaires.status, "active"),
+        isNull(assessmentProjectQuestionnaires.deletedAt),
+      ),
+    );
+
+  for (const row of projectQuestionnaireRows) {
+    await markAssessmentInvitationIndexSession({
+      tenantId,
+      tenantProjectRespondentId: projectRespondentId,
+      tenantProjectQuestionnaireId: row.projectQuestionnaireId,
+      tenantSessionId: sessionId,
+      status: "in_progress",
+      userId: null,
+    });
+  }
 }
 
 export async function startAssessmentSessionFromToken(
@@ -201,6 +244,76 @@ export async function startAssessmentSessionFromToken(
         message: "Ten respondent nie ma już aktywnego dostępu do badania.",
       };
     }
+const existingSessionRows = await db
+  .select({
+    id: assessmentSessions.id,
+    status: assessmentSessions.status,
+    accessLinkId: assessmentSessions.accessLinkId,
+    startedAt: assessmentSessions.startedAt,
+    completedAt: assessmentSessions.completedAt,
+  })
+  .from(assessmentSessions)
+  .where(
+    and(
+      eq(assessmentSessions.assessmentProjectId, access.assessmentProjectId),
+      eq(assessmentSessions.respondentId, access.respondentId),
+      eq(assessmentSessions.projectRespondentId, access.projectRespondentId),
+      isNull(assessmentSessions.deletedAt),
+    ),
+  );
+
+const reusableSession =
+  existingSessionRows.find((row) => row.status === "in_progress") ??
+  existingSessionRows.find((row) => row.status === "completed") ??
+  null;
+
+if (reusableSession) {
+  await db
+    .update(assessmentSessions)
+    .set({
+      accessLinkId: access.accessLinkId,
+      updatedAt: now,
+    })
+    .where(eq(assessmentSessions.id, reusableSession.id));
+
+  await db
+    .update(assessmentAccessLinks)
+    .set({
+      lastAccessedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(assessmentAccessLinks.id, access.accessLinkId));
+
+  await db.insert(tenantAuditLog).values({
+    actorUserId: null,
+    actorRole: "PUBLIC_RESPONDENT",
+    action: "assessment_session_reused_from_access_link",
+    entityType: "assessment_session",
+    entityId: reusableSession.id,
+    after: {
+      assessmentProjectId: access.assessmentProjectId,
+      respondentId: access.respondentId,
+      projectRespondentId: access.projectRespondentId,
+      accessLinkId: access.accessLinkId,
+      status: reusableSession.status,
+    },
+  });
+if (reusableSession.status === "in_progress") {
+  await markStartedInvitationIndexForTokenSession({
+    db,
+    tenantId: connection.tenantId,
+    assessmentProjectId: access.assessmentProjectId,
+    projectRespondentId: access.projectRespondentId,
+    sessionId: reusableSession.id,
+  });
+}
+  return {
+    ok: true,
+    tenantSlug: connection.tenantSlug,
+    sessionId: reusableSession.id,
+    sessionStatus: reusableSession.status,
+  };
+}
 
     const [session] = await db
       .insert(assessmentSessions)
@@ -237,7 +350,13 @@ export async function startAssessmentSessionFromToken(
         updatedAt: now,
       })
       .where(eq(assessmentAccessLinks.id, access.accessLinkId));
-
+await markStartedInvitationIndexForTokenSession({
+  db,
+  tenantId: connection.tenantId,
+  assessmentProjectId: access.assessmentProjectId,
+  projectRespondentId: access.projectRespondentId,
+  sessionId: session.id,
+});
     await db.insert(tenantAuditLog).values({
       actorUserId: null,
       actorRole: "PUBLIC_RESPONDENT",
@@ -253,11 +372,12 @@ export async function startAssessmentSessionFromToken(
       },
     });
 
-    return {
-      ok: true,
-      tenantSlug: connection.tenantSlug,
-      sessionId: session.id,
-    };
+return {
+  ok: true,
+  tenantSlug: connection.tenantSlug,
+  sessionId: session.id,
+  sessionStatus: session.status,
+};
   }
 
   return {

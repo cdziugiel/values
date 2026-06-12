@@ -1491,6 +1491,15 @@ export function AssessmentResponseForm({
 
   function finishAssessment() {
     const form = formRef.current;
+      if (!projectQuestionnaireId) {
+        setState({
+          status: "error",
+          message:
+            "Brakuje identyfikatora kwestionariusza. Nie można zakończyć tej części badania.",
+        });
+
+        return;
+      }
 
     if (form && !form.reportValidity()) {
       return;
@@ -1523,7 +1532,7 @@ export function AssessmentResponseForm({
       completeFormData.set("sessionId", sessionId);
       completeFormData.set("mode", mode);
       completeFormData.set("tenantSlug", tenantSlug);
-      completeFormData.set("projectQuestionnaireId", projectQuestionnaireId ?? "");
+      completeFormData.set("projectQuestionnaireId", projectQuestionnaireId);
 
       const completeState = await completeAssessmentSessionAction(
         {
@@ -1760,7 +1769,7 @@ export function AssessmentResponseForm({
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
               >
                 <ClipboardCheck size={16} />
-                {isPending ? "Zapisywanie..." : "Zakończ badanie"}
+                {isPending ? "Zapisywanie..." : "Zakończ ten kwestionariusz"}
               </button>
             )}
           </div>

@@ -1,9 +1,9 @@
 // features/my-assessment/api/my-assessment-report-link.queries.ts
+
 import {
   getActiveReportAccessGrantForSession,
   getReportAccessOfferForCompletedSession,
 } from "@/features/report-access/api/report-access.queries";
-import { reportAccessGrants } from "@/drizzle/schema";
 import { requireSession } from "@/server/auth/require-session";
 
 export type MyAssessmentReportAccessState = {
@@ -14,12 +14,70 @@ export type MyAssessmentReportAccessState = {
   message: string | null;
 };
 
-export async function getMyAssessmentReportAccessState({
+function buildScopedReportHref({
   tenantSlug,
   sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
 }: {
   tenantSlug: string;
   sessionId: string;
+  reportTemplateVersionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
+}
+
+function buildScopedUnlockHref({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return `/my/assessment/sessions/${sessionId}/unlock-report?${params.toString()}`;
+}
+
+export async function getMyAssessmentReportAccessState({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }): Promise<MyAssessmentReportAccessState> {
   if (!tenantSlug || !sessionId) {
     return {
@@ -34,6 +92,8 @@ export async function getMyAssessmentReportAccessState({
   const offer = await getReportAccessOfferForCompletedSession({
     tenantSlug,
     sessionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
   });
 
   if (!offer.ok) {
@@ -46,6 +106,9 @@ export async function getMyAssessmentReportAccessState({
     };
   }
 
+  const scopedQuestionnaireVersionId =
+    offer.questionnaireVersionId ?? questionnaireVersionId ?? null;
+
   const existingGrant =
     offer.existingGrant ??
     (await getActiveReportAccessGrantForSession({
@@ -53,11 +116,19 @@ export async function getMyAssessmentReportAccessState({
       sessionId,
       reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
       userId: offer.actorUserId,
+      projectQuestionnaireId,
+      questionnaireVersionId: scopedQuestionnaireVersionId,
     }));
 
   if (existingGrant) {
     return {
-      reportHref: `/my/assessment/sessions/${sessionId}/report/${existingGrant.reportTemplateVersionId}?tenant=${tenantSlug}`,
+      reportHref: buildScopedReportHref({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+        projectQuestionnaireId,
+        questionnaireVersionId: scopedQuestionnaireVersionId,
+      }),
       unlockHref: null,
       isUnlocked: true,
       isAvailableForPurchase: false,
@@ -67,7 +138,12 @@ export async function getMyAssessmentReportAccessState({
 
   return {
     reportHref: null,
-    unlockHref: `/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenantSlug}`,
+    unlockHref: buildScopedUnlockHref({
+      tenantSlug,
+      sessionId,
+      projectQuestionnaireId,
+      questionnaireVersionId: scopedQuestionnaireVersionId,
+    }),
     isUnlocked: false,
     isAvailableForPurchase: Boolean(offer.product),
     message: offer.product
@@ -78,24 +154,25 @@ export async function getMyAssessmentReportAccessState({
 
 /**
  * Kompatybilność wsteczna.
- *
- * Uwaga: ta funkcja zwraca link do raportu WYŁĄCZNIE wtedy,
- * gdy user ma już aktywny grant dostępu.
- *
- * Do UI lepiej używać getMyAssessmentReportAccessState,
- * bo pozwala pokazać też przycisk „Odblokuj raport”.
  */
 export async function getMyAssessmentReportHref({
   tenantSlug,
   sessionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
-  const authSession = await requireSession();
+  await requireSession();
+
   const access = await getMyAssessmentReportAccessState({
     tenantSlug,
     sessionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
   });
 
   return access.reportHref;

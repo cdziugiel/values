@@ -15,6 +15,8 @@ export type ReportAccessGuardResult =
         assessmentSessionId: string | null;
         reportTemplateId: string;
         reportTemplateVersionId: string;
+        projectQuestionnaireId: string | null;
+        questionnaireVersionId: string | null;
       } | null;
     }
   | {
@@ -25,6 +27,37 @@ export type ReportAccessGuardResult =
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
   return normalized || null;
+}
+
+function normalizeOptionalString(value: unknown) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
+function readGrantProjectQuestionnaireId(metadata: unknown) {
+  const record = asRecord(metadata);
+  const scope = asRecord(record.reportScope);
+
+  return (
+    normalizeOptionalString(record.projectQuestionnaireId) ??
+    normalizeOptionalString(scope.projectQuestionnaireId)
+  );
+}
+
+function readGrantQuestionnaireVersionId(metadata: unknown) {
+  const record = asRecord(metadata);
+  const scope = asRecord(record.reportScope);
+
+  return (
+    normalizeOptionalString(record.questionnaireVersionId) ??
+    normalizeOptionalString(scope.questionnaireVersionId)
+  );
 }
 
 function getUserRole(session: unknown) {
@@ -66,14 +99,56 @@ function isGrantCurrentlyValid(grant: {
   return true;
 }
 
+function isGrantInRequestedScope({
+  grant,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  grant: {
+    metadata: unknown;
+  };
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const grantProjectQuestionnaireId = readGrantProjectQuestionnaireId(
+    grant.metadata,
+  );
+
+  const grantQuestionnaireVersionId = readGrantQuestionnaireVersionId(
+    grant.metadata,
+  );
+
+  /**
+   * Jeżeli raport jest wywołany ze scope, grant musi pasować do tego scope.
+   */
+  if (projectQuestionnaireId) {
+    return grantProjectQuestionnaireId === projectQuestionnaireId;
+  }
+
+  if (questionnaireVersionId) {
+    return grantQuestionnaireVersionId === questionnaireVersionId;
+  }
+
+  /**
+   * Jeżeli scope nie został przekazany, nie dopasowujemy grantów scoped,
+   * żeby przypadkiem nie otworzyć raportu dla innego kwestionariusza.
+   * To zostawia kompatybilność tylko dla starych, legacy grantów bez scope.
+   */
+  return !grantProjectQuestionnaireId && !grantQuestionnaireVersionId;
+}
+
 export async function assertCanViewMyAssessmentReport({
   tenantSlug,
   sessionId,
   reportTemplateVersionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
   reportTemplateVersionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }): Promise<ReportAccessGuardResult> {
   if (!tenantSlug || !sessionId || !reportTemplateVersionId) {
     return {
@@ -98,7 +173,7 @@ export async function assertCanViewMyAssessmentReport({
     ? or(eq(reportAccessGrants.userId, userId), eq(reportAccessGrants.email, email))
     : eq(reportAccessGrants.userId, userId);
 
-  const grant = await controlDb.query.reportAccessGrants.findFirst({
+  const candidateGrants = await controlDb.query.reportAccessGrants.findMany({
     where: and(
       eq(reportAccessGrants.tenantSlug, tenantSlug),
       eq(reportAccessGrants.assessmentSessionId, sessionId),
@@ -107,7 +182,21 @@ export async function assertCanViewMyAssessmentReport({
       ownershipCondition,
       isNull(reportAccessGrants.deletedAt),
     ),
+    limit: 50,
   });
+
+  const grant =
+    candidateGrants.find((candidateGrant) => {
+      if (!isGrantCurrentlyValid(candidateGrant)) {
+        return false;
+      }
+
+      return isGrantInRequestedScope({
+        grant: candidateGrant,
+        projectQuestionnaireId,
+        questionnaireVersionId,
+      });
+    }) ?? null;
 
   if (!grant) {
     return {
@@ -116,12 +205,13 @@ export async function assertCanViewMyAssessmentReport({
     };
   }
 
-  if (!isGrantCurrentlyValid(grant)) {
-    return {
-      ok: false,
-      message: "Dostęp do raportu wygasł albo nie jest jeszcze aktywny.",
-    };
-  }
+  const grantProjectQuestionnaireId = readGrantProjectQuestionnaireId(
+    grant.metadata,
+  );
+
+  const grantQuestionnaireVersionId = readGrantQuestionnaireVersionId(
+    grant.metadata,
+  );
 
   return {
     ok: true,
@@ -133,6 +223,8 @@ export async function assertCanViewMyAssessmentReport({
       assessmentSessionId: grant.assessmentSessionId,
       reportTemplateId: grant.reportTemplateId,
       reportTemplateVersionId: grant.reportTemplateVersionId,
+      projectQuestionnaireId: grantProjectQuestionnaireId,
+      questionnaireVersionId: grantQuestionnaireVersionId,
     },
   };
 }

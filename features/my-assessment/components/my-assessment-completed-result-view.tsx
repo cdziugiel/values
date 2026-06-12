@@ -71,6 +71,8 @@ type MyAssessmentCompletedResultViewProps = {
     tenantSlug: string;
     sessionId: string;
     payload: CompletedAssessmentPayload | null;
+    projectQuestionnaireId?: string | null;
+    questionnaireVersionId?: string | null;
   };
 };
 
@@ -523,10 +525,12 @@ export async function MyAssessmentCompletedResultView({
 }: MyAssessmentCompletedResultViewProps) {
   const payload = result.payload;
 
-  const reportAccess = await getMyAssessmentReportAccessState({
-    tenantSlug: result.tenantSlug,
-    sessionId: result.sessionId,
-  });
+const reportAccess = await getMyAssessmentReportAccessState({
+  tenantSlug: result.tenantSlug,
+  sessionId: result.sessionId,
+  projectQuestionnaireId: result.projectQuestionnaireId ?? null,
+  questionnaireVersionId: result.questionnaireVersionId ?? null,
+});
 
   const scores = Array.isArray(payload?.scores) ? payload.scores : [];
   const scoreGroups = groupScoresByCategory(scores);
