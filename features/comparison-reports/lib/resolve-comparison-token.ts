@@ -153,24 +153,31 @@ export async function resolveComparisonToken({
     controlDb,
     dimensionIds: scores.map((row: any) => row.dimensionId),
   });
-  return {
-    type: "shared_token",
-    id: share.id,
-    label: share.label || "Udostępniony wynik",
-    n: 1,
-    questionnaireId: questionnaireId ?? scores[0]?.questionnaireId ?? null,
-    questionnaireVersionId:
-      questionnaireVersionId ?? scores[0]?.questionnaireVersionId ?? null,
-    visibility: {
-      canShow: true,
-    },
-    scores: scores.map((row: any) => ({
-      dimensionId: row.dimensionId,
-      code: row.code,
-      name: row.name,
-      category: categoryByDimensionId.get(row.dimensionId) ?? null,
-      score: row.score == null ? null : Number(row.score),
-      respondentCount: 1,
-    })),
-  };
+return {
+  type: "shared_token",
+  id: share.id,
+  label: share.label || "Udostępniony wynik",
+  n: 1,
+
+  respondentId: share.respondentId,
+  assessmentSessionId: share.assessmentSessionId,
+  assessmentProjectId: null,
+
+  questionnaireId: questionnaireId ?? scores[0]?.questionnaireId ?? null,
+  questionnaireVersionId:
+    questionnaireVersionId ?? scores[0]?.questionnaireVersionId ?? null,
+
+  visibility: {
+    canShow: true,
+  },
+
+  scores: scores.map((row: any) => ({
+    dimensionId: row.dimensionId,
+    code: row.code,
+    name: row.name,
+    category: categoryByDimensionId.get(row.dimensionId) ?? null,
+    score: row.score == null ? null : Number(row.score),
+    respondentCount: 1,
+  })),
+};
 }

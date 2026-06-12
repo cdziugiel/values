@@ -18,6 +18,7 @@ import { requireSession } from "@/server/auth/require-session";
 import {
   getActiveReportAccessGrantForSession,
   getReportAccessOfferForCompletedSession,
+  getReportAccessOfferForCompletedSessionAndReportVersion,
 } from "../api/report-access.queries";
 
 import { UnlockReportAccessPlaceholderForm } from "./unlock-report-access-placeholder-form";
@@ -25,6 +26,9 @@ import { UnlockReportAccessPlaceholderForm } from "./unlock-report-access-placeh
 type UnlockReportAccessPageProps = {
   tenantSlug: string;
   sessionId: string;
+  mode?: "standard" | "comparison";
+  productId?: string | null;
+  reportTemplateVersionId?: string | null;
 };
 
 type ExtendedReportVersion = {
@@ -39,6 +43,34 @@ type ExtendedReportVersion = {
   questionnaireVersionName?: string | null;
   questionnaireVersion?: string | null;
 };
+
+
+function buildUnlockedReportHref({
+  mode,
+  tenantSlug,
+  sessionId,
+  productId,
+  reportTemplateVersionId,
+}: {
+  mode?: "standard" | "comparison";
+  tenantSlug: string;
+  sessionId: string;
+  productId?: string | null;
+  reportTemplateVersionId: string;
+}) {
+  if (mode === "comparison") {
+    return `/my/assessment/compare?product=${encodeURIComponent(
+      productId ?? "",
+    )}&reportTemplateVersionId=${encodeURIComponent(
+      reportTemplateVersionId,
+    )}&ownSessionId=${encodeURIComponent(sessionId)}`;
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?tenant=${encodeURIComponent(
+    tenantSlug,
+  )}`;
+}
+
 
 function formatMoney({
   amount,
@@ -179,13 +211,24 @@ function CenteredState({
 export async function UnlockReportAccessPage({
   tenantSlug,
   sessionId,
+  mode = "standard",
+  productId = null,
+  reportTemplateVersionId = null,
 }: UnlockReportAccessPageProps) {
   const authSession = await requireSession();
 
-  const offer = await getReportAccessOfferForCompletedSession({
-    tenantSlug,
-    sessionId,
-  });
+const offer =
+  mode === "comparison" && reportTemplateVersionId
+    ? await getReportAccessOfferForCompletedSessionAndReportVersion({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId,
+        expectedKind: "comparison",
+      })
+    : await getReportAccessOfferForCompletedSession({
+        tenantSlug,
+        sessionId,
+      });
 
   if (!offer.ok) {
     return (
@@ -222,12 +265,18 @@ export async function UnlockReportAccessPage({
         title="Raport jest już odblokowany"
         description="Masz aktywny dostęp do tego raportu. Możesz przejść bezpośrednio do podglądu albo wrócić do wyniku badania."
       >
-        <BrandLinkButton
-          href={`/my/assessment/sessions/${sessionId}/report/${existingGrant.reportTemplateVersionId}?tenant=${tenantSlug}`}
-        >
-          <FileText size={16} />
-          Zobacz raport
-        </BrandLinkButton>
+<BrandLinkButton
+  href={buildUnlockedReportHref({
+    mode,
+    tenantSlug,
+    sessionId,
+    productId: productId ?? offer.product?.id ?? null,
+    reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+  })}
+>
+  <FileText size={16} />
+  {mode === "comparison" ? "Przejdź do porównania" : "Zobacz raport"}
+</BrandLinkButton>
 
         <BrandLinkButton
           href={`/my/assessment/sessions/${sessionId}/completed?tenant=${tenantSlug}`}
@@ -255,16 +304,17 @@ export async function UnlockReportAccessPage({
                 </span>
               </div>
 
-              <h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
-                Odblokuj raport.
-              </h1>
+<h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
+  {mode === "comparison"
+    ? "Odblokuj raport porównawczy."
+    : "Odblokuj raport."}
+</h1>
 
-              <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
-                Ten raport wymaga aktywnego dostępu. Na tym etapie używany jest
-                placeholder płatności — kliknięcie przycisku zasymuluje
-                opłacenie dostępu i zapisze dostęp do tej konkretnej wersji
-                raportu.
-              </p>
+<p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
+  {mode === "comparison"
+    ? "Ten raport umożliwia porównanie Twojego wyniku z wynikiem udostępnionym przez inną osobę za pomocą tokenu. Po odblokowaniu przejdziesz do konfiguracji porównania."
+    : "Ten raport wymaga aktywnego dostępu. Na tym etapie używany jest placeholder płatności — kliknięcie przycisku zasymuluje opłacenie dostępu i zapisze dostęp do tej konkretnej wersji raportu."}
+</p>
             </div>
 
             <div className="flex flex-col gap-2 md:min-w-56">
@@ -353,6 +403,9 @@ export async function UnlockReportAccessPage({
 <UnlockReportAccessPlaceholderForm
   tenantSlug={tenantSlug}
   sessionId={sessionId}
+  mode={mode}
+  productId={productId ?? product.id}
+  reportTemplateVersionId={reportVersion.reportTemplateVersionId}
   originalAmountCents={Math.round(Number(product.priceGross ?? 0) * 100)}
   currency={product.currency ?? "PLN"}
 />

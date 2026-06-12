@@ -1,7 +1,5 @@
 // features/comparison-reports/components/my-comparison-report-page.tsx
 
-// features/comparison-reports/components/my-comparison-report-page.tsx
-
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
@@ -29,16 +27,49 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
-import { compareMyResultWithTokenAction } from "../api/comparison-report.actions";
+import { createMyComparisonReportWithTokenAction } from "../api/comparison-report.actions";
 import { createMyComparisonShareClientAction } from "../api/comparison-share-client.actions";
 import type { MyComparisonQuestionnaireOption } from "../api/my-comparison-session.queries";
 import type { ComparisonReportData } from "../types/comparison-report.types";
 import { ComparisonDimensionTable } from "./comparison-dimension-table";
 import { ComparisonSummaryCards } from "./comparison-summary-cards";
+import { ProjectComparisonSubjectOption } from "../api/project-comparison-subjects.queries";
 
 type MyComparisonReportPageProps = {
   questionnaires: MyComparisonQuestionnaireOption[];
+  productId?: string | null;
+  reportTemplateVersionId?: string | null;
+  mode?: "full" | "token-only" | "configure-only";
+  initialOwnSessionId?: string | null;
 };
+
+function getQuestionnaireOptions(subjects: ProjectComparisonSubjectOption[]) {
+  const map = new Map<
+    string,
+    {
+      questionnaireVersionId: string;
+      label: string;
+      count: number;
+    }
+  >();
+
+  for (const subject of subjects) {
+    const current = map.get(subject.questionnaireVersionId);
+
+    if (current) {
+      current.count += 1;
+      continue;
+    }
+
+    map.set(subject.questionnaireVersionId, {
+      questionnaireVersionId: subject.questionnaireVersionId,
+      label: subject.questionnaireLabel,
+      count: 1,
+    });
+  }
+
+  return Array.from(map.values());
+}
 
 function buildQuestionnaireKey(option: MyComparisonQuestionnaireOption) {
   return `${option.assessmentSessionId}:${option.questionnaireVersionId}`;
@@ -46,23 +77,36 @@ function buildQuestionnaireKey(option: MyComparisonQuestionnaireOption) {
 
 export function MyComparisonReportPage({
   questionnaires,
+  productId,
+  reportTemplateVersionId,
+  mode = "full",
+  initialOwnSessionId = null,
 }: MyComparisonReportPageProps) {
   const firstOption = questionnaires[0] ?? null;
 
-  const [ownKey, setOwnKey] = useState(
-    firstOption ? buildQuestionnaireKey(firstOption) : "",
-  );
+const [ownKey, setOwnKey] = useState(() => {
+  const initialOption = initialOwnSessionId
+    ? questionnaires.find(
+        (option) => option.assessmentSessionId === initialOwnSessionId,
+      )
+    : null;
 
+  return initialOption
+    ? buildQuestionnaireKey(initialOption)
+    : questionnaires[0]
+      ? buildQuestionnaireKey(questionnaires[0])
+      : "";
+});
   const [otherToken, setOtherToken] = useState("");
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [generatedTokenExpiresAt, setGeneratedTokenExpiresAt] = useState<
     string | null
   >(null);
+
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
   );
 
-  const [data, setData] = useState<ComparisonReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
 
@@ -71,10 +115,18 @@ export function MyComparisonReportPage({
 
   const selectedQuestionnaire = useMemo(() => {
     return (
-      questionnaires.find((option) => buildQuestionnaireKey(option) === ownKey) ??
-      null
+      questionnaires.find(
+        (option) => buildQuestionnaireKey(option) === ownKey,
+      ) ?? null
     );
   }, [questionnaires, ownKey]);
+
+const canSubmit = Boolean(
+  selectedQuestionnaire &&
+    productId &&
+    reportTemplateVersionId &&
+    otherToken.trim().length >= 24,
+);
 
   function resetGeneratedToken() {
     setGeneratedToken(null);
@@ -123,35 +175,49 @@ export function MyComparisonReportPage({
     }
   }
 
-  function handleCompare() {
-    if (!selectedQuestionnaire) return;
+function handleCompare() {
+  if (!selectedQuestionnaire) return;
 
-    setError(null);
-    setData(null);
+  if (!productId || !reportTemplateVersionId) {
+    setError(
+      "Nie masz aktywnego dostępu do raportu porównawczego. Kup porównanie, aby wygenerować raport.",
+    );
+    return;
+  }
 
-    startCompareTransition(async () => {
-      const result = await compareMyResultWithTokenAction({
-        ownSessionId: selectedQuestionnaire.assessmentSessionId,
-        ownQuestionnaireVersionId:
-          selectedQuestionnaire.questionnaireVersionId,
-        otherToken: otherToken.trim(),
-      });
+  setError(null);
 
-      if (!result.ok) {
-        setError(result.error);
+  startCompareTransition(async () => {
+    const result = await createMyComparisonReportWithTokenAction({
+      ownSessionId: selectedQuestionnaire.assessmentSessionId,
+      ownQuestionnaireVersionId: selectedQuestionnaire.questionnaireVersionId,
+      otherToken: otherToken.trim(),
+
+      assessmentProjectId: selectedQuestionnaire.assessmentProjectId,
+
+      productId,
+      reportTemplateVersionId,
+    });
+
+      if (!result.ok || !result.reportHref) {
+        if (result.reason === "missing_report_access") {
+          setError(
+            "Nie masz jeszcze dostępu do raportu porównawczego. Kup dostęp, aby wygenerować raport.",
+          );
+          return;
+        }
+
+        setError(result.error ?? "Nie udało się wygenerować raportu.");
         return;
       }
 
-      setData(result.data);
+        window.location.assign(result.reportHref);
     });
   }
 
-  const canSubmit = Boolean(
-    selectedQuestionnaire && otherToken.trim().length >= 24,
-  );
-
-  return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+return (
+  <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+    {mode !== "configure-only" ? (
       <section className="overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-background to-muted/50 shadow-sm">
         <div className="relative p-6 md:p-8">
           <div className="absolute right-6 top-6 hidden rounded-full border bg-background/80 px-3 py-1 text-xs text-muted-foreground backdrop-blur md:block">
@@ -168,11 +234,12 @@ export function MyComparisonReportPage({
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 Porównaj profile wartości
               </h1>
+
               <p className="mt-3 text-sm leading-6 text-muted-foreground md:text-base">
                 Wybierz swój ukończony kwestionariusz, wygeneruj token do
                 udostępnienia albo wklej token otrzymany od drugiej osoby.
-                Porównanie pokazuje wyłącznie profil wyników — bez odpowiedzi
-                na pytania i bez pełnego raportu.
+                Porównanie pokazuje profil wyników — bez odpowiedzi na pytania
+                i bez dostępu do pełnego raportu drugiej osoby.
               </p>
             </div>
 
@@ -181,7 +248,9 @@ export function MyComparisonReportPage({
                 <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                 </div>
+
                 <p className="text-sm font-medium">Dobrowolne</p>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   Token tworzy osoba, która chce udostępnić swój wynik.
                 </p>
@@ -191,7 +260,9 @@ export function MyComparisonReportPage({
                 <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
                   <Lock className="h-4 w-4 text-primary" />
                 </div>
+
                 <p className="text-sm font-medium">Ograniczone</p>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   Token nie daje dostępu do odpowiedzi ani pełnego raportu.
                 </p>
@@ -201,7 +272,9 @@ export function MyComparisonReportPage({
                 <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
                   <KeyRound className="h-4 w-4 text-primary" />
                 </div>
+
                 <p className="text-sm font-medium">Czasowe</p>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   Token ma ograniczoną ważność i może zostać odwołany.
                 </p>
@@ -210,45 +283,59 @@ export function MyComparisonReportPage({
           </div>
         </div>
       </section>
+    ) : null}
 
-      {!questionnaires.length ? (
-        <Alert>
-          <AlertTitle>Brak ukończonych kwestionariuszy</AlertTitle>
-          <AlertDescription>
-            Aby porównać wyniki, najpierw ukończ przynajmniej jeden
-            kwestionariusz.
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
+    {!questionnaires.length ? (
+      <Alert>
+        <AlertTitle>Brak ukończonych kwestionariuszy</AlertTitle>
+        <AlertDescription>
+          Aby porównać wyniki, najpierw ukończ przynajmniej jeden
+          kwestionariusz.
+        </AlertDescription>
+      </Alert>
+    ) : (
+      <section
+        className={
+          mode === "full"
+            ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]"
+            : "grid gap-6"
+        }
+      >
+        {mode !== "configure-only" ? (
           <Card className="rounded-3xl shadow-sm">
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <CardTitle>1. Wybierz swój wynik</CardTitle>
+                  <CardTitle>
+                    {mode === "token-only"
+                      ? "Udostępnij swój wynik"
+                      : "1. Wybierz swój wynik"}
+                  </CardTitle>
+
                   <p className="mt-1 text-sm text-muted-foreground">
                     Do porównania pokazujemy tylko ukończone kwestionariusze.
                   </p>
                 </div>
 
-                <Badge variant="outline">{questionnaires.length} dostępne</Badge>
+                <Badge variant="outline">
+                  {questionnaires.length} dostępne
+                </Badge>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="own-questionnaire">
+                <Label htmlFor="own-questionnaire-token">
                   Ukończony kwestionariusz
                 </Label>
 
                 <select
-                  id="own-questionnaire"
+                  id="own-questionnaire-token"
                   className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm shadow-sm outline-none transition focus:ring-2 focus:ring-ring"
                   value={ownKey}
                   onChange={(event) => {
                     setOwnKey(event.target.value);
                     resetGeneratedToken();
-                    setData(null);
                     setError(null);
                   }}
                 >
@@ -268,8 +355,9 @@ export function MyComparisonReportPage({
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="font-medium">
-                          {selectedQuestionnaire.label}
+                          {selectedQuestionnaire.questionnaireName}
                         </p>
+
                         <p className="mt-1 text-xs text-muted-foreground">
                           Projekt:{" "}
                           {selectedQuestionnaire.assessmentProjectName}
@@ -294,11 +382,12 @@ export function MyComparisonReportPage({
               <div className="space-y-4">
                 <div>
                   <h2 className="text-sm font-semibold">
-                    2. Udostępnij swój token
+                    Utwórz token do udostępnienia
                   </h2>
+
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Wygeneruj token i wyślij go osobie, z którą chcesz porównać
-                    wynik.
+                    Wygeneruj token i wyślij go osobie, która kupiła raport
+                    porównawczy i chce porównać swój wynik z Twoim.
                   </p>
                 </div>
 
@@ -331,6 +420,7 @@ export function MyComparisonReportPage({
                         <p className="text-sm font-medium">
                           Token gotowy do udostępnienia
                         </p>
+
                         <p className="mt-1 text-xs text-muted-foreground">
                           Skopiuj i prześlij drugiej osobie.
                         </p>
@@ -377,27 +467,107 @@ export function MyComparisonReportPage({
               </div>
             </CardContent>
           </Card>
+        ) : null}
 
+        {mode !== "token-only" ? (
           <Card className="rounded-3xl shadow-sm">
             <CardHeader>
-              <CardTitle>3. Porównaj z drugą osobą</CardTitle>
+              <CardTitle>
+                {mode === "configure-only"
+                  ? "Skonfiguruj zakupione porównanie"
+                  : "3. Porównaj z drugą osobą"}
+              </CardTitle>
+
               <p className="text-sm text-muted-foreground">
-                Wklej token otrzymany od drugiej osoby i uruchom porównanie.
+                Wybierz swój wynik, wklej token otrzymany od drugiej osoby i
+                wygeneruj raport porównawczy.
               </p>
             </CardHeader>
 
             <CardContent className="space-y-5">
+              {mode === "configure-only" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="own-questionnaire-configure">
+                      Twój wynik bazowy
+                    </Label>
+
+                    <select
+                      id="own-questionnaire-configure"
+                      className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm shadow-sm outline-none transition focus:ring-2 focus:ring-ring"
+                      value={ownKey}
+                      onChange={(event) => {
+                        setOwnKey(event.target.value);
+                        setError(null);
+                      }}
+                    >
+                      {questionnaires.map((option) => {
+                        const key = buildQuestionnaireKey(option);
+
+                        return (
+                          <option key={key} value={key}>
+                            {option.label}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {selectedQuestionnaire ? (
+                      <div className="rounded-2xl border bg-muted/20 p-4 text-sm">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="font-medium">
+                              {selectedQuestionnaire.questionnaireName}
+                            </p>
+
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Projekt:{" "}
+                              {selectedQuestionnaire.assessmentProjectName}
+                            </p>
+                          </div>
+
+                          {selectedQuestionnaire.completedAt ? (
+                            <Badge variant="secondary">
+                              ukończono{" "}
+                              {new Date(
+                                selectedQuestionnaire.completedAt,
+                              ).toLocaleDateString("pl-PL")}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <Separator />
+                </>
+              ) : null}
+
+              {!productId || !reportTemplateVersionId ? (
+                <Alert>
+                  <AlertTitle>Brak aktywnego dostępu</AlertTitle>
+                  <AlertDescription>
+                    Aby wygenerować raport porównawczy, najpierw kup
+                    porównanie. Nadal możesz wygenerować token i przekazać go
+                    innej osobie.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               <div className="space-y-2">
                 <Label htmlFor="comparison-token">
                   Token otrzymany od drugiej osoby
                 </Label>
 
-                <Textarea
+                <Input
                   id="comparison-token"
                   value={otherToken}
-                  onChange={(event) => setOtherToken(event.target.value)}
+                  onChange={(event) => {
+                    setOtherToken(event.target.value);
+                    setError(null);
+                  }}
                   placeholder="Wklej token porównania..."
-                  className="min-h-32 rounded-xl font-mono text-xs"
+                  className=" rounded-xl font-mono text-xs"
                 />
 
                 <p className="text-xs text-muted-foreground">
@@ -428,50 +598,9 @@ export function MyComparisonReportPage({
               </Button>
             </CardContent>
           </Card>
-        </section>
-      )}
-
-{data ? (
-  <section className="space-y-5">
-    <div>
-      <h2 className="text-xl font-semibold tracking-tight">
-        Wynik porównania
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Zestawienie pokazuje różnice pomiędzy wybranym wynikiem a profilem
-        udostępnionym przez token.
-      </p>
-    </div>
-
-    {data.metadata.warnings.length ? (
-      <Alert
-        variant={
-          data.metadata.comparisonBlockedReason ? "destructive" : "default"
-        }
-      >
-        <AlertTitle>
-          {data.metadata.comparisonBlockedReason
-            ? "Nie można wykonać porównania"
-            : "Uwaga interpretacyjna"}
-        </AlertTitle>
-        <AlertDescription>
-          {data.metadata.warnings.join(" ")}
-        </AlertDescription>
-      </Alert>
-    ) : null}
-
-    <div className="grid gap-4 md:grid-cols-2">
-      ...
-    </div>
-
-    {!data.metadata.comparisonBlockedReason ? (
-      <>
-        <ComparisonSummaryCards data={data} />
-        <ComparisonDimensionTable data={data} />
-      </>
-    ) : null}
-  </section>
-) : null}
-    </div>
-  );
+        ) : null}
+      </section>
+    )}
+  </div>
+);
 }

@@ -28,6 +28,7 @@ import { controlDb } from "@/server/db/control-db";
 import {
   getActiveReportAccessGrantForSession,
   getReportAccessOfferForCompletedSession,
+  getReportAccessOfferForCompletedSessionAndReportVersion,
 } from "./report-access.queries";
 
 import { redeemDiscountForCheckout } from "@/features/discount-codes/api/discount-code.mutations";
@@ -119,12 +120,26 @@ function buildReportHref({
   sessionId,
   reportTemplateVersionId,
   tenantSlug,
+  mode,
+  productId,
 }: {
   sessionId: string;
   reportTemplateVersionId: string;
   tenantSlug: string;
+  mode?: string | null;
+  productId?: string | null;
 }) {
-  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?tenant=${tenantSlug}`;
+  if (mode === "comparison") {
+    return `/my/assessment/compare?product=${encodeURIComponent(
+      productId ?? "",
+    )}&reportTemplateVersionId=${encodeURIComponent(
+      reportTemplateVersionId,
+    )}&ownSessionId=${encodeURIComponent(sessionId)}`;
+  }
+
+  return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?tenant=${encodeURIComponent(
+    tenantSlug,
+  )}`;
 }
 
 export async function unlockReportAccessPlaceholderAction(
@@ -136,14 +151,28 @@ export async function unlockReportAccessPlaceholderAction(
   const tenantSlug = normalizeString(formData.get("tenantSlug"));
   const sessionId = normalizeString(formData.get("sessionId"));
 
+  const mode = normalizeString(formData.get("mode")) || "standard";
+const productIdFromInput = normalizeOptionalString(formData.get("productId"));
+const reportTemplateVersionIdFromInput = normalizeOptionalString(
+  formData.get("reportTemplateVersionId"),
+);
+
   if (!tenantSlug || !sessionId) {
     return fail("Brakuje danych sesji lub tenanta.");
   }
 
-  const offer = await getReportAccessOfferForCompletedSession({
-    tenantSlug,
-    sessionId,
-  });
+const offer =
+  mode === "comparison" && reportTemplateVersionIdFromInput
+    ? await getReportAccessOfferForCompletedSessionAndReportVersion({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId: reportTemplateVersionIdFromInput,
+        expectedKind: "comparison",
+      })
+    : await getReportAccessOfferForCompletedSession({
+        tenantSlug,
+        sessionId,
+      });
 
   if (!offer.ok) {
     return fail(offer.message);
@@ -162,15 +191,17 @@ export async function unlockReportAccessPlaceholderAction(
       userId: authSession.user.id,
     }));
 
-  if (existingGrant) {
-    redirect(
-      buildReportHref({
-        sessionId,
-        tenantSlug,
-        reportTemplateVersionId: existingGrant.reportTemplateVersionId,
-      }),
-    );
-  }
+if (existingGrant) {
+  redirect(
+    buildReportHref({
+      sessionId,
+      tenantSlug,
+      reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+      mode,
+      productId: productIdFromInput ?? offer.product?.id ?? null,
+    }),
+  );
+}
 
   /**
    * Dodatkowe zabezpieczenie:
@@ -189,16 +220,18 @@ export async function unlockReportAccessPlaceholderAction(
       ),
     });
 
-  if (existingGrantByReportType) {
-    redirect(
-      buildReportHref({
-        sessionId,
-        tenantSlug,
-        reportTemplateVersionId:
-          existingGrantByReportType.reportTemplateVersionId,
-      }),
-    );
-  }
+if (existingGrantByReportType) {
+  redirect(
+    buildReportHref({
+      sessionId,
+      tenantSlug,
+      reportTemplateVersionId:
+        existingGrantByReportType.reportTemplateVersionId,
+      mode,
+      productId: productIdFromInput ?? offer.product?.id ?? null,
+    }),
+  );
+}
 
   const now = new Date();
   const discountCode = normalizeOptionalString(formData.get("discountCode"));
@@ -272,6 +305,8 @@ metadata: {
   placeholder: !isFullyDiscounted,
   paidByDiscount: isFullyDiscounted,
   tenantSlug,
+  mode,
+  reportKind: mode === "comparison" ? "comparison" : "personal",
   assessmentSessionId: sessionId,
   reportTemplateId: offer.reportVersion.reportTemplateId,
   reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
@@ -346,6 +381,8 @@ await controlDb.insert(reportAccessOrderItems).values({
 metadata: {
   placeholder: !isFullyDiscounted,
   paidByDiscount: isFullyDiscounted,
+  mode,
+  reportKind: mode === "comparison" ? "comparison" : "personal",
   productCode: offer.product.code,
   productName: offer.product.name,
   orderId: order.id,
@@ -369,13 +406,15 @@ metadata: {
       reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
     });
 
-  redirect(
-    buildReportHref({
-      sessionId,
-      tenantSlug,
-      reportTemplateVersionId: grant.reportTemplateVersionId,
-    }),
-  );
+redirect(
+  buildReportHref({
+    sessionId,
+    tenantSlug,
+    reportTemplateVersionId: grant.reportTemplateVersionId,
+    mode,
+    productId: productIdFromInput ?? offer.product.id,
+  }),
+);
 }
 
 

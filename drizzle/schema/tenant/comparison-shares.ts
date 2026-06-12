@@ -1,3 +1,4 @@
+// drizzle/schema/tenant/comparison-shares.ts
 import {
   boolean,
   index,

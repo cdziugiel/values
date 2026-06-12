@@ -11,6 +11,9 @@ type PageProps = {
   }>;
   searchParams: Promise<{
     tenant?: string;
+    mode?: string;
+    product?: string;
+    reportTemplateVersionId?: string;
   }>;
 };
 
@@ -19,7 +22,8 @@ export default async function Page({
   searchParams,
 }: PageProps) {
   const { sessionId } = await params;
-  const { tenant } = await searchParams;
+    const { tenant, mode, product, reportTemplateVersionId } =
+    await searchParams;
 
   if (!tenant) {
     notFound();
@@ -27,8 +31,11 @@ export default async function Page({
 
   return (
     <UnlockReportAccessPage
-      tenantSlug={tenant}
+      tenantSlug={tenant ?? "humanet"}
       sessionId={sessionId}
+      mode={mode === "comparison" ? "comparison" : "standard"}
+      productId={product ?? null}
+      reportTemplateVersionId={reportTemplateVersionId ?? null}
     />
   );
 }

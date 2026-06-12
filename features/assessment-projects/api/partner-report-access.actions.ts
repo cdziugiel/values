@@ -1,3 +1,4 @@
+// features/assessment-projects/api/partner-report-access.actions.ts
 "use server";
 
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
@@ -6,7 +7,7 @@ import { getPersonalCompositeReport } from "@/features/assessment-results/api/pe
 import crypto from "crypto";
 import { and, desc, eq, isNull, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-
+import { redirect } from "next/navigation";
 import {
   reportAccessCodes,
   reportAccessGrants,
@@ -1387,7 +1388,13 @@ export async function grantPartnerReportAccessAction(
       message: "Brakuje danych do użycia dostępu raportu partnera.",
     };
   }
-
+if (reportTemplateKind === "comparison") {
+  return {
+    status: "error",
+    message:
+      "Raport porównawczy wymaga najpierw konfiguracji porównywanych obiektów.",
+  };
+}
   try {
     const ctx = await requireTenantContext({ tenantSlug });
     requirePermission(ctx, "report:generate");
@@ -1553,5 +1560,274 @@ export async function grantPartnerReportAccessAction(
           ? error.message
           : "Nie udało się aktywować dostępu do raportu partnera.",
     };
+  }
+}
+
+export async function grantComparisonReportAccessAction(
+  _previousState: PartnerGrantReportAccessState,
+  formData: FormData,
+): Promise<PartnerGrantReportAccessState> {
+  const tenantSlug = normalizeString(formData.get("tenantSlug"));
+  const assessmentProjectId = normalizeString(formData.get("assessmentProjectId"));
+  const productId = normalizeString(formData.get("productId"));
+  const reportTemplateVersionId = normalizeString(
+    formData.get("reportTemplateVersionId"),
+  );
+
+  const leftRespondentId = normalizeString(formData.get("leftRespondentId"));
+  const rightRespondentId = normalizeString(formData.get("rightRespondentId"));
+
+  const leftLabel =
+    normalizeString(formData.get("leftLabel")) ?? "Osoba A";
+  const rightLabel =
+    normalizeString(formData.get("rightLabel")) ?? "Osoba B";
+
+  if (
+    !tenantSlug ||
+    !assessmentProjectId ||
+    !productId ||
+    !reportTemplateVersionId ||
+    !leftRespondentId ||
+    !rightRespondentId
+  ) {
+    return fail("Brakuje danych do utworzenia raportu porównawczego.");
+  }
+
+  if (leftRespondentId === rightRespondentId) {
+    return fail("Nie można porównać respondenta z samym sobą.");
+  }
+
+  try {
+    const ctx = await requireTenantContext({ tenantSlug });
+    requirePermission(ctx, "report:generate");
+
+    const db = await getTenantDb(ctx);
+
+    const project = await db.query.assessmentProjects.findFirst({
+      where: and(
+        eq(assessmentProjects.id, assessmentProjectId),
+        isNull(assessmentProjects.deletedAt),
+      ),
+      columns: {
+        id: true,
+        clientOrganizationId: true,
+        name: true,
+      },
+    });
+
+    if (!project) {
+      return fail("Nie znaleziono projektu badawczego.");
+    }
+
+    const selectedRespondents = await db
+      .select({
+        id: respondents.id,
+        email: respondentIdentities.email,
+      })
+      .from(respondents)
+      .innerJoin(
+        respondentIdentities,
+        eq(respondentIdentities.respondentId, respondents.id),
+      )
+      .where(
+        and(
+          inArray(respondents.id, [leftRespondentId, rightRespondentId]),
+          isNull(respondents.deletedAt),
+          isNull(respondentIdentities.deletedAt),
+        ),
+      );
+
+    const selectedRespondentIds = new Set(
+      selectedRespondents.map((respondent) => respondent.id),
+    );
+
+    if (
+      !selectedRespondentIds.has(leftRespondentId) ||
+      !selectedRespondentIds.has(rightRespondentId)
+    ) {
+      return fail("Nie znaleziono jednego z porównywanych respondentów.");
+    }
+
+    const completedSessionRows = await db
+      .select({
+        respondentId: assessmentSessions.respondentId,
+        sessionId: assessmentSessions.id,
+      })
+      .from(assessmentSessions)
+      .where(
+        and(
+          eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+          inArray(assessmentSessions.respondentId, [
+            leftRespondentId,
+            rightRespondentId,
+          ]),
+          eq(assessmentSessions.status, "completed"),
+          isNull(assessmentSessions.deletedAt),
+        ),
+      );
+
+    const respondentsWithCompletedSessions = new Set(
+      completedSessionRows.map((row) => row.respondentId),
+    );
+
+    if (
+      !respondentsWithCompletedSessions.has(leftRespondentId) ||
+      !respondentsWithCompletedSessions.has(rightRespondentId)
+    ) {
+      return fail(
+        "Obaj respondenci muszą mieć ukończone sesje w tym projekcie.",
+      );
+    }
+
+    const product = await controlDb.query.reportAccessProducts.findFirst({
+      where: and(
+        eq(reportAccessProducts.id, productId),
+        eq(reportAccessProducts.status, "active"),
+        isNull(reportAccessProducts.deletedAt),
+      ),
+    });
+
+    if (!product) {
+      return fail("Nie znaleziono aktywnego produktu raportu porównawczego.");
+    }
+
+    const reportVersion =
+      await controlDb.query.reportTemplateVersions.findFirst({
+        where: and(
+          eq(reportTemplateVersions.id, reportTemplateVersionId),
+          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
+          eq(reportTemplateVersions.status, "active"),
+          isNull(reportTemplateVersions.deletedAt),
+        ),
+      });
+
+    if (!reportVersion) {
+      return fail("Nie znaleziono aktywnej wersji raportu porównawczego.");
+    }
+
+    const accessCode = await controlDb.query.reportAccessCodes.findFirst({
+      where: and(
+        eq(reportAccessCodes.tenantSlug, tenantSlug),
+        eq(reportAccessCodes.productId, productId),
+        eq(reportAccessCodes.status, "available"),
+        or(
+          isNull(reportAccessCodes.assessmentProjectId),
+          eq(reportAccessCodes.assessmentProjectId, assessmentProjectId),
+        ),
+        isNull(reportAccessCodes.assessmentSessionId),
+        isNull(reportAccessCodes.assessmentAccessLinkId),
+        isNull(reportAccessCodes.assignedToEmail),
+        isNull(reportAccessCodes.assignedToUserId),
+        isNull(reportAccessCodes.deletedAt),
+      ),
+      orderBy: (codes, { asc }) => [asc(codes.createdAt)],
+    });
+
+    if (!accessCode) {
+      return fail("Brak wolnych dostępów w puli dla raportu porównawczego.");
+    }
+
+    const now = new Date();
+
+    const validUntil =
+      typeof product.validityDays === "number" && product.validityDays > 0
+        ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+        : null;
+
+    const comparisonDefinition = {
+      mode: "user_vs_user",
+      groups: [
+        {
+          key: "left",
+          label: leftLabel,
+          subjectType: "respondent",
+          subjectId: leftRespondentId,
+        },
+        {
+          key: "right",
+          label: rightLabel,
+          subjectType: "respondent",
+          subjectId: rightRespondentId,
+        },
+      ],
+    };
+
+    const result = await controlDb.transaction(async (tx) => {
+      const [grant] = await tx
+        .insert(reportAccessGrants)
+        .values({
+          source: "admin_grant",
+          status: "active",
+
+          productId: product.id,
+          accessCodeId: accessCode.id,
+
+          reportTemplateId: product.reportTemplateId,
+          reportTemplateVersionId,
+
+          tenantSlug,
+          userId: null,
+          email: null,
+
+          subjectType: "comparison",
+          subjectId: assessmentProjectId,
+
+          assessmentProjectId,
+          assessmentSessionId: null,
+          assessmentAccessLinkId: null,
+
+          validFrom: now,
+          validUntil,
+
+          metadata: {
+            reportKind: "comparison",
+            partnerGranted: true,
+            assessmentProjectId,
+            comparisonDefinition,
+          },
+
+          createdAt: now,
+          updatedAt: now,
+          createdBy: ctx.userId,
+          updatedBy: ctx.userId,
+        })
+        .returning({
+          id: reportAccessGrants.id,
+        });
+
+      await tx
+        .update(reportAccessCodes)
+        .set({
+          status: "redeemed",
+          redeemedAt: now,
+          assessmentProjectId,
+          updatedAt: now,
+          updatedBy: ctx.userId,
+          metadata: {
+            grantId: grant.id,
+            reportKind: "comparison",
+            comparisonDefinition,
+          },
+        })
+        .where(eq(reportAccessCodes.id, accessCode.id));
+
+      return {
+        grantId: grant.id,
+      };
+    });
+
+    revalidatePath(
+      `/dashboard/partner-assessment/${tenantSlug}/projects/${assessmentProjectId}`,
+    );
+
+    revalidatePath(
+      `/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/respondents`,
+    );
+
+    redirect(
+      `/t/${tenantSlug}/assessment-projects/${assessmentProjectId}/partner-reports/${result.grantId}`,
+    );
+  } catch (error) {
+    throw error;
   }
 }

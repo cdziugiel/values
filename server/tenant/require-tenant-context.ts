@@ -1,3 +1,5 @@
+// server/tenant/require-tenant-context.ts
+
 import { and, eq, isNull } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 

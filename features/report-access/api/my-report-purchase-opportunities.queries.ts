@@ -444,19 +444,233 @@ async function getCompositeReportPurchaseOpportunities({
   );
 }
 
+
+function isComparisonReportTemplateKind(kind: unknown) {
+  return kind === "comparison";
+}
+
+async function hasActiveGrantForSpecialReportTemplate({
+  tenantSlug,
+  reportTemplateId,
+  userId,
+  email,
+}: {
+  tenantSlug: string;
+  reportTemplateId: string;
+  userId: string;
+  email: string | null;
+}) {
+  const grants = await controlDb
+    .select({
+      id: reportAccessGrants.id,
+      status: reportAccessGrants.status,
+      validFrom: reportAccessGrants.validFrom,
+      validUntil: reportAccessGrants.validUntil,
+      userId: reportAccessGrants.userId,
+      email: reportAccessGrants.email,
+    })
+    .from(reportAccessGrants)
+    .where(
+      and(
+        eq(reportAccessGrants.tenantSlug, tenantSlug),
+        eq(reportAccessGrants.reportTemplateId, reportTemplateId),
+        eq(reportAccessGrants.status, "active"),
+        isNull(reportAccessGrants.deletedAt),
+        or(
+          eq(reportAccessGrants.userId, userId),
+          email ? eq(reportAccessGrants.email, email) : undefined,
+        ),
+      ),
+    )
+    .limit(10);
+
+  return grants.some((grant) =>
+    isCurrentlyActive({
+      status: grant.status,
+      validFrom: grant.validFrom,
+      validUntil: grant.validUntil,
+    }),
+  );
+}
+
+async function getComparisonReportPurchaseOpportunities({
+  tenantSlug,
+}: {
+  tenantSlug: string;
+}) {
+  const resolved = await resolveRespondentForCurrentUser({ tenantSlug });
+
+  if (!resolved.ok) {
+    return [];
+  }
+
+  const completedSessions = await resolved.tenant.db
+    .select({
+      sessionId: assessmentSessions.id,
+      completedAt: assessmentSessions.completedAt,
+      assessmentProjectId: assessmentSessions.assessmentProjectId,
+      assessmentProjectName: assessmentProjects.name,
+    })
+    .from(assessmentSessions)
+    .leftJoin(
+      assessmentProjects,
+      eq(assessmentProjects.id, assessmentSessions.assessmentProjectId),
+    )
+    .where(
+      and(
+        eq(assessmentSessions.respondentId, resolved.respondent.id),
+        eq(assessmentSessions.status, "completed"),
+        isNull(assessmentSessions.deletedAt),
+      ),
+    )
+    .orderBy(desc(assessmentSessions.completedAt));
+
+  const completedSessionsCount = completedSessions.length;
+
+  const comparisonProducts = await controlDb
+    .select({
+      productId: reportAccessProducts.id,
+      productCode: reportAccessProducts.code,
+      productName: reportAccessProducts.name,
+      productDescription: reportAccessProducts.description,
+      priceGross: reportAccessProducts.priceGross,
+      priceNet: reportAccessProducts.priceNet,
+      vatRate: reportAccessProducts.vatRate,
+      currency: reportAccessProducts.currency,
+      validityDays: reportAccessProducts.validityDays,
+
+      reportTemplateId: reportTemplates.id,
+      reportTemplateCode: reportTemplates.code,
+      reportTemplateName: reportTemplates.name,
+      reportTemplateDescription: reportTemplates.description,
+      reportTemplateKind: reportTemplates.kind,
+
+      reportTemplateVersionId: reportTemplateVersions.id,
+      reportTemplateVersionName: reportTemplateVersions.name,
+      reportTemplateVersion: reportTemplateVersions.version,
+      reportTemplateVersionStatus: reportTemplateVersions.status,
+      isDefaultVersion: reportTemplateVersions.isDefault,
+      versionCreatedAt: reportTemplateVersions.createdAt,
+    })
+    .from(reportAccessProducts)
+    .innerJoin(
+      reportTemplates,
+      eq(reportTemplates.id, reportAccessProducts.reportTemplateId),
+    )
+    .innerJoin(
+      reportTemplateVersions,
+      eq(reportTemplateVersions.reportTemplateId, reportTemplates.id),
+    )
+    .where(
+      and(
+        eq(reportAccessProducts.status, "active"),
+        eq(reportTemplates.status, "active"),
+        eq(reportTemplates.kind, "comparison"),
+        eq(reportTemplateVersions.status, "active"),
+        isNull(reportAccessProducts.deletedAt),
+        isNull(reportTemplates.deletedAt),
+        isNull(reportTemplateVersions.deletedAt),
+      ),
+    )
+    .orderBy(
+      desc(reportTemplateVersions.isDefault),
+      desc(reportTemplateVersions.createdAt),
+    );
+
+  if (!comparisonProducts.length) {
+    return [];
+  }
+
+  /**
+   * Bierzemy jedną aktywną wersję na template:
+   * domyślną albo najnowszą.
+   */
+  const uniqueByTemplate = new Map<
+    string,
+    (typeof comparisonProducts)[number]
+  >();
+
+  for (const row of comparisonProducts) {
+    if (!isComparisonReportTemplateKind(row.reportTemplateKind)) {
+      continue;
+    }
+
+    if (!uniqueByTemplate.has(row.reportTemplateId)) {
+      uniqueByTemplate.set(row.reportTemplateId, row);
+    }
+  }
+
+  const offers = [];
+
+  for (const row of uniqueByTemplate.values()) {
+
+
+    const hasCompletedSession = completedSessionsCount > 0;
+
+    offers.push({
+      kind: "comparison" as const,
+      tenantSlug,
+
+      product: {
+        id: row.productId,
+        code: row.productCode,
+        name: row.productName,
+        description: row.productDescription,
+        priceGross: row.priceGross,
+        priceNet: row.priceNet,
+        vatRate: row.vatRate,
+        currency: row.currency,
+        validityDays: row.validityDays,
+      },
+
+      reportTemplate: {
+        id: row.reportTemplateId,
+        code: row.reportTemplateCode,
+        name: row.reportTemplateName,
+        description: row.reportTemplateDescription,
+        kind: row.reportTemplateKind,
+      },
+
+      reportTemplateVersion: {
+        id: row.reportTemplateVersionId,
+        name: row.reportTemplateVersionName,
+        version: row.reportTemplateVersion,
+        status: row.reportTemplateVersionStatus,
+      },
+
+      completedSessionsCount,
+
+      status: hasCompletedSession
+        ? ("ready" as const)
+        : ("missing_sources" as const),
+
+      canBuy: hasCompletedSession,
+
+      message: hasCompletedSession
+        ? "Możesz odblokować raport porównawczy. Wynik bazowy wybierzesz po odblokowaniu raportu."
+        : "Aby odblokować raport porównawczy, potrzebujesz przynajmniej jednego ukończonego wyniku.",
+    });
+  }
+
+  return offers;
+}
+
 export async function getMyReportPurchaseOpportunities({
   tenantSlug = DEFAULT_PUBLIC_TENANT_SLUG,
 }: {
   tenantSlug?: string;
 } = {}) {
-  const [sessionReportOffers, compositeOffers] = await Promise.all([
-    getSessionReportPurchaseOpportunities({ tenantSlug }),
-    getCompositeReportPurchaseOpportunities({ tenantSlug }),
-  ]);
+  const [sessionReportOffers, compositeOffers, comparisonOffers] =
+    await Promise.all([
+      getSessionReportPurchaseOpportunities({ tenantSlug }),
+      getCompositeReportPurchaseOpportunities({ tenantSlug }),
+      getComparisonReportPurchaseOpportunities({ tenantSlug }),
+    ]);
 
   return {
     tenantSlug,
     sessionReportOffers,
     compositeOffers,
+    comparisonOffers,
   };
 }

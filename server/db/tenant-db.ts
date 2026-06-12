@@ -1,3 +1,5 @@
+// server/db/tenant-db.ts
+
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";

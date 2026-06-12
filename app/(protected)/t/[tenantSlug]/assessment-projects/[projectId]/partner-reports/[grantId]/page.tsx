@@ -1,3 +1,4 @@
+// app/(protected)/t/[tenantSlug]/assessment-projects/[projectId]/partner-reports/[grantId]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq, isNull } from "drizzle-orm";
@@ -8,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 
 import { reportAccessGrants } from "@/drizzle/schema";
 import { controlDb } from "@/server/db/control-db";
-
+import {
+  getUserVsUserComparisonReport,
+  readComparisonDefinition,
+} from "@/features/comparison-reports/api/comparison-report-render.queries";
 import {
   getProjectAggregateReport,
   getOrganizationAggregateReport,
@@ -42,6 +46,10 @@ function getReportBadgeLabel(subjectType: string) {
     return "Raport zespołu";
   }
 
+  if (subjectType === "comparison") {
+    return "Raport porównawczy";
+  }
+
   return "Raport partnera";
 }
 
@@ -52,6 +60,10 @@ function getReportIcon(subjectType: string) {
 
   if (subjectType === "client_unit") {
     return <Network className="h-5 w-5" />;
+  }
+
+  if (subjectType === "comparison") {
+    return <BarChart3 className="h-5 w-5" />;
   }
 
   return <BarChart3 className="h-5 w-5" />;
@@ -66,10 +78,28 @@ function getScopeName(data: any, subjectType: string) {
     return data.unit?.name ?? "Zespół";
   }
 
+  if (subjectType === "comparison") {
+    const left = data.payload?.comparison?.left?.label ?? "Pierwszy wynik";
+    const right = data.payload?.comparison?.right?.label ?? "Drugi wynik";
+
+    return `${left} vs ${right}`;
+  }
+
   return data.project?.name ?? "Projekt";
 }
 
 function getScopeDescription(data: any, subjectType: string) {
+  if (subjectType === "comparison") {
+    return [
+      data.project?.name ? `Projekt: ${data.project.name}` : null,
+      `porównywane wyniki: ${data.eligibility.nRespondents}`,
+      `sesje: ${data.eligibility.nSessions}`,
+      `wyniki: ${data.eligibility.nScores}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
   const parts = [
     data.project?.name ? `Projekt: ${data.project.name}` : null,
     `respondenci: ${data.eligibility.nRespondents}`,
@@ -135,8 +165,22 @@ export default async function PartnerAggregateReportGrantPage({
 
   const reportTemplateVersionId = grant.reportTemplateVersionId;
 
-  const data =
-    grant.subjectType === "assessment_project"
+const comparisonDefinition =
+  grant.subjectType === "comparison"
+    ? readComparisonDefinition(grant.metadata)
+    : null;
+
+const data =
+  grant.subjectType === "comparison"
+    ? comparisonDefinition
+      ? await getUserVsUserComparisonReport({
+          tenantSlug,
+          assessmentProjectId: projectId,
+          reportTemplateVersionId,
+          comparisonDefinition,
+        })
+      : null
+    : grant.subjectType === "assessment_project"
       ? await getProjectAggregateReport({
           tenantSlug,
           assessmentProjectId: projectId,

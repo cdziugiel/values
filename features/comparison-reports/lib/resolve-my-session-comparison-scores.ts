@@ -26,12 +26,13 @@ export async function resolveMySessionComparisonScores({
   assessmentSessionId,
   questionnaireVersionId,
 }: ResolveMySessionComparisonScoresInput): Promise<ComparisonObjectResult> {
-  const [session] = await db
-    .select({
-      id: assessmentSessions.id,
-      respondentId: assessmentSessions.respondentId,
-      status: assessmentSessions.status,
-    })
+const [session] = await db
+  .select({
+    id: assessmentSessions.id,
+    respondentId: assessmentSessions.respondentId,
+    assessmentProjectId: assessmentSessions.assessmentProjectId,
+    status: assessmentSessions.status,
+  })
     .from(assessmentSessions)
     .where(
       and(
@@ -42,19 +43,24 @@ export async function resolveMySessionComparisonScores({
     .limit(1);
 
   if (!session || session.status !== "completed") {
-    return {
-      type: "respondent",
-      id: assessmentSessionId,
-      label: "Mój wynik",
-      n: 0,
-      questionnaireId: null,
-      questionnaireVersionId,
-      visibility: {
-        canShow: false,
-        reason: "no_completed_sessions",
-      },
-      scores: [],
-    };
+return {
+  type: "respondent",
+  id: assessmentSessionId,
+  label: "Mój wynik",
+  n: 0,
+
+  respondentId: null,
+  assessmentSessionId,
+  assessmentProjectId: null,
+
+  questionnaireId: null,
+  questionnaireVersionId,
+  visibility: {
+    canShow: false,
+    reason: "no_completed_sessions",
+  },
+  scores: [],
+};
   }
 
   const scores = await db
@@ -83,24 +89,31 @@ export async function resolveMySessionComparisonScores({
     dimensionIds: scores.map((row: any) => row.dimensionId),
   });
 
-  return {
-    type: "respondent",
-    id: session.respondentId,
-    label: "Mój wynik",
-    n: 1,
-    questionnaireId: scores[0]?.questionnaireId ?? null,
-    questionnaireVersionId:
-      scores[0]?.questionnaireVersionId ?? questionnaireVersionId,
-    visibility: {
-      canShow: true,
-    },
-    scores: scores.map((row: any) => ({
-      dimensionId: row.dimensionId,
-      code: row.code,
-      name: row.name,
-      category: categoryByDimensionId.get(row.dimensionId) ?? null,
-      score: row.score == null ? null : Number(row.score),
-      respondentCount: 1,
-    })),
-  };
+return {
+  type: "respondent",
+  id: session.respondentId,
+  label: "Mój wynik",
+  n: 1,
+
+  respondentId: session.respondentId,
+  assessmentSessionId: session.id,
+  assessmentProjectId: session.assessmentProjectId,
+
+  questionnaireId: scores[0]?.questionnaireId ?? null,
+  questionnaireVersionId:
+    scores[0]?.questionnaireVersionId ?? questionnaireVersionId,
+
+  visibility: {
+    canShow: true,
+  },
+
+  scores: scores.map((row: any) => ({
+    dimensionId: row.dimensionId,
+    code: row.code,
+    name: row.name,
+    category: categoryByDimensionId.get(row.dimensionId) ?? null,
+    score: row.score == null ? null : Number(row.score),
+    respondentCount: 1,
+  })),
+};
 }

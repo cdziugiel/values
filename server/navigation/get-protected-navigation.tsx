@@ -22,7 +22,9 @@ import {
   PackageCheck,
   ShieldCheck,
   Users,
-  TicketPercent
+  TicketPercent,
+  GitCompare,
+  GitCompareArrows
 } from "lucide-react";
 
 export type ProtectedNavigationItem = {
@@ -64,7 +66,7 @@ const respondentNavigationItems: ProtectedNavigationItem[] = [
   {
     label: "Porównanie",
     href: "/my/assessment/compare",
-    icon: <FileText className="h-4 w-4 shrink-0" />,
+    icon: <GitCompareArrows className="h-4 w-4 shrink-0" />,
   },
 ];
 

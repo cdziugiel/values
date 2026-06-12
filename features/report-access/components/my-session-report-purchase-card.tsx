@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { CalendarCheck2, FileText, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { formatReportDateTime } from "../lib/format-report-date";
 
 type SessionOption = {
   id: string;
@@ -51,22 +52,7 @@ function formatMoney({
   }).format(numberValue);
 }
 
-function formatDate(value: Date | string | null) {
-  if (!value) {
-    return "bez daty ukończenia";
-  }
 
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (!Number.isFinite(date.getTime())) {
-    return "bez daty ukończenia";
-  }
-
-  return new Intl.DateTimeFormat("pl-PL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
 
 export function MySessionReportPurchaseCard({
   tenantSlug,
@@ -124,12 +110,15 @@ export function MySessionReportPurchaseCard({
                 onChange={(event) => setSelectedSessionId(event.target.value)}
                 className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
               >
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>
-                    {session.assessmentProjectName ?? "Badanie publiczne"} ·{" "}
-                    {formatDate(session.completedAt)}
-                  </option>
-                ))}
+{sessions.map((session) => (
+  <option
+    key={`${reportTemplateVersion.version ?? "version"}-${session.id}`}
+    value={session.id}
+  >
+    {session.assessmentProjectName ?? "Badanie publiczne"} ·{" "}
+    {formatReportDateTime(session.completedAt)}
+  </option>
+))}
               </select>
             </label>
 
@@ -167,19 +156,24 @@ export function MySessionReportPurchaseCard({
           </div>
         </div>
 
-        <div className="flex md:justify-end">
-          <Button
-            asChild
-            disabled={!unlockHref}
-            className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
-          >
-            {unlockHref ? (
-              <Link href={unlockHref}>Kup raport</Link>
-            ) : (
-              <span>Kup raport</span>
-            )}
-          </Button>
-        </div>
+<div className="flex md:justify-end">
+  {unlockHref ? (
+    <Button
+      asChild
+      className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
+    >
+      <Link href={unlockHref}>Kup raport</Link>
+    </Button>
+  ) : (
+    <Button
+      disabled
+      className="w-full rounded-full md:w-auto"
+      variant="outline"
+    >
+      Kup raport
+    </Button>
+  )}
+</div>
       </div>
     </article>
   );

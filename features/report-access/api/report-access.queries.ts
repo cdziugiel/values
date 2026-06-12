@@ -740,3 +740,98 @@ export async function getCompositeReportAccessOfferForCurrentUser({
     eligibility,
   };
 }
+
+
+export async function getReportAccessOfferForCompletedSessionAndReportVersion({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+  expectedKind,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  reportTemplateVersionId: string;
+  expectedKind?: string;
+}) {
+  const resolved = await resolveCompletedSessionForCurrentUser({
+    tenantSlug,
+    sessionId,
+  });
+
+  if (!resolved.ok) {
+    return {
+      ok: false as const,
+      message: resolved.message,
+    };
+  }
+
+  const [reportVersion] = await controlDb
+    .select({
+      reportTemplateId: reportTemplateVersions.reportTemplateId,
+      reportTemplateVersionId: reportTemplateVersions.id,
+      reportTemplateVersionName: reportTemplateVersions.name,
+      reportTemplateVersion: reportTemplateVersions.version,
+      reportTemplateVersionStatus: reportTemplateVersions.status,
+
+      reportTemplateCode: reportTemplates.code,
+      reportTemplateName: reportTemplates.name,
+      reportTemplateKind: reportTemplates.kind,
+    })
+    .from(reportTemplateVersions)
+    .innerJoin(
+      reportTemplates,
+      eq(reportTemplates.id, reportTemplateVersions.reportTemplateId),
+    )
+    .where(
+      and(
+        eq(reportTemplateVersions.id, reportTemplateVersionId),
+        eq(reportTemplateVersions.status, "active"),
+        eq(reportTemplates.status, "active"),
+        isNull(reportTemplateVersions.deletedAt),
+        isNull(reportTemplates.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!reportVersion) {
+    return {
+      ok: false as const,
+      message: "Nie znaleziono aktywnej wersji raportu.",
+    };
+  }
+
+  if (expectedKind && reportVersion.reportTemplateKind !== expectedKind) {
+    return {
+      ok: false as const,
+      message: "Wybrany template raportu ma nieprawidłowy typ.",
+    };
+  }
+
+  const existingGrant = await getActiveReportAccessGrantForSession({
+    tenantSlug,
+    sessionId,
+    reportTemplateVersionId: reportVersion.reportTemplateVersionId,
+    userId: resolved.actorUserId,
+  });
+
+  const product = await controlDb.query.reportAccessProducts.findFirst({
+    where: and(
+      eq(reportAccessProducts.reportTemplateId, reportVersion.reportTemplateId),
+      eq(reportAccessProducts.status, "active"),
+      isNull(reportAccessProducts.deletedAt),
+    ),
+  });
+
+  return {
+    ok: true as const,
+    tenantSlug,
+    sessionId,
+    actorUserId: resolved.actorUserId,
+    actorEmail: resolved.actorEmail,
+    session: resolved.session,
+    reportVersion,
+    product: product ?? null,
+    existingGrant,
+    hasAccess: Boolean(existingGrant),
+  };
+}

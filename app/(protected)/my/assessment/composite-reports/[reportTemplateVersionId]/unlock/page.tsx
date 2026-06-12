@@ -1,3 +1,4 @@
+// app/(protected)/my/assessment/composite-reports/[reportTemplateVersionId]/unlock/page.tsx
 import { UnlockCompositeReportAccessPage } from "@/features/report-access/components/unlock-composite-report-access-page";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,10 @@ type PageProps = {
 export default async function Page({ params, searchParams }: PageProps) {
   const { reportTemplateVersionId } = await params;
   const { tenant } = await searchParams;
-
+console.log("COMPOSITE UNLOCK ROUTE HIT", {
+  reportTemplateVersionId,
+  tenant,
+});
   return (
     <UnlockCompositeReportAccessPage
       tenantSlug={tenant ?? "humanet"}

@@ -41,6 +41,43 @@ function isCurrentlyActive({
   return true;
 }
 
+function asRecord(value: unknown): Record<string, any> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, any>;
+}
+
+function isComparisonGrant(row: {
+  subjectType: string;
+  reportTemplateKind: string;
+  metadata: unknown;
+}) {
+  const metadata = asRecord(row.metadata);
+
+  return (
+    row.reportTemplateKind === "comparison" ||
+    row.subjectType === "comparison" ||
+    metadata.reportKind === "comparison" ||
+    metadata.mode === "comparison"
+  );
+}
+
+function isUsedComparisonGrant(row: {
+  subjectType: string;
+  reportTemplateKind: string;
+  metadata: unknown;
+}) {
+  const metadata = asRecord(row.metadata);
+
+  return Boolean(
+    isComparisonGrant(row) &&
+      metadata.creditStatus === "used" &&
+      metadata.comparisonDefinition,
+  );
+}
+
 function buildReportHref(row: {
   id: string;
   status: string;
@@ -50,9 +87,33 @@ function buildReportHref(row: {
   subjectId: string | null;
   reportTemplateKind: string;
   reportTemplateVersionId: string;
+  productId: string | null;
+  metadata: unknown;
 }) {
   if (row.status !== "active") {
     return null;
+  }
+
+  /**
+   * Raport porównawczy user-user.
+   *
+   * Jeśli grant jest wykorzystany, prowadzi do gotowego raportu.
+   * Jeśli grant jest niewykorzystany, prowadzi do konfiguratora porównania.
+   */
+  if (isComparisonGrant(row)) {
+    if (isUsedComparisonGrant(row)) {
+      return `/my/assessment/comparison-reports/grants/${row.id}`;
+    }
+
+    if (!row.productId || !row.reportTemplateVersionId) {
+      return null;
+    }
+
+    return `/my/assessment/compare?product=${encodeURIComponent(
+      row.productId,
+    )}&reportTemplateVersionId=${encodeURIComponent(
+      row.reportTemplateVersionId,
+    )}`;
   }
 
   if (
@@ -101,7 +162,7 @@ export async function getMyReportAccesses() {
 
       createdAt: reportAccessGrants.createdAt,
 
-      productId: reportAccessProducts.id,
+      productId: reportAccessGrants.productId,
       productCode: reportAccessProducts.code,
       productName: reportAccessProducts.name,
 
@@ -111,6 +172,8 @@ export async function getMyReportAccesses() {
 
       reportTemplateVersionName: reportTemplateVersions.name,
       reportTemplateVersion: reportTemplateVersions.version,
+
+      metadata: reportAccessGrants.metadata,
     })
     .from(reportAccessGrants)
     .innerJoin(

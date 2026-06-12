@@ -22,12 +22,19 @@ export type ComparisonObjectResult = {
   id: string;
   label: string;
   n: number;
+
+  respondentId?: string | null;
+  assessmentSessionId?: string | null;
+  assessmentProjectId?: string | null;
+
   questionnaireId?: string | null;
-questionnaireVersionId?: string | null;
+  questionnaireVersionId?: string | null;
+
   visibility: {
     canShow: boolean;
     reason?: "too_small_group" | "no_completed_sessions" | "no_permission";
   };
+
   scores: ComparisonDimensionScore[];
 };
 

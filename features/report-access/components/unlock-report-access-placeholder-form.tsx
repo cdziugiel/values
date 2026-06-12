@@ -52,12 +52,18 @@ export function UnlockReportAccessPlaceholderForm({
   tenantSlug,
   sessionId,
   originalAmountCents,
-  currency
+  currency,
+  mode = "standard",
+  productId = null,
+  reportTemplateVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
   originalAmountCents: number;
-  currency?: string | null;
+  currency: string;
+  mode?: "standard" | "comparison";
+  productId?: string | null;
+  reportTemplateVersionId?: string | null;
 }) {
   const [state, formAction, isPending] = useActionState(
     unlockReportAccessPlaceholderAction,
@@ -73,6 +79,19 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
     <form action={formAction} className="mt-5 space-y-4">
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="sessionId" value={sessionId} />
+      <input type="hidden" name="mode" value={mode} />
+
+{productId ? (
+  <input type="hidden" name="productId" value={productId} />
+) : null}
+
+{reportTemplateVersionId ? (
+  <input
+    type="hidden"
+    name="reportTemplateVersionId"
+    value={reportTemplateVersionId}
+  />
+) : null}
       <input
         type="hidden"
         name="discountCode"

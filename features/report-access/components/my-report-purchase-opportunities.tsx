@@ -81,10 +81,12 @@ export async function MyReportPurchaseOpportunities({
 }) {
   const data = await getMyReportPurchaseOpportunities({ tenantSlug });
 
-  const hasSessionOffers = data.sessionReportOffers.length > 0;
-  const hasCompositeOffers = data.compositeOffers.length > 0;
+const hasSessionOffers = data.sessionReportOffers.length > 0;
+const hasCompositeOffers = data.compositeOffers.length > 0;
+const hasComparisonOffers = data.comparisonOffers.length > 0;
+const hasSpecialOffers = hasCompositeOffers || hasComparisonOffers;
 
-  if (!hasSessionOffers && !hasCompositeOffers) {
+ if (!hasSessionOffers && !hasSpecialOffers) {
     return (
       <section className="rounded-[2rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
         <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium text-[#6b7280]">
@@ -151,7 +153,7 @@ export async function MyReportPurchaseOpportunities({
         </section>
       ) : null}
 
-      {hasCompositeOffers ? (
+      {hasSpecialOffers ? (
         <section className="space-y-4">
           <div>
             <h3 className="text-base font-semibold tracking-[-0.02em] text-[#171717]">
@@ -164,7 +166,7 @@ export async function MyReportPurchaseOpportunities({
           </div>
 
           <div className="grid gap-3">
-            {data.compositeOffers.map((offer) => (
+            {hasCompositeOffers && data.compositeOffers.map((offer) => (
               <article
                 key={offer.reportTemplateVersion.id}
                 className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
@@ -255,6 +257,95 @@ export async function MyReportPurchaseOpportunities({
               </article>
             ))}
           </div>
+
+{hasComparisonOffers
+  ? data.comparisonOffers.map((offer) => (
+      <article
+        key={`comparison-${offer.product.id}-${offer.reportTemplate.id}-${offer.reportTemplateVersion.id}`}
+        className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+
+        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-semibold tracking-[-0.02em] text-[#171717]">
+                {offer.reportTemplate.name ?? offer.product.name}
+              </h3>
+
+              <StatusPill status={offer.status} />
+            </div>
+
+            <p className="max-w-3xl text-sm leading-6 text-[#6b7280]">
+              {offer.reportTemplate.description ||
+                offer.product.description ||
+                offer.message}
+            </p>
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#6b7280]">
+              <div className="flex items-center gap-2">
+                <FileText size={14} className="text-[#8b9099]" />
+                <span>Wersja:</span>
+                <span className="font-medium text-[#171717]">
+                  {offer.reportTemplateVersion.name} (
+                  {offer.reportTemplateVersion.version})
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <ShoppingCart size={14} className="text-[#8b9099]" />
+                <span>Cena:</span>
+                <span className="font-medium text-[#171717]">
+                  {formatMoney({
+                    amount: offer.product.priceGross,
+                    currency: offer.product.currency,
+                  })}
+                </span>
+              </div>
+            </div>
+
+            {offer.canBuy ? (
+              <div className="rounded-[1.25rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.10)] px-4 py-3 text-sm leading-6 text-[#0f766e]">
+                Po odblokowaniu wybierzesz swój wynik bazowy i wkleisz token
+                drugiej osoby, aby wygenerować raport porównawczy.
+              </div>
+            ) : (
+              <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                {offer.message}
+              </div>
+            )}
+          </div>
+
+          <div className="flex md:justify-end">
+            {offer.canBuy ? (
+              <Button
+                asChild
+                className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
+              >
+                <Link
+                  href={`/my/assessment/special-reports/${offer.reportTemplateVersion.id}/unlock?tenant=${encodeURIComponent(
+                    offer.tenantSlug,
+                  )}&mode=comparison&product=${encodeURIComponent(
+                    offer.product.id,
+                  )}`}
+                >
+                  Odblokuj raport
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                disabled
+                className="w-full rounded-full md:w-auto"
+                variant="outline"
+              >
+                Niedostępny
+              </Button>
+            )}
+          </div>
+        </div>
+      </article>
+    ))
+  : null}
         </section>
       ) : null}
     </section>

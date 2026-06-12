@@ -446,6 +446,18 @@ export async function AssessmentProjectsPage({
                           </Link>
                         </Button>
 
+                        <Button
+                          asChild
+                          size="sm"
+                          className="rounded-full bg-[#171717] text-white hover:bg-[#2a2a2a]"
+                        >
+                          <Link
+                            href={`/dashboard/partner-assessment/${ctx.tenantSlug}/projects/${project.id}`}
+                          >
+                            Porównania
+                          </Link>
+                        </Button>
+
                         <AssessmentProjectRowActions
                           tenantSlug={ctx.tenantSlug}
                           project={project}

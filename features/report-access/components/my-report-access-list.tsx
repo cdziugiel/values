@@ -122,6 +122,68 @@ function MetaItem({
   );
 }
 
+
+function isUnusedComparisonAccess(access: any) {
+  const metadata = asRecord(access.metadata);
+
+  return Boolean(
+    isComparisonAccess(access) &&
+      metadata.creditStatus !== "used" &&
+      !metadata.comparisonDefinition,
+  );
+}
+
+function buildComparisonConfigureHref(access: any) {
+  return `/my/assessment/compare?product=${encodeURIComponent(
+    access.productId ?? "",
+  )}&reportTemplateVersionId=${encodeURIComponent(
+    access.reportTemplateVersionId ?? "",
+  )}`;
+}
+
+function buildComparisonReportHref(access: any) {
+  return `/my/assessment/comparison-reports/grants/${access.id}`;
+}
+
+
+function asRecord(value: unknown): Record<string, any> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, any>;
+}
+
+function isComparisonAccess(access: any) {
+  const metadata = asRecord(access.metadata);
+
+  return (
+    access.reportTemplateKind === "comparison" ||
+    access.subjectType === "comparison" ||
+    metadata.reportKind === "comparison" ||
+    metadata.mode === "comparison"
+  );
+}
+
+function isUsedComparisonAccess(access: any) {
+  const metadata = asRecord(access.metadata);
+
+  return Boolean(
+    isComparisonAccess(access) &&
+      metadata.creditStatus === "used" &&
+      metadata.comparisonDefinition,
+  );
+}
+
+function getAccessButtonLabel(access: any) {
+  if (isComparisonAccess(access) && !isUsedComparisonAccess(access)) {
+    return "Skonfiguruj porównanie";
+  }
+
+  return "Zobacz raport";
+}
+
+
 export async function MyReportAccessList() {
   const accesses = await getMyReportAccesses();
 
@@ -188,24 +250,40 @@ export async function MyReportAccessList() {
                   </div>
                 </div>
 
-                <div className="flex md:justify-end">
-                  {access.isCurrentlyActive && access.reportHref ? (
-                    <Button
-                      asChild
-                      className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
-                    >
-                      <Link href={access.reportHref}>Zobacz raport</Link>
-                    </Button>
-                  ) : (
-                    <Button
-                      disabled
-                      className="w-full rounded-full md:w-auto"
-                      variant="outline"
-                    >
-                      Brak aktywnego dostępu
-                    </Button>
-                  )}
-                </div>
+<div className="flex md:justify-end">
+  {access.isCurrentlyActive && isUsedComparisonAccess(access) ? (
+    <Button
+      asChild
+      className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
+    >
+      <Link href={buildComparisonReportHref(access)}>Zobacz raport</Link>
+    </Button>
+  ) : access.isCurrentlyActive && isUnusedComparisonAccess(access) ? (
+    <Button
+      asChild
+      className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
+    >
+      <Link href={buildComparisonConfigureHref(access)}>
+        Skonfiguruj porównanie
+      </Link>
+    </Button>
+  ) : access.isCurrentlyActive && access.reportHref ? (
+    <Button
+      asChild
+      className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
+    >
+      <Link href={access.reportHref}>{getAccessButtonLabel(access)}</Link>
+    </Button>
+  ) : (
+    <Button
+      disabled
+      className="w-full rounded-full md:w-auto"
+      variant="outline"
+    >
+      Brak aktywnego dostępu
+    </Button>
+  )}
+</div>
               </div>
 
               <details className="group/details mt-4 border-t border-black/10 pt-3">
