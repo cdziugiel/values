@@ -312,19 +312,17 @@ function SessionReportActions({
           </Button>
         ) : null}
 
-        {activeGrant ? (
-          <Button
-            asChild
-            size="sm"
-            className="h-9 rounded-full bg-[#171717] px-4 text-white hover:bg-[#2a2a2a]"
-          >
-            <Link
-              href={`/t/${tenantSlug}/assessment-sessions/${session.sessionId}/report/${activeGrant.reportTemplateVersionId}`}
-            >
-              Raport
-            </Link>
-          </Button>
-        ) : null}
+{activeGrant?.partnerReportHref ? (
+  <Button
+    asChild
+    size="sm"
+    className="h-9 rounded-full bg-[#171717] px-4 text-white hover:bg-[#2a2a2a]"
+  >
+    <Link href={activeGrant.partnerReportHref}>
+      Raport
+    </Link>
+  </Button>
+) : null}
       </div>
 
       {canGrantReportAccess ? (

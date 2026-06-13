@@ -345,28 +345,34 @@ const questionnaireVersionIds = Array.from(
         );
         }
     const grantRows =
-        sessionIds.length > 0
-            ? await controlDb
-                .select({
-                    id: reportAccessGrants.id,
-                    tenantSlug: reportAccessGrants.tenantSlug,
-                    assessmentSessionId: reportAccessGrants.assessmentSessionId,
+  sessionIds.length > 0
+    ? await controlDb
+        .select({
+          id: reportAccessGrants.id,
+          tenantSlug: reportAccessGrants.tenantSlug,
+          assessmentSessionId:
+            reportAccessGrants.assessmentSessionId,
 
-                    source: reportAccessGrants.source,
-                    status: reportAccessGrants.status,
-                    validFrom: reportAccessGrants.validFrom,
-                    validUntil: reportAccessGrants.validUntil,
+          source: reportAccessGrants.source,
+          status: reportAccessGrants.status,
+          validFrom: reportAccessGrants.validFrom,
+          validUntil: reportAccessGrants.validUntil,
 
-                    reportTemplateId: reportAccessGrants.reportTemplateId,
-                    reportTemplateVersionId:
-                        reportAccessGrants.reportTemplateVersionId,
+          reportTemplateId:
+            reportAccessGrants.reportTemplateId,
+          reportTemplateVersionId:
+            reportAccessGrants.reportTemplateVersionId,
 
-                    reportTemplateCode: reportTemplates.code,
-                    reportTemplateName: reportTemplates.name,
+          reportTemplateCode: reportTemplates.code,
+          reportTemplateName: reportTemplates.name,
 
-                    reportTemplateVersionName: reportTemplateVersions.name,
-                    reportTemplateVersion: reportTemplateVersions.version,
-                })
+          reportTemplateVersionName:
+            reportTemplateVersions.name,
+          reportTemplateVersion:
+            reportTemplateVersions.version,
+
+          metadata: reportAccessGrants.metadata,
+        })
                 .from(reportAccessGrants)
                 .innerJoin(
                     reportTemplates,
@@ -875,8 +881,98 @@ teamGrants:
         );
     }
 
+function asRecord(value: unknown): Record<string, any> {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return {};
+  }
+
+  return value as Record<string, any>;
+}
+
+function getSessionGrantScope(grant: {
+  metadata: unknown;
+}) {
+  const metadata = asRecord(grant.metadata);
+  const reportScope = asRecord(metadata.reportScope);
+
+  return {
+    projectQuestionnaireId:
+      typeof metadata.projectQuestionnaireId === "string"
+        ? metadata.projectQuestionnaireId
+        : typeof reportScope.projectQuestionnaireId === "string"
+          ? reportScope.projectQuestionnaireId
+          : null,
+
+    questionnaireId:
+      typeof metadata.questionnaireId === "string"
+        ? metadata.questionnaireId
+        : typeof reportScope.questionnaireId === "string"
+          ? reportScope.questionnaireId
+          : null,
+
+    questionnaireVersionId:
+      typeof metadata.questionnaireVersionId === "string"
+        ? metadata.questionnaireVersionId
+        : typeof reportScope.questionnaireVersionId === "string"
+          ? reportScope.questionnaireVersionId
+          : null,
+  };
+}
+
+function filterScopedSessionGrants({
+  grants,
+  projectQuestionnaireId,
+  questionnaireId,
+  questionnaireVersionId,
+}: {
+  grants: typeof grantRows;
+  projectQuestionnaireId?: string | null;
+  questionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  return grants.filter((grant) => {
+    const scope = getSessionGrantScope(grant);
+
+    /**
+     * Najbardziej precyzyjny identyfikator.
+     */
+    if (projectQuestionnaireId) {
+      return (
+        scope.projectQuestionnaireId ===
+        projectQuestionnaireId
+      );
+    }
+
+    /**
+     * Fallback dla wcześniejszych scoped grantów.
+     */
+    if (questionnaireVersionId) {
+      return (
+        scope.questionnaireVersionId ===
+        questionnaireVersionId
+      );
+    }
+
+    if (questionnaireId) {
+      return scope.questionnaireId === questionnaireId;
+    }
+
+    /**
+     * Nie przypisujemy niescoped grantu do każdego
+     * kwestionariusza sesji wielokwestionariuszowej.
+     */
+    return false;
+  });
+}
+
+
 const sessionsBase = sessionRows.map((session: any) => {
-  const grants = grantsBySessionId.get(session.sessionId) ?? [];
+  const sessionGrants =
+    grantsBySessionId.get(session.sessionId) ?? [];
 
   const snapshotQuestionnaireVersionId =
     session.snapshotQuestionnaireVersionId ?? null;
@@ -904,62 +1000,83 @@ const sessionsBase = sessionRows.map((session: any) => {
    * czyli jednemu project questionnaire.
    */
   if (session.snapshotId && snapshotQuestionnaireVersionId) {
-    const completedQuestionnaire = {
-      questionnaireId:
-        snapshotQuestionnaireId ??
-        snapshotQuestionnaireMeta?.questionnaireId ??
-        null,
+  const completedQuestionnaire = {
+    questionnaireId:
+      snapshotQuestionnaireId ??
+      snapshotQuestionnaireMeta?.questionnaireId ??
+      null,
 
-      questionnaireVersionId:
-        snapshotQuestionnaireVersionId,
+    questionnaireVersionId:
+      snapshotQuestionnaireVersionId,
 
-      questionnaireCode:
-        snapshotQuestionnaireMeta?.questionnaireCode ?? null,
+    questionnaireCode:
+      snapshotQuestionnaireMeta?.questionnaireCode ?? null,
 
-      questionnaireName:
-        snapshotQuestionnaireMeta?.questionnaireName ?? null,
+    questionnaireName:
+      snapshotQuestionnaireMeta?.questionnaireName ?? null,
 
-      questionnaireVersion:
-        snapshotQuestionnaireMeta?.questionnaireVersion ?? null,
+    questionnaireVersion:
+      snapshotQuestionnaireMeta?.questionnaireVersion ?? null,
 
-      responseCount: Number(
-        snapshotResponseQuestionnaire?.responseCount ?? 0,
-      ),
+    responseCount: Number(
+      snapshotResponseQuestionnaire?.responseCount ?? 0,
+    ),
 
-      isAmbiguous: false,
-    };
+    isAmbiguous: false,
+  };
 
-    return {
-      ...session,
+  const scopedGrants = filterScopedSessionGrants({
+    grants: sessionGrants,
 
-      projectQuestionnaireId:
-        session.snapshotProjectQuestionnaireId ?? null,
+    projectQuestionnaireId:
+      session.snapshotProjectQuestionnaireId ?? null,
 
-      questionnaireId:
-        completedQuestionnaire.questionnaireId,
+    questionnaireId:
+      completedQuestionnaire.questionnaireId,
 
-      questionnaireVersionId:
-        completedQuestionnaire.questionnaireVersionId,
+    questionnaireVersionId:
+      completedQuestionnaire.questionnaireVersionId,
+  });
 
-      questionnaireCode:
-        completedQuestionnaire.questionnaireCode,
+  return {
+    ...session,
 
-      questionnaireName:
-        completedQuestionnaire.questionnaireName,
+    projectQuestionnaireId:
+      session.snapshotProjectQuestionnaireId ?? null,
 
-      hasSnapshot: true,
-      completedQuestionnaire,
+    questionnaireId:
+      completedQuestionnaire.questionnaireId,
 
-      grants: grants.map((grant) => ({
-        ...grant,
-        isCurrentlyActive: isGrantCurrentlyActive(grant),
-        partnerReportHref:
-          `/t/${tenantSlug}/assessment-sessions/` +
-          `${session.sessionId}/report/` +
-          `${grant.reportTemplateVersionId}`,
-      })),
-    };
-  }
+    questionnaireVersionId:
+      completedQuestionnaire.questionnaireVersionId,
+
+    questionnaireCode:
+      completedQuestionnaire.questionnaireCode,
+
+    questionnaireName:
+      completedQuestionnaire.questionnaireName,
+
+    hasSnapshot: true,
+    completedQuestionnaire,
+
+    grants: scopedGrants.map((grant) => ({
+      ...grant,
+      isCurrentlyActive:
+        isGrantCurrentlyActive(grant),
+
+      partnerReportHref:
+        `/t/${tenantSlug}/assessment-sessions/` +
+        `${session.sessionId}/report/` +
+        `${grant.reportTemplateVersionId}` +
+        `?projectQuestionnaireId=${encodeURIComponent(
+          session.snapshotProjectQuestionnaireId ?? "",
+        )}` +
+        `&questionnaireVersionId=${encodeURIComponent(
+          completedQuestionnaire.questionnaireVersionId ?? "",
+        )}`,
+    })),
+  };
+}
 
   /**
    * Legacy fallback dla starych sesji bez scoped snapshotu.
@@ -1025,7 +1142,14 @@ const sessionsBase = sessionRows.map((session: any) => {
           isAmbiguous: true,
         }
       : null;
-
+const scopedGrants = filterScopedSessionGrants({
+  grants: sessionGrants,
+  projectQuestionnaireId: null,
+  questionnaireId:
+    completedQuestionnaire?.questionnaireId ?? null,
+  questionnaireVersionId:
+    completedQuestionnaire?.questionnaireVersionId ?? null,
+});
   return {
     ...session,
 
@@ -1046,14 +1170,17 @@ const sessionsBase = sessionRows.map((session: any) => {
     hasSnapshot: Boolean(session.snapshotId),
     completedQuestionnaire,
 
-    grants: grants.map((grant) => ({
-      ...grant,
-      isCurrentlyActive: isGrantCurrentlyActive(grant),
-      partnerReportHref:
-        `/t/${tenantSlug}/assessment-sessions/` +
-        `${session.sessionId}/report/` +
-        `${grant.reportTemplateVersionId}`,
-    })),
+grants: scopedGrants.map((grant) => ({
+  ...grant,
+  isCurrentlyActive: isGrantCurrentlyActive(grant),
+  partnerReportHref:
+    `/t/${tenantSlug}/assessment-sessions/` +
+    `${session.sessionId}/report/` +
+    `${grant.reportTemplateVersionId}` +
+    `?questionnaireVersionId=${encodeURIComponent(
+      completedQuestionnaire?.questionnaireVersionId ?? "",
+    )}`,
+})),
   };
 });
 

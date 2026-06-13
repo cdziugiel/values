@@ -32,6 +32,7 @@ export default async function MyAssessmentReportPrintPage({
   params,
   searchParams,
 }: PageProps) {
+  console.log("PRINT")
   const { sessionId, reportTemplateVersionId } = await params;
 
   const {

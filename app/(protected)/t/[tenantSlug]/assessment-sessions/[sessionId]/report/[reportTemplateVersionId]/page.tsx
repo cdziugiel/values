@@ -15,18 +15,39 @@ type PageProps = {
     sessionId: string;
     reportTemplateVersionId: string;
   }>;
+
+  searchParams: Promise<{
+    projectQuestionnaireId?: string;
+    questionnaireVersionId?: string;
+  }>;
 };
 
 export default async function TenantAssessmentSessionReportPage({
   params,
+  searchParams,
 }: PageProps) {
-  const { tenantSlug, sessionId, reportTemplateVersionId } = await params;
+  const {
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+} = await params;
 
-  const result = await getTenantAssessmentSessionReport({
-    tenantSlug,
-    sessionId,
-    reportTemplateVersionId,
-  });
+const {
+  projectQuestionnaireId,
+  questionnaireVersionId,
+} = await searchParams;
+
+const result = await getTenantAssessmentSessionReport({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+
+  projectQuestionnaireId:
+    projectQuestionnaireId?.trim() || null,
+
+  questionnaireVersionId:
+    questionnaireVersionId?.trim() || null,
+});
 
   if (!result?.payload) {
     notFound();
@@ -74,7 +95,12 @@ export default async function TenantAssessmentSessionReportPage({
 
         <div className="flex flex-wrap gap-2">
           <Link
-            href={`/t/${tenantSlug}/assessment-sessions/${sessionId}/results`}
+            href={
+  `/t/${tenantSlug}/assessment-sessions/${sessionId}/results` +
+  `?projectQuestionnaireId=${encodeURIComponent(
+    projectQuestionnaireId ?? "",
+  )}`
+}
             className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
           >
             Wróć do wyniku sesji
