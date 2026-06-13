@@ -19,6 +19,7 @@ import {
 } from "@/drizzle/schema";
 
 import {
+  assessmentResultSnapshots,
   assessmentProjects,
   assessmentResponses,
   assessmentSessions,
@@ -194,6 +195,135 @@ function uniqueNonEmpty(values: Array<string | null | undefined>) {
   );
 }
 
+async function resolveCompletedSessionQuestionnaireScope({
+  db,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireId,
+  questionnaireVersionId,
+}: {
+  db: TenantDb;
+  sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  /**
+   * Nowy model: wskazano konkretny project questionnaire.
+   * Źródłem prawdy jest scoped snapshot.
+   */
+  if (projectQuestionnaireId) {
+    const snapshotRows = await db
+      .select({
+        snapshotId: assessmentResultSnapshots.id,
+        projectQuestionnaireId:
+          assessmentResultSnapshots.projectQuestionnaireId,
+        questionnaireId: assessmentResultSnapshots.questionnaireId,
+        questionnaireVersionId:
+          assessmentResultSnapshots.questionnaireVersionId,
+      })
+      .from(assessmentResultSnapshots)
+      .where(
+        and(
+          eq(
+            assessmentResultSnapshots.assessmentSessionId,
+            sessionId,
+          ),
+          eq(
+            assessmentResultSnapshots.projectQuestionnaireId,
+            projectQuestionnaireId,
+          ),
+          isNull(assessmentResultSnapshots.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    const snapshot = snapshotRows[0] ?? null;
+
+    if (!snapshot) {
+      return {
+        ok: false as const,
+        message:
+          "Nie znaleziono zapisanego wyniku dla wybranego kwestionariusza.",
+      };
+    }
+
+    const resolvedQuestionnaireId =
+      snapshot.questionnaireId ?? questionnaireId ?? null;
+
+    const resolvedQuestionnaireVersionId =
+      snapshot.questionnaireVersionId ??
+      questionnaireVersionId ??
+      null;
+
+    if (!resolvedQuestionnaireId || !resolvedQuestionnaireVersionId) {
+      return {
+        ok: false as const,
+        message:
+          "Snapshot wybranego kwestionariusza nie zawiera pełnego zakresu wyniku.",
+      };
+    }
+
+    /**
+     * Nie ufamy bezwarunkowo hidden inputom.
+     * Jeżeli je przesłano, muszą być zgodne ze snapshotem.
+     */
+    if (
+      questionnaireId &&
+      questionnaireId !== resolvedQuestionnaireId
+    ) {
+      return {
+        ok: false as const,
+        message:
+          "Identyfikator kwestionariusza nie jest zgodny z zapisanym wynikiem.",
+      };
+    }
+
+    if (
+      questionnaireVersionId &&
+      questionnaireVersionId !==
+        resolvedQuestionnaireVersionId
+    ) {
+      return {
+        ok: false as const,
+        message:
+          "Wersja kwestionariusza nie jest zgodna z zapisanym wynikiem.",
+      };
+    }
+
+    return {
+      ok: true as const,
+      snapshotId: snapshot.snapshotId,
+      projectQuestionnaireId:
+        snapshot.projectQuestionnaireId,
+      questionnaireId: resolvedQuestionnaireId,
+      questionnaireVersionId:
+        resolvedQuestionnaireVersionId,
+    };
+  }
+
+  /**
+   * Legacy: brak projectQuestionnaireId.
+   * Działa tylko wtedy, gdy cała sesja zawiera jedną wersję.
+   */
+  const legacy = await resolveCompletedSessionQuestionnaireVersionId({
+    db,
+    sessionId,
+  });
+
+  if (!legacy.ok) {
+    return legacy;
+  }
+
+  return {
+    ok: true as const,
+    snapshotId: null,
+    projectQuestionnaireId: null,
+    questionnaireId: questionnaireId ?? null,
+    questionnaireVersionId: legacy.questionnaireVersionId,
+  };
+}
+
 async function resolveCompletedSessionQuestionnaireVersionId({
   db,
   sessionId,
@@ -245,6 +375,27 @@ export async function grantReportAccessToCompletedSessionAction(
   const tenantSlug = normalizeString(formData.get("tenantSlug"));
   const sessionId = normalizeString(formData.get("sessionId"));
   const productId = normalizeString(formData.get("productId"));
+
+const projectQuestionnaireId = normalizeString(
+  formData.get("projectQuestionnaireId"),
+);
+
+const questionnaireId = normalizeString(
+  formData.get("questionnaireId"),
+);
+
+const questionnaireVersionId = normalizeString(
+  formData.get("questionnaireVersionId"),
+);
+
+console.log("PARTNER_SESSION_GRANT_SCOPE_INPUT", {
+  tenantSlug,
+  sessionId,
+  productId,
+  projectQuestionnaireId,
+  questionnaireId,
+  questionnaireVersionId,
+});
 
   if (!tenantSlug || !sessionId || !productId) {
     return fail("Brakuje tenanta, sesji albo produktu dostępu.");
@@ -301,18 +452,37 @@ if (!respondentEmail) {
     "Nie można nadać dostępu do raportu, bo respondent nie ma adresu e-mail.",
   );
 }
-  const completedQuestionnaire =
-    await resolveCompletedSessionQuestionnaireVersionId({
-      db,
-      sessionId: session.id,
-    });
+const completedQuestionnaire =
+  await resolveCompletedSessionQuestionnaireScope({
+    db,
+    sessionId: session.id,
+    projectQuestionnaireId,
+    questionnaireId,
+    questionnaireVersionId,
+  });
 
-  if (!completedQuestionnaire.ok) {
-    return fail(completedQuestionnaire.message);
-  }
+if (!completedQuestionnaire.ok) {
+  return fail(completedQuestionnaire.message);
+}
 
-  const completedQuestionnaireVersionId =
-    completedQuestionnaire.questionnaireVersionId;
+const completedProjectQuestionnaireId =
+  completedQuestionnaire.projectQuestionnaireId;
+
+const completedQuestionnaireId =
+  completedQuestionnaire.questionnaireId;
+
+const completedQuestionnaireVersionId =
+  completedQuestionnaire.questionnaireVersionId;
+
+console.log("PARTNER_SESSION_GRANT_SCOPE_RESOLVED", {
+  sessionId: session.id,
+  snapshotId: completedQuestionnaire.snapshotId,
+  projectQuestionnaireId:
+    completedProjectQuestionnaireId,
+  questionnaireId: completedQuestionnaireId,
+  questionnaireVersionId:
+    completedQuestionnaireVersionId,
+});
 
   const product = await controlDb.query.reportAccessProducts.findFirst({
     where: and(
@@ -345,22 +515,71 @@ if (!respondentEmail) {
     );
   }
 
-  const existingGrant = await controlDb.query.reportAccessGrants.findFirst({
+const existingGrantCandidates =
+  await controlDb.query.reportAccessGrants.findMany({
     where: and(
       eq(reportAccessGrants.tenantSlug, tenantSlug),
       eq(reportAccessGrants.assessmentSessionId, session.id),
-      eq(reportAccessGrants.reportTemplateId, product.reportTemplateId),
+      eq(
+        reportAccessGrants.reportTemplateId,
+        product.reportTemplateId,
+      ),
       eq(reportAccessGrants.status, "active"),
       isNull(reportAccessGrants.deletedAt),
     ),
   });
+
+const existingGrant =
+  existingGrantCandidates.find((grant) => {
+    const metadata =
+      grant.metadata &&
+      typeof grant.metadata === "object" &&
+      !Array.isArray(grant.metadata)
+        ? (grant.metadata as Record<string, any>)
+        : {};
+
+    const reportScope =
+      metadata.reportScope &&
+      typeof metadata.reportScope === "object" &&
+      !Array.isArray(metadata.reportScope)
+        ? (metadata.reportScope as Record<string, any>)
+        : {};
+
+    const grantProjectQuestionnaireId =
+      typeof metadata.projectQuestionnaireId === "string"
+        ? metadata.projectQuestionnaireId
+        : typeof reportScope.projectQuestionnaireId === "string"
+          ? reportScope.projectQuestionnaireId
+          : null;
+
+    const grantQuestionnaireVersionId =
+      typeof metadata.questionnaireVersionId === "string"
+        ? metadata.questionnaireVersionId
+        : typeof reportScope.questionnaireVersionId === "string"
+          ? reportScope.questionnaireVersionId
+          : null;
+
+    if (completedProjectQuestionnaireId) {
+      return (
+        grantProjectQuestionnaireId ===
+        completedProjectQuestionnaireId
+      );
+    }
+
+    return (
+      grantQuestionnaireVersionId ===
+      completedQuestionnaireVersionId
+    );
+  }) ?? null;
 
   if (existingGrant) {
     revalidatePath(
       `/dashboard/partner-assessment/${tenantSlug}/projects/${session.assessmentProjectId}`,
     );
 
-    return success("Ta sesja ma już aktywny dostęp do tego typu raportu.");
+    return success(
+      "Ten kwestionariusz ma już aktywny dostęp do tego typu raportu.",
+    );
   }
 
   const now = new Date();
@@ -435,17 +654,30 @@ email: respondentEmail,
     validFrom: now,
     validUntil: grantValidUntil,
 
-    metadata: {
-      manuallyGranted: true,
-      accessCodeId: availableCode.id,
-      productCode: product.code,
-      productName: product.name,
-      questionnaireVersionId: completedQuestionnaireVersionId,
+metadata: {
+  manuallyGranted: true,
+  accessCodeId: availableCode.id,
+  productCode: product.code,
+  productName: product.name,
 
-      // Partner/admin jako osoba nadająca, nie jako odbiorca raportu:
-      grantedByUserId: authSession.user.id,
-      grantedAt: now.toISOString(),
-    },
+  projectQuestionnaireId:
+    completedProjectQuestionnaireId,
+  questionnaireId: completedQuestionnaireId,
+  questionnaireVersionId:
+    completedQuestionnaireVersionId,
+
+  reportScope: {
+    type: "project_questionnaire",
+    projectQuestionnaireId:
+      completedProjectQuestionnaireId,
+    questionnaireId: completedQuestionnaireId,
+    questionnaireVersionId:
+      completedQuestionnaireVersionId,
+  },
+
+  grantedByUserId: authSession.user.id,
+  grantedAt: now.toISOString(),
+},
 
     createdAt: now,
     updatedAt: now,
@@ -480,6 +712,18 @@ email: respondentEmail,
             redeemedAt: now.toISOString(),
             grantId: grant.id,
             questionnaireVersionId: completedQuestionnaireVersionId,
+            projectQuestionnaireId:
+              completedProjectQuestionnaireId,
+            questionnaireId: completedQuestionnaireId,
+
+            reportScope: {
+              type: "project_questionnaire",
+              projectQuestionnaireId:
+                completedProjectQuestionnaireId,
+              questionnaireId: completedQuestionnaireId,
+              questionnaireVersionId:
+                completedQuestionnaireVersionId,
+            },
           },
 
           updatedAt: now,
@@ -503,7 +747,9 @@ email: respondentEmail,
       `/dashboard/partner-assessment/${tenantSlug}/projects/${session.assessmentProjectId}`,
     );
 
-    return success("Nadano dostęp do raportu dla tej sesji.");
+    return success(
+      "Nadano dostęp do raportu dla wybranego kwestionariusza.",
+    );
   } catch (error) {
     const message =
       error instanceof Error

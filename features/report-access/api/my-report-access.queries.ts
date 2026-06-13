@@ -1,6 +1,6 @@
 // features/report-access/api/my-report-access.queries.ts
 import { and, desc, eq, isNull, or } from "drizzle-orm";
-
+import { resolveRespondentForCurrentUser } from "./report-access.queries";
 import {
   reportAccessGrants,
   reportAccessProducts,
@@ -143,7 +143,16 @@ export async function getMyReportAccesses() {
   const session = await requireSession();
   const email = normalizeEmail(session.user.email);
 
-  const rows = await controlDb
+  /**
+   * Pobieramy:
+   * 1. granty przypisane bezpośrednio do userId,
+   * 2. granty przypisane do e-maila,
+   * 3. granty przypisane do respondenta.
+   *
+   * Granty respondentów zostaną niżej zweryfikowane względem
+   * respondenta zalogowanego użytkownika w konkretnym tenant DB.
+   */
+  const candidateRows = await controlDb
     .select({
       id: reportAccessGrants.id,
 
@@ -152,13 +161,17 @@ export async function getMyReportAccesses() {
 
       tenantSlug: reportAccessGrants.tenantSlug,
 
+      userId: reportAccessGrants.userId,
+      email: reportAccessGrants.email,
+
       subjectType: reportAccessGrants.subjectType,
       subjectId: reportAccessGrants.subjectId,
 
       assessmentSessionId: reportAccessGrants.assessmentSessionId,
 
       reportTemplateId: reportAccessGrants.reportTemplateId,
-      reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+      reportTemplateVersionId:
+        reportAccessGrants.reportTemplateVersionId,
 
       validFrom: reportAccessGrants.validFrom,
       validUntil: reportAccessGrants.validUntil,
@@ -199,13 +212,132 @@ export async function getMyReportAccesses() {
         isNull(reportAccessGrants.deletedAt),
         isNull(reportTemplates.deletedAt),
         isNull(reportTemplateVersions.deletedAt),
+
         or(
           eq(reportAccessGrants.userId, session.user.id),
-          email ? eq(reportAccessGrants.email, email) : undefined,
+
+          email
+            ? eq(reportAccessGrants.email, email)
+            : undefined,
+
+          /**
+           * To są na razie kandydaci.
+           * Niżej sprawdzimy, czy subjectId rzeczywiście należy
+           * do zalogowanego użytkownika w danym tenancie.
+           */
+          eq(reportAccessGrants.subjectType, "respondent"),
         ),
       ),
     )
     .orderBy(desc(reportAccessGrants.createdAt));
+
+  /**
+   * Rozwiązujemy respondenta tylko w tenantach, w których istnieją
+   * kandydackie granty subjectType=respondent.
+   */
+  const respondentTenantSlugs = Array.from(
+    new Set(
+      candidateRows
+        .filter(
+          (row) =>
+            row.subjectType === "respondent" &&
+            Boolean(row.subjectId),
+        )
+        .map((row) => row.tenantSlug)
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.length > 0,
+        ),
+    ),
+  );
+
+  const respondentContextResults = await Promise.all(
+    respondentTenantSlugs.map(async (tenantSlug) => {
+      const resolved = await resolveRespondentForCurrentUser({
+        tenantSlug,
+      });
+
+      if (!resolved.ok) {
+        return {
+          ok: false as const,
+          tenantSlug,
+        };
+      }
+
+      return {
+        ok: true as const,
+        tenantSlug,
+        respondentId: resolved.respondent.id,
+      };
+    }),
+  );
+
+  /**
+   * respondentId jest lokalny dla konkretnego tenant DB,
+   * dlatego klucz musi zawierać również tenantSlug.
+   */
+  const ownedRespondentSubjectKeys = new Set(
+    respondentContextResults
+      .filter(
+        (
+          result,
+        ): result is Extract<
+          (typeof respondentContextResults)[number],
+          { ok: true }
+        > => result.ok,
+      )
+      .map(
+        (result) =>
+          `${result.tenantSlug}:${result.respondentId}`,
+      ),
+  );
+
+  const rows = candidateRows.filter((row) => {
+    const directlyAssignedToUser =
+      row.userId === session.user.id;
+
+    const rowEmail = normalizeEmail(row.email);
+
+    const directlyAssignedToEmail =
+      Boolean(email) &&
+      Boolean(rowEmail) &&
+      rowEmail === email;
+
+    const assignedToOwnedRespondent =
+      row.subjectType === "respondent" &&
+      Boolean(row.subjectId) &&
+      ownedRespondentSubjectKeys.has(
+        `${row.tenantSlug}:${row.subjectId}`,
+      );
+
+    return (
+      directlyAssignedToUser ||
+      directlyAssignedToEmail ||
+      assignedToOwnedRespondent
+    );
+  });
+
+  console.log("MY_REPORT_ACCESS_OWNERSHIP_RESOLUTION", {
+    userId: session.user.id,
+    email,
+    respondentTenantSlugs,
+    respondentContexts: respondentContextResults,
+    candidateGrantIds: candidateRows.map((row) => row.id),
+    visibleGrantIds: rows.map((row) => row.id),
+    visibleCompositeGrants: rows
+      .filter(
+        (row) =>
+          row.reportTemplateKind === "personal_composite",
+      )
+      .map((row) => ({
+        id: row.id,
+        tenantSlug: row.tenantSlug,
+        subjectType: row.subjectType,
+        subjectId: row.subjectId,
+        userId: row.userId,
+        email: row.email,
+      })),
+  });
 
   return rows.map((row) => {
     const active = isCurrentlyActive({

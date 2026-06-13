@@ -37,12 +37,19 @@ type ReportAccessProductOption = {
   priceGross?: string | number | null;
   availableCount?: number | string | null;
 };
+type SessionScope = {
+  projectQuestionnaireId?: string | null;
+  questionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+};
 
 type GrantReportAccessToSessionFormProps = {
   tenantSlug: string;
   sessionId: string;
   products: ReportAccessProductOption[];
+  session: SessionScope;
 };
+
 
 function formatMoney(value: unknown, currency = "PLN") {
   const numberValue = Number(value);
@@ -99,6 +106,7 @@ export function GrantReportAccessToSessionForm({
   tenantSlug,
   sessionId,
   products,
+  session,
 }: GrantReportAccessToSessionFormProps) {
   const [state, formAction, isPending] = useActionState(
     grantReportAccessToCompletedSessionAction,
@@ -139,6 +147,23 @@ export function GrantReportAccessToSessionForm({
       <form action={formAction} className="w-full space-y-2 text-right">
         <input type="hidden" name="tenantSlug" value={tenantSlug} />
         <input type="hidden" name="sessionId" value={sessionId} />
+        <input
+  type="hidden"
+  name="projectQuestionnaireId"
+  value={session.projectQuestionnaireId ?? ""}
+/>
+
+<input
+  type="hidden"
+  name="questionnaireVersionId"
+  value={session.questionnaireVersionId ?? ""}
+/>
+
+<input
+  type="hidden"
+  name="questionnaireId"
+  value={session.questionnaireId ?? ""}
+/>
         <input
           type="hidden"
           name="productId"

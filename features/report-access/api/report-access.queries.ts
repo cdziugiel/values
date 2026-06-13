@@ -1,5 +1,5 @@
 // features/report-access/api/report-access.queries.ts
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 
 import {
@@ -194,6 +194,7 @@ export async function getCompletedSessionQuestionnaireVersionIds({
   assessmentProjectId: string;
   sessionId: string;
 }) {
+  
   const snapshotRows = await db
     .select({
       payload: assessmentResultSnapshots.payload,
@@ -589,11 +590,16 @@ export async function getReportAccessOfferForCompletedSession({
     };
   }
 
+const resolvedQuestionnaireVersionId =
+  questionnaireVersionIds[0] ?? null;
+
 const existingGrant = await getActiveReportAccessGrantForSession({
   tenantSlug,
   sessionId,
   reportTemplateVersionId: reportVersion.reportTemplateVersionId,
   userId: resolved.actorUserId,
+  projectQuestionnaireId,
+  questionnaireVersionId: resolvedQuestionnaireVersionId,
 });
 
   const product = await controlDb.query.reportAccessProducts.findFirst({
@@ -735,16 +741,24 @@ export async function resolveRespondentForCurrentUser({
 }: {
   tenantSlug: string;
 }) {
+  
   const authSession = await requireSession();
   const email = normalizeEmail(authSession.user.email);
-
+console.log("RESOLVE_RESPONDENT_FOR_CURRENT_USER_INPUT", {
+  tenantSlug,
+  actorUserId: authSession.user.id,
+  actorEmail: authSession.user.email,
+});
   if (!email) {
     return {
       ok: false as const,
       message: "Konto użytkownika nie ma adresu e-mail.",
     };
   }
-
+console.log("RESOLVE_RESPONDENT_NORMALIZED_EMAIL", {
+  rawEmail: authSession.user.email,
+  email,
+});
   const tenant = await getTenantDbBySlug(tenantSlug);
 
   if (!tenant) {
@@ -773,7 +787,13 @@ export async function resolveRespondentForCurrentUser({
       ),
     )
     .limit(1);
-
+console.log("RESOLVE_RESPONDENT_TENANT_RESULT", {
+  tenantSlug,
+  email,
+  rows: rows.map((row) => ({
+    row
+  })),
+});
   const respondent = rows[0];
 
   if (!respondent) {
@@ -797,20 +817,54 @@ export async function resolveRespondentForCurrentUser({
   };
 }
 
+function resolveSnapshotQuestionnaireId(row: {
+  questionnaireId?: string | null;
+  payload?: unknown;
+}) {
+  const directQuestionnaireId = String(
+    row.questionnaireId ?? "",
+  ).trim();
+
+  if (directQuestionnaireId) {
+    return directQuestionnaireId;
+  }
+
+  return getSnapshotQuestionnaireId(row.payload);
+}
+
 export async function getCompositeReportAccessOfferForCurrentUser({
   tenantSlug,
+  tenantSlugs,
   reportTemplateVersionId,
 }: {
-  tenantSlug: string;
+  /**
+   * Legacy: pojedynczy tenant.
+   */
+  tenantSlug?: string | null;
+
+  /**
+   * Nowy wariant: wiele tenantów, z których mogą pochodzić źródła composite.
+   */
+  tenantSlugs?: string[] | null;
+
   reportTemplateVersionId: string;
 }) {
-  
-  const resolved = await resolveRespondentForCurrentUser({ tenantSlug });
+  const normalizedTenantSlugs = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(tenantSlugs) ? tenantSlugs : []),
+        tenantSlug ?? "",
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
 
-  if (!resolved.ok) {
+  if (normalizedTenantSlugs.length === 0) {
     return {
       ok: false as const,
-      message: resolved.message,
+      message:
+        "Brakuje kontekstu tenanta potrzebnego do wyszukania danych źródłowych raportu.",
     };
   }
 
@@ -863,127 +917,395 @@ export async function getCompositeReportAccessOfferForCurrentUser({
     };
   }
 
-const snapshotRows = await resolved.tenant.db
-  .select({
-    sessionId: assessmentSessions.id,
-    sessionStatus: assessmentSessions.status,
-    completedAt: assessmentSessions.completedAt,
+  /**
+   * Każdy tenant ma własną bazę respondents/sessions/snapshots.
+   * Brak respondenta w jednym tenancie nie blokuje pozostałych tenantów.
+   */
+  const tenantContextResults = await Promise.all(
+    normalizedTenantSlugs.map(async (currentTenantSlug) => {
+      const resolved = await resolveRespondentForCurrentUser({
+        tenantSlug: currentTenantSlug,
+      });
 
-    assessmentProjectId: assessmentProjects.id,
-    assessmentProjectName: assessmentProjects.name,
+      if (!resolved.ok) {
+        return {
+          ok: false as const,
+          tenantSlug: currentTenantSlug,
+          message: resolved.message,
+        };
+      }
 
-    snapshotId: assessmentResultSnapshots.id,
-    payload: assessmentResultSnapshots.payload,
-    createdAt: assessmentResultSnapshots.createdAt,
-  })
-  .from(assessmentResultSnapshots)
-  .innerJoin(
-    assessmentSessions,
-    eq(assessmentSessions.id, assessmentResultSnapshots.assessmentSessionId),
-  )
-  .innerJoin(
-    assessmentProjects,
-    eq(assessmentProjects.id, assessmentSessions.assessmentProjectId),
-  )
-  .where(
-    and(
-      eq(assessmentSessions.respondentId, resolved.respondent.id),
-      eq(assessmentSessions.status, "completed"),
-      isNull(assessmentSessions.deletedAt),
-      isNull(assessmentProjects.deletedAt),
-      isNull(assessmentResultSnapshots.deletedAt),
-    ),
+      const rows = await resolved.tenant.db
+        .select({
+          sessionId: assessmentSessions.id,
+          sessionStatus: assessmentSessions.status,
+          sessionCompletedAt: assessmentSessions.completedAt,
+
+          assessmentProjectId: assessmentProjects.id,
+          assessmentProjectName: assessmentProjects.name,
+
+          snapshotId: assessmentResultSnapshots.id,
+          projectQuestionnaireId:
+            assessmentResultSnapshots.projectQuestionnaireId,
+          questionnaireId: assessmentResultSnapshots.questionnaireId,
+          questionnaireVersionId:
+            assessmentResultSnapshots.questionnaireVersionId,
+
+          payload: assessmentResultSnapshots.payload,
+          snapshotCreatedAt: assessmentResultSnapshots.createdAt,
+
+          projectQuestionnaireQuestionnaireId:
+            assessmentProjectQuestionnaires.questionnaireId,
+
+          projectQuestionnaireVersionId:
+            assessmentProjectQuestionnaires.questionnaireVersionId,
+        })
+        .from(assessmentResultSnapshots)
+        .innerJoin(
+          assessmentSessions,
+          eq(
+            assessmentSessions.id,
+            assessmentResultSnapshots.assessmentSessionId,
+          ),
+        )
+        .innerJoin(
+          assessmentProjects,
+          eq(
+            assessmentProjects.id,
+            assessmentSessions.assessmentProjectId,
+          ),
+        )
+        .leftJoin(
+          assessmentProjectQuestionnaires,
+          eq(
+            assessmentProjectQuestionnaires.id,
+            assessmentResultSnapshots.projectQuestionnaireId,
+          ),
+        )
+        .where(
+          and(
+            eq(assessmentSessions.respondentId, resolved.respondent.id),
+            isNull(assessmentSessions.deletedAt),
+            isNull(assessmentProjects.deletedAt),
+            isNull(assessmentResultSnapshots.deletedAt),
+          ),
+        );
+
+      return {
+        ok: true as const,
+        tenantSlug: currentTenantSlug,
+        resolved,
+        snapshotRows: rows,
+      };
+    }),
   );
+
+  const availableTenantContexts = tenantContextResults.filter(
+    (
+      context,
+    ): context is Extract<
+      (typeof tenantContextResults)[number],
+      { ok: true }
+    > => context.ok,
+  );
+
+  if (availableTenantContexts.length === 0) {
+    const messages = tenantContextResults
+      .filter(
+        (
+          context,
+        ): context is Extract<
+          (typeof tenantContextResults)[number],
+          { ok: false }
+        > => !context.ok,
+      )
+      .map((context) => `${context.tenantSlug}: ${context.message}`);
+
+    return {
+      ok: false as const,
+      message:
+        "Nie znaleziono respondenta powiązanego z zalogowanym użytkownikiem w żadnym z dostępnych tenantów." +
+        (messages.length > 0 ? ` ${messages.join(" ")}` : ""),
+    };
+  }
+
+  /**
+   * Zachowujemy tenant przy każdym snapshotcie.
+   * UUID sesji nie wystarcza do identyfikacji źródła między tenantami.
+   */
+  const snapshotRows = availableTenantContexts.flatMap((context) =>
+    context.snapshotRows.map((row) => ({
+      ...row,
+      tenantSlug: context.tenantSlug,
+      respondentId: context.resolved.respondent.id,
+    })),
+  );
+
+  console.log("COMPOSITE_SOURCE_SNAPSHOTS", {
+    requestedTenantSlugs: normalizedTenantSlugs,
+
+    availableTenantContexts: availableTenantContexts.map((context) => ({
+      tenantSlug: context.tenantSlug,
+      respondentId: context.resolved.respondent.id,
+      snapshotsCount: context.snapshotRows.length,
+    })),
+
+    unavailableTenantContexts: tenantContextResults
+      .filter((context) => !context.ok)
+      .map((context) => ({
+        tenantSlug: context.tenantSlug,
+        message: context.message,
+      })),
+
+    configuredSources: configuredSources.map((source) => ({
+      slot: source.slot,
+      questionnaireId: source.questionnaireId,
+      questionnaireCode: source.questionnaireCode,
+      required: source.required,
+    })),
+
+    snapshots: snapshotRows.map((row) => ({
+      tenantSlug: row.tenantSlug,
+      respondentId: row.respondentId,
+      snapshotId: row.snapshotId,
+      sessionId: row.sessionId,
+      assessmentProjectId: row.assessmentProjectId,
+      projectQuestionnaireId: row.projectQuestionnaireId,
+
+      snapshotQuestionnaireId: row.questionnaireId,
+      snapshotQuestionnaireVersionId: row.questionnaireVersionId,
+
+      projectQuestionnaireQuestionnaireId:
+        row.projectQuestionnaireQuestionnaireId,
+
+      projectQuestionnaireVersionId:
+        row.projectQuestionnaireVersionId,
+
+      questionnaireIdFromPayload:
+        getSnapshotQuestionnaireId(row.payload),
+
+      resolvedQuestionnaireId:
+        resolveSnapshotQuestionnaireId(row),
+    })),
+  });
 
   const completedQuestionnaireIds = new Set(
     snapshotRows
-      .map((row) => getSnapshotQuestionnaireId(row.payload))
+      .map((row) => resolveSnapshotQuestionnaireId(row))
       .filter((value): value is string => Boolean(value)),
   );
 
   const missingRequiredSources = configuredSources.filter(
     (source) =>
-      source.required && !completedQuestionnaireIds.has(source.questionnaireId),
+      source.required &&
+      !completedQuestionnaireIds.has(source.questionnaireId),
   );
 
   const missingOptionalSources = configuredSources.filter(
     (source) =>
-      !source.required && !completedQuestionnaireIds.has(source.questionnaireId),
+      !source.required &&
+      !completedQuestionnaireIds.has(source.questionnaireId),
   );
 
+  const sourceCandidates = configuredSources.map((source, index) => {
+    const sourceRecord = source as Record<string, any>;
 
-const sourceCandidates = configuredSources.map((source, index) => {
-  const sourceRecord = source as Record<string, any>;
+    const questionnaireId = String(
+      sourceRecord.questionnaireId ?? "",
+    ).trim();
 
-  const questionnaireId = String(sourceRecord.questionnaireId ?? "");
-  const questionnaireCode = String(sourceRecord.questionnaireCode ?? "");
-  const slot = String(sourceRecord.slot ?? `source_${index + 1}`);
+    const questionnaireCode = String(
+      sourceRecord.questionnaireCode ?? "",
+    ).trim();
 
-  const candidates = snapshotRows
-    .filter((row) => getSnapshotQuestionnaireId(row.payload) === questionnaireId)
-    .map((row) => ({
-      assessmentSessionId: row.sessionId,
-      assessmentProjectName: row.assessmentProjectName ?? null,
-      completedAt: row.completedAt ?? row.createdAt ?? null,
-    }));
+    const slot = String(
+      sourceRecord.slot ?? `source_${index + 1}`,
+    ).trim();
 
-  return {
-    slot,
-    label:
-      String(sourceRecord.label ?? "").trim() ||
-      questionnaireCode ||
-      questionnaireId ||
+const candidates = snapshotRows
+  .filter(
+    (row) =>
+      resolveSnapshotQuestionnaireId(row) === questionnaireId,
+  )
+  .map((row) => ({
+    tenantSlug: row.tenantSlug,
+
+    assessmentSessionId: row.sessionId,
+    assessmentProjectId: row.assessmentProjectId ?? null,
+    assessmentProjectName: row.assessmentProjectName ?? null,
+
+    projectQuestionnaireId:
+      row.projectQuestionnaireId ?? null,
+
+    // Kandydat został już odfiltrowany dla tego źródła,
+    // więc używamy niepustego ID z konfiguracji źródła.
+    questionnaireId,
+
+    questionnaireVersionId:
+      row.questionnaireVersionId ?? null,
+
+    snapshotId: row.snapshotId,
+
+    completedAt:
+      row.snapshotCreatedAt ??
+      row.sessionCompletedAt ??
+      null,
+  }));
+
+    return {
       slot,
-    questionnaireName:
-      String(sourceRecord.questionnaireName ?? "").trim() ||
-      questionnaireCode ||
-      questionnaireId ||
-      slot,
-    candidates,
-  };
-});
+
+      label:
+        String(sourceRecord.label ?? "").trim() ||
+        questionnaireCode ||
+        questionnaireId ||
+        slot,
+
+      questionnaireName:
+        String(sourceRecord.questionnaireName ?? "").trim() ||
+        questionnaireCode ||
+        questionnaireId ||
+        slot,
+
+      questionnaireId,
+      questionnaireCode,
+      required: Boolean(sourceRecord.required),
+
+      candidates,
+    };
+  });
 
   const eligibility = {
     status:
       missingRequiredSources.length > 0
         ? ("missing_required_sources" as const)
         : ("ready" as const),
+
     canRender: missingRequiredSources.length === 0,
+
     configuredSources,
-    completedQuestionnaireIds: Array.from(completedQuestionnaireIds),
+    completedQuestionnaireIds: Array.from(
+      completedQuestionnaireIds,
+    ),
+
     missingRequiredSources,
     missingOptionalSources,
   };
 
-  const existingGrant = await getActiveReportAccessGrantForSubject({
-    tenantSlug,
-    subjectType: "respondent",
-    subjectId: resolved.respondent.id,
-    reportTemplateVersionId,
-    userId: resolved.actorUserId,
-  });
+  /**
+   * Legacy i nowy model:
+   *
+   * Grant composite może być przypisany do respondenta znajdującego się
+   * w dowolnym z tenantów źródłowych. Sprawdzamy każdy rozpoznany kontekst.
+   */
+  const grantCandidates = await Promise.all(
+    availableTenantContexts.map(async (context) => {
+      const grant = await getActiveReportAccessGrantForSubject({
+        tenantSlug: context.tenantSlug,
+        subjectType: "respondent",
+        subjectId: context.resolved.respondent.id,
+        reportTemplateVersionId,
+        userId: context.resolved.actorUserId,
+      });
 
-  const product = await controlDb.query.reportAccessProducts.findFirst({
-    where: and(
-      eq(reportAccessProducts.reportTemplateId, reportVersion.reportTemplateId),
-      eq(reportAccessProducts.status, "active"),
-      isNull(reportAccessProducts.deletedAt),
+      return {
+        tenantSlug: context.tenantSlug,
+        respondentId: context.resolved.respondent.id,
+        grant,
+      };
+    }),
+  );
+
+  const existingGrantContext =
+    grantCandidates.find((candidate) => Boolean(candidate.grant)) ??
+    null;
+
+  const existingGrant = existingGrantContext?.grant ?? null;
+
+  const product =
+    await controlDb.query.reportAccessProducts.findFirst({
+      where: and(
+        eq(
+          reportAccessProducts.reportTemplateId,
+          reportVersion.reportTemplateId,
+        ),
+        eq(reportAccessProducts.status, "active"),
+        isNull(reportAccessProducts.deletedAt),
+      ),
+    });
+
+  /**
+   * Primary context zachowuje kompatybilność z kodem oczekującym:
+   * tenantSlug, respondent, actorUserId i actorEmail.
+   *
+   * Pierwszeństwo:
+   * 1. tenant z istniejącym grantem,
+   * 2. legacy tenantSlug,
+   * 3. pierwszy poprawnie rozpoznany tenant.
+   */
+  const preferredTenantSlug =
+    existingGrantContext?.tenantSlug ??
+    (tenantSlug &&
+    availableTenantContexts.some(
+      (context) => context.tenantSlug === tenantSlug,
+    )
+      ? tenantSlug
+      : null) ??
+    availableTenantContexts[0].tenantSlug;
+
+  const primaryContext =
+    availableTenantContexts.find(
+      (context) => context.tenantSlug === preferredTenantSlug,
+    ) ?? availableTenantContexts[0];
+
+  return {
+    ok: true as const,
+
+    /**
+     * Legacy — pojedynczy tenant kotwiczący ofertę/grant.
+     */
+    tenantSlug: primaryContext.tenantSlug,
+
+    /**
+     * Nowy model — wszystkie tenanty sprawdzone dla composite.
+     */
+    tenantSlugs: normalizedTenantSlugs,
+
+    /**
+     * Tenanty, w których faktycznie znaleziono respondenta.
+     */
+    availableTenantSlugs: availableTenantContexts.map(
+      (context) => context.tenantSlug,
     ),
-  });
 
-return {
-  ok: true as const,
-  tenantSlug,
-  actorUserId: resolved.actorUserId,
-  actorEmail: resolved.actorEmail,
-  respondent: resolved.respondent,
-  reportVersion,
-  product: product ?? null,
-  existingGrant,
-  hasAccess: Boolean(existingGrant),
-  eligibility,
-  sourceCandidates,
-};
+    actorUserId: primaryContext.resolved.actorUserId,
+    actorEmail: primaryContext.resolved.actorEmail,
+
+    /**
+     * Legacy — główny respondent.
+     */
+    respondent: primaryContext.resolved.respondent,
+
+    /**
+     * Nowy model — respondent może mieć odrębne ID w każdym tenant DB.
+     */
+    respondentContexts: availableTenantContexts.map((context) => ({
+      tenantSlug: context.tenantSlug,
+      respondent: context.resolved.respondent,
+    })),
+
+    reportVersion,
+    product: product ?? null,
+
+    existingGrant,
+    existingGrantTenantSlug:
+      existingGrantContext?.tenantSlug ?? null,
+
+    hasAccess: Boolean(existingGrant),
+
+    eligibility,
+    sourceCandidates,
+  };
 }
 
 

@@ -128,10 +128,73 @@ function isUnusedComparisonAccess(access: any) {
 
   return Boolean(
     isComparisonAccess(access) &&
-      metadata.creditStatus !== "used" &&
-      !metadata.comparisonDefinition,
+    metadata.creditStatus !== "used" &&
+    !metadata.comparisonDefinition,
   );
 }
+function normalizeOptionalString(value: unknown) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
+function getAccessProjectQuestionnaireId(access: any) {
+  const metadata = asRecord(access.metadata);
+  const reportScope = asRecord(metadata.reportScope);
+
+  return (
+    normalizeOptionalString(access.projectQuestionnaireId) ??
+    normalizeOptionalString(metadata.projectQuestionnaireId) ??
+    normalizeOptionalString(reportScope.projectQuestionnaireId)
+  );
+}
+
+function getAccessQuestionnaireVersionId(access: any) {
+  const metadata = asRecord(access.metadata);
+  const reportScope = asRecord(metadata.reportScope);
+
+  return (
+    normalizeOptionalString(access.questionnaireVersionId) ??
+    normalizeOptionalString(metadata.questionnaireVersionId) ??
+    normalizeOptionalString(reportScope.questionnaireVersionId)
+  );
+}
+
+function buildPersonalReportHref(access: any) {
+  const tenantSlug = normalizeOptionalString(access.tenantSlug);
+  const sessionId = normalizeOptionalString(access.assessmentSessionId);
+  const reportTemplateVersionId = normalizeOptionalString(
+    access.reportTemplateVersionId,
+  );
+
+  if (!tenantSlug || !sessionId || !reportTemplateVersionId) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  const projectQuestionnaireId =
+    getAccessProjectQuestionnaireId(access);
+
+  const questionnaireVersionId =
+    getAccessQuestionnaireVersionId(access);
+
+  if (projectQuestionnaireId) {
+    params.set("projectQuestionnaireId", projectQuestionnaireId);
+  }
+
+  if (questionnaireVersionId) {
+    params.set("questionnaireVersionId", questionnaireVersionId);
+  }
+
+  return (
+    `/my/assessment/sessions/${sessionId}` +
+    `/report/${reportTemplateVersionId}` +
+    `?${params.toString()}`
+  );
+}
+
 
 function buildComparisonConfigureHref(access: any) {
   return `/my/assessment/compare?product=${encodeURIComponent(
@@ -144,7 +207,20 @@ function buildComparisonConfigureHref(access: any) {
 function buildComparisonReportHref(access: any) {
   return `/my/assessment/comparison-reports/grants/${access.id}`;
 }
+function buildCompositeReportHref(access: any) {
+  const tenantSlug = normalizeOptionalString(access.tenantSlug);
+  const grantId = normalizeOptionalString(access.id);
 
+  if (!tenantSlug || !grantId) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+  });
+
+  return `/my/reports/composite/grants/${grantId}?${params.toString()}`;
+}
 
 function asRecord(value: unknown): Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -164,14 +240,24 @@ function isComparisonAccess(access: any) {
     metadata.mode === "comparison"
   );
 }
+function isCompositeAccess(access: any) {
+  const metadata = asRecord(access.metadata);
+
+  const hasCompositeKind =
+    access.reportTemplateKind === "personal_composite" ||
+    metadata.reportKind === "personal_composite" ||
+    metadata.mode === "composite";
+
+  return hasCompositeKind;
+}
 
 function isUsedComparisonAccess(access: any) {
   const metadata = asRecord(access.metadata);
 
   return Boolean(
     isComparisonAccess(access) &&
-      metadata.creditStatus === "used" &&
-      metadata.comparisonDefinition,
+    metadata.creditStatus === "used" &&
+    metadata.comparisonDefinition,
   );
 }
 
@@ -186,7 +272,12 @@ function getAccessButtonLabel(access: any) {
 
 export async function MyReportAccessList() {
   const accesses = await getMyReportAccesses();
-
+console.log(
+  "MY_REPORT_ACCESSES_RESULT",
+  accesses.map((access) => ({
+    access
+  })),
+);
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-1">
@@ -212,51 +303,83 @@ export async function MyReportAccessList() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {accesses.map((access) => (
-            <article
-              key={access.id}
-              className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
-            >
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
+          {accesses.map((access) => {
+            const personalReportHref = buildPersonalReportHref(access);
+            const compositeReportHref = isCompositeAccess(access)
+              ? buildCompositeReportHref(access)
+              : null;
+            console.log("MY_REPORT_ACCESS_LINK", {
+              grantId: access.id,
+              tenantSlug: access.tenantSlug,
+              assessmentSessionId: access.assessmentSessionId,
+              reportTemplateVersionId: access.reportTemplateVersionId,
+              reportTemplateKind: access.reportTemplateKind,
+              subjectType: access.subjectType,
+              subjectId: access.subjectId,
+              rawReportHref: access.reportHref,
+              isComposite: isCompositeAccess(access),
+              compositeReportHref,
+              projectQuestionnaireId: getAccessProjectQuestionnaireId(access),
+              questionnaireVersionId: getAccessQuestionnaireVersionId(access),
+              personalReportHref,
+              metadata: access.metadata,
+            });
+            return (
+              <article
+                key={access.id}
+                className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
+              >
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#171717] to-[#2dd4bf] opacity-0 transition group-hover:opacity-100" />
 
-              <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-base font-semibold tracking-[-0.02em] text-[#171717]">
-                      {access.reportTemplateName}
-                    </h3>
+                <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-base font-semibold tracking-[-0.02em] text-[#171717]">
+                        {access.reportTemplateName}
+                      </h3>
 
-                    <AccessStatusBadge access={access} />
+                      <AccessStatusBadge access={access} />
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <MetaItem
+                        icon={<FileText size={14} />}
+                        label="Wersja"
+                        value={`${access.reportTemplateVersionName} (${access.reportTemplateVersion})`}
+                      />
+
+                      <MetaItem
+                        icon={getSourceIcon(access.source)}
+                        label="Źródło"
+                        value={getSourceLabel(access.source)}
+                      />
+
+                      <MetaItem
+                        icon={<Clock3 size={14} />}
+                        label="Ważny do"
+                        value={formatDateTime(access.validUntil)}
+                      />
+                    </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    <MetaItem
-                      icon={<FileText size={14} />}
-                      label="Wersja"
-                      value={`${access.reportTemplateVersionName} (${access.reportTemplateVersion})`}
-                    />
-
-                    <MetaItem
-                      icon={getSourceIcon(access.source)}
-                      label="Źródło"
-                      value={getSourceLabel(access.source)}
-                    />
-
-                    <MetaItem
-                      icon={<Clock3 size={14} />}
-                      label="Ważny do"
-                      value={formatDateTime(access.validUntil)}
-                    />
-                  </div>
-                </div>
 
 <div className="flex md:justify-end">
-  {access.isCurrentlyActive && isUsedComparisonAccess(access) ? (
+  {access.isCurrentlyActive && isCompositeAccess(access) && compositeReportHref ? (
     <Button
       asChild
       className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
     >
-      <Link href={buildComparisonReportHref(access)}>Zobacz raport</Link>
+      <Link href={compositeReportHref}>
+        Zobacz raport
+      </Link>
+    </Button>
+  ) : access.isCurrentlyActive && isUsedComparisonAccess(access) ? (
+    <Button
+      asChild
+      className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
+    >
+      <Link href={buildComparisonReportHref(access)}>
+        Zobacz raport
+      </Link>
     </Button>
   ) : access.isCurrentlyActive && isUnusedComparisonAccess(access) ? (
     <Button
@@ -267,12 +390,14 @@ export async function MyReportAccessList() {
         Skonfiguruj porównanie
       </Link>
     </Button>
-  ) : access.isCurrentlyActive && access.reportHref ? (
+  ) : access.isCurrentlyActive && personalReportHref ? (
     <Button
       asChild
       className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] md:w-auto"
     >
-      <Link href={access.reportHref}>{getAccessButtonLabel(access)}</Link>
+      <Link href={personalReportHref}>
+        {getAccessButtonLabel(access)}
+      </Link>
     </Button>
   ) : (
     <Button
@@ -284,39 +409,40 @@ export async function MyReportAccessList() {
     </Button>
   )}
 </div>
-              </div>
-
-              <details className="group/details mt-4 border-t border-black/10 pt-3">
-                <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-sm text-[#6b7280] outline-none transition hover:text-[#171717] focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40">
-                  Szczegóły dostępu
-                  <ChevronDown
-                    size={15}
-                    className="transition group-open/details:rotate-180"
-                  />
-                </summary>
-
-                <div className="mt-4 grid gap-2 rounded-[1.25rem] border border-black/10 bg-white/60 p-4 text-sm text-[#6b7280] sm:grid-cols-2">
-                  <div>
-                    Kod raportu: <span className="font-medium text-[#171717]">{access.reportTemplateCode}</span>
-                  </div>
-
-                  {access.productName ? (
-                    <div>
-                      Produkt: <span className="font-medium text-[#171717]">{access.productName}</span>
-                    </div>
-                  ) : null}
-
-                  <div>
-                    Nadano: <span className="font-medium text-[#171717]">{formatDateTime(access.createdAt)}</span>
-                  </div>
-
-                  <div>
-                    Ważny do: <span className="font-medium text-[#171717]">{formatDateTime(access.validUntil)}</span>
-                  </div>
                 </div>
-              </details>
-            </article>
-          ))}
+
+                <details className="group/details mt-4 border-t border-black/10 pt-3">
+                  <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-sm text-[#6b7280] outline-none transition hover:text-[#171717] focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40">
+                    Szczegóły dostępu
+                    <ChevronDown
+                      size={15}
+                      className="transition group-open/details:rotate-180"
+                    />
+                  </summary>
+
+                  <div className="mt-4 grid gap-2 rounded-[1.25rem] border border-black/10 bg-white/60 p-4 text-sm text-[#6b7280] sm:grid-cols-2">
+                    <div>
+                      Kod raportu: <span className="font-medium text-[#171717]">{access.reportTemplateCode}</span>
+                    </div>
+
+                    {access.productName ? (
+                      <div>
+                        Produkt: <span className="font-medium text-[#171717]">{access.productName}</span>
+                      </div>
+                    ) : null}
+
+                    <div>
+                      Nadano: <span className="font-medium text-[#171717]">{formatDateTime(access.createdAt)}</span>
+                    </div>
+
+                    <div>
+                      Ważny do: <span className="font-medium text-[#171717]">{formatDateTime(access.validUntil)}</span>
+                    </div>
+                  </div>
+                </details>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

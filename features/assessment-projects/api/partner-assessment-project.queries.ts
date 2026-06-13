@@ -185,21 +185,30 @@ export async function getPartnerAssessmentProjectRespondents({
             .orderBy(asc(clientUnits.name))
         : [];
 
-    const sessionRows = await db
-        .select({
-            sessionId: assessmentSessions.id,
-            sessionStatus: assessmentSessions.status,
-            sessionCreatedAt: assessmentSessions.createdAt,
-            sessionUpdatedAt: assessmentSessions.updatedAt,
-            sessionCompletedAt: assessmentSessions.completedAt,
+const sessionRows = await db
+  .select({
+    sessionId: assessmentSessions.id,
+    sessionStatus: assessmentSessions.status,
+    sessionCreatedAt: assessmentSessions.createdAt,
+    sessionUpdatedAt: assessmentSessions.updatedAt,
+    sessionCompletedAt: assessmentSessions.completedAt,
 
-            accessLinkId: assessmentSessions.accessLinkId,
-            respondentId: respondents.id,
-            respondentEmail: respondentIdentities.email,
+    accessLinkId: assessmentSessions.accessLinkId,
+    respondentId: respondents.id,
+    respondentEmail: respondentIdentities.email,
 
-            snapshotId: assessmentResultSnapshots.id,
-            snapshotCreatedAt: assessmentResultSnapshots.createdAt,
-        })
+    snapshotId: assessmentResultSnapshots.id,
+    snapshotCreatedAt: assessmentResultSnapshots.createdAt,
+
+    snapshotProjectQuestionnaireId:
+      assessmentResultSnapshots.projectQuestionnaireId,
+
+    snapshotQuestionnaireId:
+      assessmentResultSnapshots.questionnaireId,
+
+    snapshotQuestionnaireVersionId:
+      assessmentResultSnapshots.questionnaireVersionId,
+  })
         .from(assessmentSessions)
         .innerJoin(
             respondents,
@@ -229,7 +238,13 @@ export async function getPartnerAssessmentProjectRespondents({
         )
         .orderBy(desc(assessmentSessions.updatedAt));
 
-    const sessionIds = sessionRows.map((row: any) => row.sessionId);
+    const sessionIds = Array.from(
+        new Set(
+            sessionRows
+            .map((row: any) => row.sessionId)
+            .filter((value: unknown): value is string => typeof value === "string"),
+        ),
+        );
     const responseQuestionnaireRows =
         sessionIds.length > 0
             ? await db
@@ -257,15 +272,21 @@ export async function getPartnerAssessmentProjectRespondents({
                 )
             : [];
 
-    const questionnaireVersionIds = Array.from(
-        new Set(
-            responseQuestionnaireRows
-                .map((row: any) => row.questionnaireVersionId)
-                .filter((value: unknown): value is string =>
-                    typeof value === "string" && value.length > 0,
-                ),
-        ),
-    );
+const questionnaireVersionIds = Array.from(
+  new Set(
+    [
+      ...responseQuestionnaireRows.map(
+        (row: any) => row.questionnaireVersionId,
+      ),
+      ...sessionRows.map(
+        (row: any) => row.snapshotQuestionnaireVersionId,
+      ),
+    ].filter(
+      (value: unknown): value is string =>
+        typeof value === "string" && value.length > 0,
+    ),
+  ),
+);
 
     const questionnaireRows =
         questionnaireVersionIds.length > 0
@@ -307,6 +328,22 @@ export async function getPartnerAssessmentProjectRespondents({
         existing.push(row);
         responseQuestionnairesBySessionId.set(row.sessionId, existing);
     }
+
+    const responseQuestionnaireBySessionAndVersionId = new Map<
+        string,
+        (typeof responseQuestionnaireRows)[number]
+        >();
+
+        for (const row of responseQuestionnaireRows) {
+        if (!row.questionnaireVersionId) {
+            continue;
+        }
+
+        responseQuestionnaireBySessionAndVersionId.set(
+            `${row.sessionId}::${row.questionnaireVersionId}`,
+            row,
+        );
+        }
     const grantRows =
         sessionIds.length > 0
             ? await controlDb
@@ -838,69 +875,187 @@ teamGrants:
         );
     }
 
-    const sessionsBase = sessionRows.map((session: any) => {
-        const grants = grantsBySessionId.get(session.sessionId) ?? [];
+const sessionsBase = sessionRows.map((session: any) => {
+  const grants = grantsBySessionId.get(session.sessionId) ?? [];
 
-        const responseQuestionnaires =
-            responseQuestionnairesBySessionId.get(session.sessionId) ?? [];
+  const snapshotQuestionnaireVersionId =
+    session.snapshotQuestionnaireVersionId ?? null;
 
-        const validResponseQuestionnaires = responseQuestionnaires.filter(
-            (row: any) =>
-                typeof row.questionnaireVersionId === "string" &&
-                row.questionnaireVersionId.length > 0,
-        );
+  const snapshotQuestionnaireId =
+    session.snapshotQuestionnaireId ?? null;
 
-        const totalResponseCount = validResponseQuestionnaires.reduce(
-            (sum: number, row: any) => sum + Number(row.responseCount ?? 0),
-            0,
-        );
+  const snapshotResponseQuestionnaire =
+    snapshotQuestionnaireVersionId
+      ? responseQuestionnaireBySessionAndVersionId.get(
+          `${session.sessionId}::${snapshotQuestionnaireVersionId}`,
+        ) ?? null
+      : null;
 
-        const singleResponseQuestionnaire =
-            validResponseQuestionnaires.length === 1
-                ? validResponseQuestionnaires[0]
-                : null;
+  const snapshotQuestionnaireMeta =
+    snapshotQuestionnaireVersionId
+      ? questionnaireByVersionId.get(
+          snapshotQuestionnaireVersionId,
+        ) ?? null
+      : null;
 
-        const questionnaireMeta =
-            singleResponseQuestionnaire?.questionnaireVersionId
-                ? questionnaireByVersionId.get(
-                    singleResponseQuestionnaire.questionnaireVersionId,
-                )
-                : null;
+  /**
+   * Nowy model:
+   * jeden rekord sessionRows odpowiada jednemu snapshotowi,
+   * czyli jednemu project questionnaire.
+   */
+  if (session.snapshotId && snapshotQuestionnaireVersionId) {
+    const completedQuestionnaire = {
+      questionnaireId:
+        snapshotQuestionnaireId ??
+        snapshotQuestionnaireMeta?.questionnaireId ??
+        null,
 
-        const completedQuestionnaire = singleResponseQuestionnaire
-            ? {
-                questionnaireId: singleResponseQuestionnaire.questionnaireId ?? null,
-                questionnaireVersionId:
-                    singleResponseQuestionnaire.questionnaireVersionId ?? null,
-                questionnaireCode: questionnaireMeta?.questionnaireCode ?? null,
-                questionnaireName: questionnaireMeta?.questionnaireName ?? null,
-                questionnaireVersion: questionnaireMeta?.questionnaireVersion ?? null,
-                responseCount: Number(singleResponseQuestionnaire.responseCount ?? 0),
-                isAmbiguous: false,
-            }
-            : validResponseQuestionnaires.length > 1
-                ? {
-                    questionnaireId: null,
-                    questionnaireVersionId: null,
-                    questionnaireCode: null,
-                    questionnaireName: "Niejednoznaczne odpowiedzi",
-                    questionnaireVersion: null,
-                    responseCount: totalResponseCount,
-                    isAmbiguous: true,
-                }
-                : null;
+      questionnaireVersionId:
+        snapshotQuestionnaireVersionId,
 
-        return {
-            ...session,
-            hasSnapshot: Boolean(session.snapshotId),
-            completedQuestionnaire,
-            grants: grants.map((grant) => ({
-                ...grant,
-                isCurrentlyActive: isGrantCurrentlyActive(grant),
-                partnerReportHref: `/t/${tenantSlug}/assessment-sessions/${session.sessionId}/report/${grant.reportTemplateVersionId}`,
-            })),
-        };
-    });
+      questionnaireCode:
+        snapshotQuestionnaireMeta?.questionnaireCode ?? null,
+
+      questionnaireName:
+        snapshotQuestionnaireMeta?.questionnaireName ?? null,
+
+      questionnaireVersion:
+        snapshotQuestionnaireMeta?.questionnaireVersion ?? null,
+
+      responseCount: Number(
+        snapshotResponseQuestionnaire?.responseCount ?? 0,
+      ),
+
+      isAmbiguous: false,
+    };
+
+    return {
+      ...session,
+
+      projectQuestionnaireId:
+        session.snapshotProjectQuestionnaireId ?? null,
+
+      questionnaireId:
+        completedQuestionnaire.questionnaireId,
+
+      questionnaireVersionId:
+        completedQuestionnaire.questionnaireVersionId,
+
+      questionnaireCode:
+        completedQuestionnaire.questionnaireCode,
+
+      questionnaireName:
+        completedQuestionnaire.questionnaireName,
+
+      hasSnapshot: true,
+      completedQuestionnaire,
+
+      grants: grants.map((grant) => ({
+        ...grant,
+        isCurrentlyActive: isGrantCurrentlyActive(grant),
+        partnerReportHref:
+          `/t/${tenantSlug}/assessment-sessions/` +
+          `${session.sessionId}/report/` +
+          `${grant.reportTemplateVersionId}`,
+      })),
+    };
+  }
+
+  /**
+   * Legacy fallback dla starych sesji bez scoped snapshotu.
+   */
+  const responseQuestionnaires =
+    responseQuestionnairesBySessionId.get(session.sessionId) ?? [];
+
+  const validResponseQuestionnaires = responseQuestionnaires.filter(
+    (row: any) =>
+      typeof row.questionnaireVersionId === "string" &&
+      row.questionnaireVersionId.length > 0,
+  );
+
+  const totalResponseCount = validResponseQuestionnaires.reduce(
+    (sum: number, row: any) =>
+      sum + Number(row.responseCount ?? 0),
+    0,
+  );
+
+  const singleResponseQuestionnaire =
+    validResponseQuestionnaires.length === 1
+      ? validResponseQuestionnaires[0]
+      : null;
+
+  const questionnaireMeta =
+    singleResponseQuestionnaire?.questionnaireVersionId
+      ? questionnaireByVersionId.get(
+          singleResponseQuestionnaire.questionnaireVersionId,
+        ) ?? null
+      : null;
+
+  const completedQuestionnaire = singleResponseQuestionnaire
+    ? {
+        questionnaireId:
+          singleResponseQuestionnaire.questionnaireId ?? null,
+
+        questionnaireVersionId:
+          singleResponseQuestionnaire.questionnaireVersionId ?? null,
+
+        questionnaireCode:
+          questionnaireMeta?.questionnaireCode ?? null,
+
+        questionnaireName:
+          questionnaireMeta?.questionnaireName ?? null,
+
+        questionnaireVersion:
+          questionnaireMeta?.questionnaireVersion ?? null,
+
+        responseCount: Number(
+          singleResponseQuestionnaire.responseCount ?? 0,
+        ),
+
+        isAmbiguous: false,
+      }
+    : validResponseQuestionnaires.length > 1
+      ? {
+          questionnaireId: null,
+          questionnaireVersionId: null,
+          questionnaireCode: null,
+          questionnaireName: "Niejednoznaczne odpowiedzi",
+          questionnaireVersion: null,
+          responseCount: totalResponseCount,
+          isAmbiguous: true,
+        }
+      : null;
+
+  return {
+    ...session,
+
+    projectQuestionnaireId: null,
+
+    questionnaireId:
+      completedQuestionnaire?.questionnaireId ?? null,
+
+    questionnaireVersionId:
+      completedQuestionnaire?.questionnaireVersionId ?? null,
+
+    questionnaireCode:
+      completedQuestionnaire?.questionnaireCode ?? null,
+
+    questionnaireName:
+      completedQuestionnaire?.questionnaireName ?? null,
+
+    hasSnapshot: Boolean(session.snapshotId),
+    completedQuestionnaire,
+
+    grants: grants.map((grant) => ({
+      ...grant,
+      isCurrentlyActive: isGrantCurrentlyActive(grant),
+      partnerReportHref:
+        `/t/${tenantSlug}/assessment-sessions/` +
+        `${session.sessionId}/report/` +
+        `${grant.reportTemplateVersionId}`,
+    })),
+  };
+});
 
     const sessions = sessionsBase.map((session: any) => {
         const completedQuestionnaire = session.completedQuestionnaire;
@@ -1024,35 +1179,47 @@ teamGrants:
             const product = reportAccessProductById.get(template.productId);
             const requiredSources = readCompositeRequiredSources(template.dataBindings);
 
-            const selectedSources = requiredSources.map((source) => {
-                const candidates = respondentSessions
-                    .filter((session: any) => {
-                        const completedQuestionnaire = session.completedQuestionnaire;
+const selectedSources = requiredSources.map((source) => {
+  const candidates = respondentSessions
+    .filter((session: any) => {
+      return (
+        session.hasSnapshot &&
+        session.questionnaireId === source.questionnaireId
+      );
+    })
+    .sort(
+      (a: any, b: any) =>
+        dateTime(
+          b.snapshotCreatedAt ?? b.sessionCompletedAt,
+        ) -
+        dateTime(
+          a.snapshotCreatedAt ?? a.sessionCompletedAt,
+        ),
+    );
 
-                        return (
-                            session.sessionStatus === "completed" &&
-                            session.hasSnapshot &&
-                            completedQuestionnaire &&
-                            !completedQuestionnaire.isAmbiguous &&
-                            completedQuestionnaire.questionnaireId === source.questionnaireId
-                        );
-                    })
-                    .sort(
-                        (a: any, b: any) =>
-                            dateTime(b.sessionCompletedAt) - dateTime(a.sessionCompletedAt),
-                    );
+  const selected = candidates[0] ?? null;
 
-                const selected = candidates[0] ?? null;
+  return {
+    ...source,
+    available: Boolean(selected),
 
-                return {
-                    ...source,
-                    available: Boolean(selected),
-                    selectedAssessmentSessionId: selected?.sessionId ?? null,
-                    selectedAssessmentResultSnapshotId: selected?.snapshotId ?? null,
-                    selectedCompletedAt: selected?.sessionCompletedAt ?? null,
-                    candidateCount: candidates.length,
-                };
-            });
+    selectedAssessmentSessionId:
+      selected?.sessionId ?? null,
+
+    selectedProjectQuestionnaireId:
+      selected?.projectQuestionnaireId ?? null,
+
+    selectedAssessmentResultSnapshotId:
+      selected?.snapshotId ?? null,
+
+    selectedCompletedAt:
+      selected?.snapshotCreatedAt ??
+      selected?.sessionCompletedAt ??
+      null,
+
+    candidateCount: candidates.length,
+  };
+});
 
             const missingRequiredSources = selectedSources.filter(
                 (source) => source.required && !source.available,

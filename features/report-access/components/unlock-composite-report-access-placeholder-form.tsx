@@ -19,27 +19,56 @@ type SourceCandidate = {
   slot: string;
   label: string;
   questionnaireName: string;
+  questionnaireId: string;
+  questionnaireCode: string;
+  required: boolean;
+
   candidates: {
+    tenantSlug: string;
+
     assessmentSessionId: string;
+    assessmentProjectId: string | null;
     assessmentProjectName: string | null;
+
+    projectQuestionnaireId: string | null;
+    questionnaireId: string;
+    questionnaireVersionId: string | null;
+
+    snapshotId: string;
+
     completedAt: string | Date | null;
   }[];
 };
 
 type UnlockCompositeReportAccessPlaceholderFormProps = {
-  tenantSlug: string;
+  tenantSlugs: string[];
   reportTemplateVersionId: string;
   sourceCandidates: SourceCandidate[];
 };
 
+function buildCandidateKey(candidate: {
+  tenantSlug: string;
+  assessmentSessionId: string;
+  projectQuestionnaireId: string | null;
+}) {
+  return [
+    candidate.tenantSlug,
+    candidate.assessmentSessionId,
+    candidate.projectQuestionnaireId ?? "",
+  ].join(":");
+}
+
+
+
 export function UnlockCompositeReportAccessPlaceholderForm({
-  tenantSlug,
+  tenantSlugs,
   reportTemplateVersionId,
   sourceCandidates,
 }: UnlockCompositeReportAccessPlaceholderFormProps) {
   const [selectionMode, setSelectionMode] = useState<
     "latest_completed" | "same_project" | "manual"
   >("latest_completed");
+  console.log("UnlockCompositeReportAccessPlaceholderForm", tenantSlugs)
 
   const [manualBySlot, setManualBySlot] = useState<Record<string, string>>({});
 
@@ -48,16 +77,48 @@ export function UnlockCompositeReportAccessPlaceholderForm({
     initialState,
   );
 
-  const manualSelection = useMemo(
-    () => ({
-      bySlot: manualBySlot,
-    }),
-    [manualBySlot],
-  );
+const manualSelection = useMemo(() => {
+  const bySlot: Record<
+    string,
+    {
+      tenantSlug: string;
+      assessmentSessionId: string;
+      projectQuestionnaireId: string | null;
+      questionnaireVersionId: string | null;
+    }
+  > = {};
+
+  for (const source of sourceCandidates) {
+    const selectedKey = manualBySlot[source.slot];
+
+    if (!selectedKey) continue;
+
+    const candidate = source.candidates.find(
+      (item) => buildCandidateKey(item) === selectedKey,
+    );
+
+    if (!candidate) continue;
+
+    bySlot[source.slot] = {
+      tenantSlug: candidate.tenantSlug,
+      assessmentSessionId: candidate.assessmentSessionId,
+      projectQuestionnaireId:
+        candidate.projectQuestionnaireId,
+      questionnaireVersionId:
+        candidate.questionnaireVersionId,
+    };
+  }
+
+  return { bySlot };
+}, [manualBySlot, sourceCandidates]);
 
   return (
     <form action={formAction} className="mt-6 space-y-5">
-      <input type="hidden" name="tenantSlug" value={tenantSlug} />
+      <input
+        type="hidden"
+        name="tenantSlugs"
+        value={JSON.stringify(tenantSlugs)}
+      />
       <input
         type="hidden"
         name="reportTemplateVersionId"
@@ -141,17 +202,22 @@ export function UnlockCompositeReportAccessPlaceholderForm({
               >
                 <option value="">Wybierz sesję</option>
 
-                {source.candidates.map((candidate) => (
-                  <option
-                    key={candidate.assessmentSessionId}
-                    value={candidate.assessmentSessionId}
-                  >
-                    {candidate.assessmentProjectName ?? "Projekt"} ·{" "}
-                    {candidate.completedAt
-                      ? new Date(candidate.completedAt).toLocaleString("pl-PL")
-                      : "bez daty ukończenia"}
-                  </option>
-                ))}
+{source.candidates.map((candidate) => {
+  const candidateKey = buildCandidateKey(candidate);
+
+  return (
+    <option
+      key={candidateKey}
+      value={candidateKey}
+    >
+      {candidate.assessmentProjectName ?? "Badanie publiczne"} ·{" "}
+      {candidate.tenantSlug} ·{" "}
+      {candidate.completedAt
+        ? new Date(candidate.completedAt).toLocaleString("pl-PL")
+        : "bez daty ukończenia"}
+    </option>
+  );
+})}
               </select>
             </label>
           ))}

@@ -14,7 +14,7 @@ import { getMyPersonalCompositeReportByGrantForCurrentUser } from "@/features/re
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
-
+import { resolveRespondentForCurrentUser } from "@/features/report-access/api/report-access.queries";
 import type { FrozenCompositeSelection } from "@/features/assessment-results/types/personal-composite-selection.types";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,10 @@ type PageProps = {
   }>;
 };
 
-
+function normalizeEmail(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || null;
+}
 
 export default async function Page({ params, searchParams }: PageProps) {
   const { grantId } = await params;
@@ -44,20 +47,18 @@ console.log("MY_COMPOSITE_GRANT_REPORT_ROUTE_HIT", {
 });
   const authSession = await requireSession();
 
-  const [grant] = await controlDb
-    .select()
-    .from(reportAccessGrants)
-    .where(
-      and(
-        eq(reportAccessGrants.id, grantId),
-        eq(reportAccessGrants.tenantSlug, tenant),
-        eq(reportAccessGrants.subjectType, "respondent"),
-        eq(reportAccessGrants.userId, authSession.user.id),
-        eq(reportAccessGrants.status, "active"),
-        isNull(reportAccessGrants.deletedAt),
-      ),
-    )
-    .limit(1);
+const [grant] = await controlDb
+  .select()
+  .from(reportAccessGrants)
+  .where(
+    and(
+      eq(reportAccessGrants.id, grantId),
+      eq(reportAccessGrants.tenantSlug, tenant),
+      eq(reportAccessGrants.status, "active"),
+      isNull(reportAccessGrants.deletedAt),
+    ),
+  )
+  .limit(1);
 
 if (!grant) {
   console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
@@ -69,13 +70,76 @@ if (!grant) {
 
   notFound();
 }
+const sessionEmail = normalizeEmail(authSession.user.email);
+const grantEmail = normalizeEmail(grant.email);
 
-if (!grant.subjectId) {
-  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
-    reason: "missing_subject_id",
+const directlyOwnedByUser =
+  Boolean(grant.userId) &&
+  grant.userId === authSession.user.id;
+
+const directlyOwnedByEmail =
+  Boolean(sessionEmail) &&
+  Boolean(grantEmail) &&
+  sessionEmail === grantEmail;
+
+let ownedByRespondent = false;
+
+if (
+  grant.subjectType === "respondent" &&
+  grant.subjectId
+) {
+  const resolved = await resolveRespondentForCurrentUser({
+    tenantSlug: tenant,
+  });
+
+  ownedByRespondent =
+    resolved.ok &&
+    resolved.respondent.id === grant.subjectId;
+
+  console.log("MY_COMPOSITE_GRANT_RESPONDENT_OWNERSHIP", {
     grantId,
     tenant,
-    grant,
+    grantSubjectType: grant.subjectType,
+    grantSubjectId: grant.subjectId,
+    resolvedOk: resolved.ok,
+    resolvedRespondentId: resolved.ok
+      ? resolved.respondent.id
+      : null,
+    ownedByRespondent,
+  });
+}
+
+const canViewGrant =
+  directlyOwnedByUser ||
+  directlyOwnedByEmail ||
+  ownedByRespondent;
+
+if (!canViewGrant) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "grant_not_owned_by_current_user",
+    grantId,
+    tenant,
+    userId: authSession.user.id,
+    sessionEmail,
+    grantUserId: grant.userId,
+    grantEmail,
+    grantSubjectType: grant.subjectType,
+    grantSubjectId: grant.subjectId,
+    directlyOwnedByUser,
+    directlyOwnedByEmail,
+    ownedByRespondent,
+  });
+
+  notFound();
+}
+if (
+  grant.subjectType === "respondent" &&
+  !grant.subjectId
+) {
+  console.log("MY_COMPOSITE_GRANT_REPORT_NOT_FOUND", {
+    reason: "respondent_grant_missing_subject_id",
+    grantId,
+    tenant,
   });
 
   notFound();

@@ -71,13 +71,16 @@ function getGrantSourceLabel(source: string) {
 }
 
 function getQuestionnaireKey(session: any) {
+  
   return (
-    session.completedQuestionnaire?.questionnaireId ??
-    session.questionnaireId ??
-    session.questionnaireVersionId ??
     session.projectQuestionnaireId ??
+    session.completedQuestionnaire?.projectQuestionnaireId ??
+    session.questionnaireVersionId ??
+    session.completedQuestionnaire?.questionnaireVersionId ??
+    session.questionnaireId ??
+    session.completedQuestionnaire?.questionnaireId ??
     session.completedQuestionnaire?.questionnaireCode ??
-    session.sessionId
+    `${session.sessionId}:unknown`
   );
 }
 
@@ -169,7 +172,24 @@ function buildQuestionnaireIndicators(sessions: any[]) {
       sessionId: string;
     }
   >();
-
+console.log(
+  "PARTNER_RESPONDENT_QUESTIONNAIRE_INDICATORS_INPUT",
+  sessions.map((session) => {
+    if (session.sessionId == "645bbe71-5ccf-470c-9338-be4460e740af")
+    return {
+sessionId: session.sessionId,
+    projectQuestionnaireId: session.projectQuestionnaireId,
+    questionnaireId: session.questionnaireId,
+    questionnaireVersionId: session.questionnaireVersionId,
+    completedQuestionnaire: session.completedQuestionnaire,
+    questionnaireName: session.questionnaireName,
+    questionnaireCode: session.questionnaireCode,
+    sessionStatus: session.sessionStatus,
+    hasSnapshot: session.hasSnapshot,
+    }
+    
+  }),
+);
   for (const session of sessions) {
     const key = String(getQuestionnaireKey(session));
     const name = getQuestionnaireName(session);
@@ -312,6 +332,7 @@ function SessionReportActions({
           <GrantReportAccessToSessionForm
             tenantSlug={tenantSlug}
             sessionId={session.sessionId}
+            session={session}
             products={compatibleReportAccessProducts}
           />
         </div>
@@ -577,14 +598,21 @@ export function PartnerRespondentsAccordion({
   </div>
 
   <div className="divide-y divide-black/10">
-    {respondentSessions.map((session: any) => {
+    {respondentSessions.map((session: any, index) => {
       const activeGrant = session.grants?.find(
         (grant: any) => grant.isCurrentlyActive,
       );
 
       return (
         <div
-          key={session.sessionId}
+          key={[
+            session.sessionId,
+            session.projectQuestionnaireId ??
+              session.completedQuestionnaire?.projectQuestionnaireId ??
+              session.questionnaireVersionId ??
+              session.questionnaireId ??
+              index,
+          ].join(":")}
           className="grid grid-cols-[minmax(280px,1.4fr)_130px_170px_minmax(320px,1fr)] gap-4 bg-white px-4 py-4 text-sm"
         >
           <div className="min-w-0">

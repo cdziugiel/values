@@ -1,3 +1,5 @@
+// app/(protected)/dashboard/partner-assessment/[tenantSlug]/projects/[projectId]/page.tsx
+
 import { PartnerAssessmentProjectRespondentsPage } from "@/features/assessment-projects/components/partner-assessment-project-respondents-page";
 
 export const dynamic = "force-dynamic";

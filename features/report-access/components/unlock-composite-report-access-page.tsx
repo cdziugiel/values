@@ -1,27 +1,25 @@
 // features/report-access/components/unlock-composite-report-access-page.tsx
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
-    ArrowLeft,
-    CheckCircle2,
-    CreditCard,
-    FileText,
-    LockKeyhole,
-    ReceiptText,
-    ShieldCheck,
-    TriangleAlert,
+  ArrowLeft,
+  CreditCard,
+  FileText,
+  LockKeyhole,
+  ReceiptText,
+  ShieldCheck,
+  TriangleAlert,
 } from "lucide-react";
 
-import {
-  getCompositeReportAccessOfferForCurrentUser,
-} from "../api/report-access.queries";
-
+import { getCompositeReportAccessOfferForCurrentUser } from "../api/report-access.queries";
 import { UnlockCompositeReportAccessPlaceholderForm } from "./unlock-composite-report-access-placeholder-form";
+
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
 import { useMemo } from "react";
 
 type UnlockCompositeReportAccessPageProps = {
-    tenantSlug: string;
-    reportTemplateVersionId: string;
+  tenantSlugs: string[];
+  reportTemplateVersionId: string;
 };
 
 function formatMoney({
@@ -136,43 +134,21 @@ function CenteredState({
 }
 
 export async function UnlockCompositeReportAccessPage({
-  tenantSlug,
+  tenantSlugs,
   reportTemplateVersionId,
 }: UnlockCompositeReportAccessPageProps) {
   console.log("COMPOSITE_UNLOCK_COMPONENT_HIT", {
-    tenantSlug,
-    reportTemplateVersionId,
-  });
-
-  console.log("COMPOSITE_UNLOCK_BEFORE_OFFER_QUERY", {
-    tenantSlug,
+    tenantSlugs,
     reportTemplateVersionId,
   });
 
   const offer = await getCompositeReportAccessOfferForCurrentUser({
-    tenantSlug,
+    tenantSlugs,
     reportTemplateVersionId,
-  });
-
-  console.log("COMPOSITE_UNLOCK_AFTER_OFFER_QUERY", {
-    ok: offer.ok,
-    tenantSlug,
-    reportTemplateVersionId,
-    message: offer.ok ? null : offer.message,
-    hasAccess: offer.ok ? offer.hasAccess : null,
-    existingGrantId: offer.ok ? offer.existingGrant?.id ?? null : null,
-    productId: offer.ok ? offer.product?.id ?? null : null,
-    eligibilityStatus: offer.ok ? offer.eligibility.status : null,
-    canRender: offer.ok ? offer.eligibility.canRender : null,
-    respondentId: offer.ok ? offer.respondent.id : null,
   });
 
   if (!offer.ok) {
-    console.log("COMPOSITE_UNLOCK_RENDER_NOT_OK_STATE", {
-      tenantSlug,
-      reportTemplateVersionId,
-      message: offer.message,
-    });
+
 
         return (
             <CenteredState
@@ -189,24 +165,10 @@ export async function UnlockCompositeReportAccessPage({
         );
     }
     
-  console.log("COMPOSITE_UNLOCK_BEFORE_CANDIDATE_PREVIEW", {
-    tenantSlug,
-    reportTemplateVersionId,
-    respondentId: offer.respondent.id,
-  });
+
 
 const sourceCandidates = offer.sourceCandidates ?? [];
 
-  console.log("COMPOSITE_UNLOCK_BEFORE_RENDER_FORM", {
-    tenantSlug,
-    reportTemplateVersionId,
-    sourceCandidatesCount: sourceCandidates.length,
-    sourceCandidatesSummary: sourceCandidates.map((source: any) => ({
-      slot: source.slot,
-      questionnaireName: source.questionnaireName,
-      candidatesCount: source.candidates.length,
-    })),
-  });
 
   const product = offer.product;
 
@@ -335,7 +297,7 @@ const sourceCandidates = offer.sourceCandidates ?? [];
                         </div>
 
                         <UnlockCompositeReportAccessPlaceholderForm
-                            tenantSlug={tenantSlug}
+                            tenantSlugs={tenantSlugs}
                             reportTemplateVersionId={reportTemplateVersionId}
                             sourceCandidates={sourceCandidates}
                         />

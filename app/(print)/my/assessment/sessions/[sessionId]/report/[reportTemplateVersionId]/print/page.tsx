@@ -1,13 +1,11 @@
 // app/(print)/my/assessment/sessions/[sessionId]/report/[reportTemplateVersionId]/print/page.tsx
 
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { getMyAssessmentCompletedResult } from "@/features/my-assessment/api/my-assessment-result.queries";
+import { assertCanViewMyAssessmentReport } from "@/features/report-access/api/report-access-guard.queries";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
-import { getActiveReportAccessGrantForSession } from "@/features/report-access/api/report-access.queries";
-import { assertCanViewMyAssessmentReport } from "@/features/report-access/api/report-access-guard.queries";
-import { requireSession } from "@/server/auth/require-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -19,6 +17,8 @@ type PageProps = {
   }>;
   searchParams: Promise<{
     tenant?: string;
+    projectQuestionnaireId?: string;
+    questionnaireVersionId?: string;
   }>;
 };
 
@@ -33,7 +33,12 @@ export default async function MyAssessmentReportPrintPage({
   searchParams,
 }: PageProps) {
   const { sessionId, reportTemplateVersionId } = await params;
-  const { tenant } = await searchParams;
+
+  const {
+    tenant,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  } = await searchParams;
 
   if (!tenant) {
     notFound();
@@ -43,40 +48,44 @@ export default async function MyAssessmentReportPrintPage({
     notFound();
   }
 
-  const authSession = await requireSession();
+  console.log("MY_REPORT_PRINT_PAGE_PARAMS", {
+    tenant,
+    sessionId,
+    reportTemplateVersionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
 
   const access = await assertCanViewMyAssessmentReport({
     tenantSlug: tenant,
     sessionId,
     reportTemplateVersionId,
+    projectQuestionnaireId: projectQuestionnaireId ?? null,
+    questionnaireVersionId: questionnaireVersionId ?? null,
   });
 
   if (!access.ok) {
-    redirect(
-      `/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenant}`,
-    );
+    console.warn("MY_REPORT_PRINT_ACCESS_DENIED", {
+      tenant,
+      sessionId,
+      reportTemplateVersionId,
+      projectQuestionnaireId,
+      questionnaireVersionId,
+      message: access.message,
+    });
+
+    notFound();
   }
 
   const result = await getMyAssessmentCompletedResult({
     tenantSlug: tenant,
     sessionId,
+    projectQuestionnaireId: projectQuestionnaireId ?? null,
+    questionnaireVersionId: questionnaireVersionId ?? null,
   });
 
   if (!result?.payload) {
     notFound();
-  }
-
-  const grant = await getActiveReportAccessGrantForSession({
-    tenantSlug: tenant,
-    sessionId,
-    reportTemplateVersionId,
-    userId: authSession.user.id,
-  });
-
-  if (!grant) {
-    redirect(
-      `/my/assessment/sessions/${sessionId}/unlock-report?tenant=${tenant}`,
-    );
   }
 
   const reportTemplateVersion = await getReportTemplateVersionForRender({
