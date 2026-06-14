@@ -20,6 +20,7 @@ import {
 export type RespondentActionState = {
   status: "idle" | "success" | "error";
   message: string;
+  formVersion: number;
 };
 
 function validationMessage(issues: { message: string }[]) {
@@ -27,7 +28,7 @@ function validationMessage(issues: { message: string }[]) {
 }
 
 export async function createRespondentAction(
-  _previousState: RespondentActionState,
+  previousState: RespondentActionState,
   formData: FormData,
 ): Promise<RespondentActionState> {
   const rawInput = {
@@ -48,6 +49,7 @@ export async function createRespondentAction(
   if (!parsed.success) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message: validationMessage(parsed.error.issues),
     };
   }
@@ -71,11 +73,13 @@ export async function createRespondentAction(
 
     return {
       status: "success",
+      formVersion: previousState.formVersion + 1,
       message: "Respondent został utworzony.",
     };
   } catch (error) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message:
         error instanceof Error
           ? error.message
@@ -85,7 +89,7 @@ export async function createRespondentAction(
 }
 
 export async function updateRespondentAction(
-  _previousState: RespondentActionState,
+  previousState: RespondentActionState,
   formData: FormData,
 ): Promise<RespondentActionState> {
   const rawInput = {
@@ -107,6 +111,7 @@ export async function updateRespondentAction(
   if (!parsed.success) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message: validationMessage(parsed.error.issues),
     };
   }
@@ -130,11 +135,13 @@ export async function updateRespondentAction(
 
     return {
       status: "success",
+      formVersion: previousState.formVersion,
       message: "Respondent został zaktualizowany.",
     };
   } catch (error) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message:
         error instanceof Error
           ? error.message
@@ -144,7 +151,7 @@ export async function updateRespondentAction(
 }
 
 export async function archiveRespondentAction(
-  _previousState: RespondentActionState,
+  previousState: RespondentActionState,
   formData: FormData,
 ): Promise<RespondentActionState> {
   const rawInput = {
@@ -157,6 +164,7 @@ export async function archiveRespondentAction(
   if (!parsed.success) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message: validationMessage(parsed.error.issues),
     };
   }
@@ -180,11 +188,13 @@ export async function archiveRespondentAction(
 
     return {
       status: "success",
+      formVersion: previousState.formVersion,
       message: "Respondent został zarchiwizowany.",
     };
   } catch (error) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message:
         error instanceof Error
           ? error.message

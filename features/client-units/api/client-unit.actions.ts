@@ -20,6 +20,7 @@ import {
 export type ClientUnitActionState = {
   status: "idle" | "success" | "error";
   message: string;
+  formVersion: number;
 };
 
 function validationMessage(issues: { message: string }[]) {
@@ -27,7 +28,7 @@ function validationMessage(issues: { message: string }[]) {
 }
 
 export async function createClientUnitAction(
-  _previousState: ClientUnitActionState,
+  previousState: ClientUnitActionState,
   formData: FormData,
 ): Promise<ClientUnitActionState> {
   const rawInput = {
@@ -41,10 +42,11 @@ export async function createClientUnitAction(
   const parsed = createClientUnitSchema.safeParse(rawInput);
 
   if (!parsed.success) {
-    return {
-      status: "error",
-      message: validationMessage(parsed.error.issues),
-    };
+return {
+  status: "error",
+  message: validationMessage(parsed.error.issues),
+  formVersion: previousState.formVersion,
+};
   }
 
   try {
@@ -64,23 +66,25 @@ export async function createClientUnitAction(
 
     revalidatePath(`/t/${ctx.tenantSlug}/client-units`);
 
-    return {
-      status: "success",
-      message: "Jednostka organizacyjna została utworzona.",
-    };
+return {
+  status: "success",
+  message: "Jednostka organizacyjna została utworzona.",
+  formVersion: previousState.formVersion + 1,
+};
   } catch (error) {
-    return {
-      status: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Nie udało się utworzyć jednostki organizacyjnej.",
-    };
+return {
+  status: "error",
+  message:
+    error instanceof Error
+      ? error.message
+      : "Nie udało się utworzyć jednostki organizacyjnej.",
+  formVersion: previousState.formVersion,
+};
   }
 }
 
 export async function updateClientUnitAction(
-  _previousState: ClientUnitActionState,
+  previousState: ClientUnitActionState,
   formData: FormData,
 ): Promise<ClientUnitActionState> {
   const rawInput = {
@@ -98,6 +102,7 @@ export async function updateClientUnitAction(
     return {
       status: "error",
       message: validationMessage(parsed.error.issues),
+      formVersion: previousState.formVersion,
     };
   }
 
@@ -120,11 +125,14 @@ export async function updateClientUnitAction(
 
     return {
       status: "success",
+
+      formVersion: previousState.formVersion + 1,
       message: "Jednostka organizacyjna została zaktualizowana.",
     };
   } catch (error) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message:
         error instanceof Error
           ? error.message
@@ -134,7 +142,7 @@ export async function updateClientUnitAction(
 }
 
 export async function archiveClientUnitAction(
-  _previousState: ClientUnitActionState,
+  previousState: ClientUnitActionState,
   formData: FormData,
 ): Promise<ClientUnitActionState> {
   const rawInput = {
@@ -147,6 +155,7 @@ export async function archiveClientUnitAction(
   if (!parsed.success) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message: validationMessage(parsed.error.issues),
     };
   }
@@ -170,11 +179,13 @@ export async function archiveClientUnitAction(
 
     return {
       status: "success",
+      formVersion: previousState.formVersion + 1, 
       message: "Jednostka organizacyjna została zarchiwizowana.",
     };
   } catch (error) {
     return {
       status: "error",
+      formVersion: previousState.formVersion,
       message:
         error instanceof Error
           ? error.message

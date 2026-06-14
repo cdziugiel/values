@@ -85,6 +85,8 @@ export function BulkAddProjectRespondentsDialog({
     organizationOptions[0]?.id ?? "",
   );
 
+  const [selectedUnitId, setSelectedUnitId] = useState("");
+
   const [state, formAction, isPending] = useActionState(
     bulkAddAssessmentProjectRespondentsAction,
     initialState,
@@ -161,9 +163,10 @@ export function BulkAddProjectRespondentsDialog({
                     id="bulk-client-organization-id"
                     name="clientOrganizationId"
                     value={selectedOrganizationId}
-                    onChange={(event) =>
-                      setSelectedOrganizationId(event.target.value)
-                    }
+                    onChange={(event) => {
+                      setSelectedOrganizationId(event.target.value);
+                      setSelectedUnitId("");
+                    }}
                     required
                     className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                   >
@@ -186,7 +189,8 @@ export function BulkAddProjectRespondentsDialog({
                   <select
                     id="bulk-client-unit-id"
                     name="clientUnitId"
-                    defaultValue=""
+                    value={selectedUnitId}
+                    onChange={(event) => setSelectedUnitId(event.target.value)}
                     className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                   >
                     <option value="">

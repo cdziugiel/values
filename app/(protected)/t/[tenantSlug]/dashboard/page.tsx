@@ -1,6 +1,24 @@
+// app/(protected)/t/[tenantSlug]/dashboard/page.tsx
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  isNull,
+  lt,
+  sql,
+} from "drizzle-orm";
+
+import {
+  TenantActivityLineChart,
+  type TenantActivityPoint,
+} from "@/features/dashboard/components/tenant-activity-line-chart";
+
+
+
 import {
   Activity,
   ArrowRight,
@@ -38,8 +56,13 @@ type TenantDashboardPageProps = {
   params: Promise<{
     tenantSlug: string;
   }>;
+  searchParams: Promise<{
+    activityAggregation?: string | string[];
+    activityOffset?: string | string[];
+    activityFrom?: string | string[];
+    activityTo?: string | string[];
+  }>;
 };
-
 function numberValue(value: unknown) {
   const parsed = Number(value ?? 0);
 
@@ -130,9 +153,481 @@ function percent(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
-async function getTenantDashboardData(tenantSlug: string) {
+type ActivityAggregation = "day" | "week" | "month" | "quarter";
+
+type ActivityRange = {
+  aggregation: ActivityAggregation;
+  offset: number;
+  bucketCount: number;
+
+  baseFrom: Date;
+  baseInclusiveTo: Date;
+
+  from: Date;
+  to: Date;
+
+  rangeLabel: string;
+};
+
+const ACTIVITY_TIME_ZONE = "Europe/Warsaw";
+
+const ACTIVITY_AGGREGATION_CONFIG: Record<
+  ActivityAggregation,
+  {
+    bucketCount: number;
+    label: string;
+  }
+> = {
+  day: {
+    bucketCount: 30,
+    label: "Dni",
+  },
+  week: {
+    bucketCount: 16,
+    label: "Tygodnie",
+  },
+  month: {
+    bucketCount: 12,
+    label: "Miesiące",
+  },
+  quarter: {
+    bucketCount: 8,
+    label: "Kwartały",
+  },
+};
+
+function parseActivityAggregation(
+  value: string | string[] | undefined,
+): ActivityAggregation {
+  const normalized = Array.isArray(value) ? value[0] : value;
+
+  if (
+    normalized === "day" ||
+    normalized === "week" ||
+    normalized === "month" ||
+    normalized === "quarter"
+  ) {
+    return normalized;
+  }
+
+  return "day";
+}
+
+function parseActivityOffset(value: string | string[] | undefined) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  const parsed = Number.parseInt(normalized ?? "0", 10);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(-120, Math.min(0, parsed));
+}
+
+
+function parseActivityDate(
+  value: string | string[] | undefined,
+): Date | null {
+  const normalized = Array.isArray(value) ? value[0] : value;
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return null;
+  }
+
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function formatActivityInputDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfUtcDay(date: Date) {
+  const result = new Date(date);
+
+  result.setUTCHours(0, 0, 0, 0);
+
+  return result;
+}
+
+function startOfUtcWeek(date: Date) {
+  const result = startOfUtcDay(date);
+  const day = result.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+
+  result.setUTCDate(result.getUTCDate() - daysFromMonday);
+
+  return result;
+}
+
+function startOfUtcMonth(date: Date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1),
+  );
+}
+
+function startOfUtcQuarter(date: Date) {
+  const quarterMonth = Math.floor(date.getUTCMonth() / 3) * 3;
+
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), quarterMonth, 1),
+  );
+}
+
+function startOfActivityBucket(
+  date: Date,
+  aggregation: ActivityAggregation,
+) {
+  switch (aggregation) {
+    case "week":
+      return startOfUtcWeek(date);
+
+    case "month":
+      return startOfUtcMonth(date);
+
+    case "quarter":
+      return startOfUtcQuarter(date);
+
+    case "day":
+    default:
+      return startOfUtcDay(date);
+  }
+}
+
+function addActivityBuckets(
+  date: Date,
+  aggregation: ActivityAggregation,
+  amount: number,
+) {
+  const result = new Date(date);
+
+  switch (aggregation) {
+    case "week":
+      result.setUTCDate(result.getUTCDate() + amount * 7);
+      break;
+
+    case "month":
+      result.setUTCMonth(result.getUTCMonth() + amount);
+      break;
+
+    case "quarter":
+      result.setUTCMonth(result.getUTCMonth() + amount * 3);
+      break;
+
+    case "day":
+    default:
+      result.setUTCDate(result.getUTCDate() + amount);
+      break;
+  }
+
+  return result;
+}
+function createActivityRange({
+  aggregation,
+  offset,
+  requestedFrom,
+  requestedTo,
+}: {
+  aggregation: ActivityAggregation;
+  offset: number;
+  requestedFrom: Date | null;
+  requestedTo: Date | null;
+}): ActivityRange {
+  const configuredBucketCount =
+    ACTIVITY_AGGREGATION_CONFIG[aggregation].bucketCount;
+
+  const today = startOfUtcDay(new Date());
+
+  const defaultBaseInclusiveTo = today;
+
+  const defaultBaseFrom = addActivityBuckets(
+    startOfActivityBucket(today, aggregation),
+    aggregation,
+    -(configuredBucketCount - 1),
+  );
+
+  let baseFrom = requestedFrom
+    ? startOfUtcDay(requestedFrom)
+    : defaultBaseFrom;
+
+  let baseInclusiveTo = requestedTo
+    ? startOfUtcDay(requestedTo)
+    : defaultBaseInclusiveTo;
+
+  if (baseFrom > baseInclusiveTo) {
+    baseFrom = defaultBaseFrom;
+    baseInclusiveTo = defaultBaseInclusiveTo;
+  }
+
+  const baseExclusiveTo = new Date(baseInclusiveTo);
+
+  baseExclusiveTo.setUTCDate(baseExclusiveTo.getUTCDate() + 1);
+
+  const baseDurationMs =
+    baseExclusiveTo.getTime() - baseFrom.getTime();
+
+  const shiftedFrom = new Date(
+    baseFrom.getTime() + offset * baseDurationMs,
+  );
+
+  const shiftedTo = new Date(
+    baseExclusiveTo.getTime() + offset * baseDurationMs,
+  );
+
+  const firstBucket = startOfActivityBucket(
+    shiftedFrom,
+    aggregation,
+  );
+
+  let bucketCount = 0;
+  let cursor = firstBucket;
+
+  while (cursor < shiftedTo) {
+    bucketCount += 1;
+
+    cursor = addActivityBuckets(
+      cursor,
+      aggregation,
+      1,
+    );
+  }
+
+  const rangeFormatter = new Intl.DateTimeFormat("pl-PL", {
+    timeZone: ACTIVITY_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+  const shiftedInclusiveTo = new Date(
+    shiftedTo.getTime() - 1,
+  );
+
+  return {
+    aggregation,
+    offset,
+    bucketCount,
+
+    baseFrom,
+    baseInclusiveTo,
+
+    from: shiftedFrom,
+    to: shiftedTo,
+
+    rangeLabel: `${rangeFormatter.format(
+      shiftedFrom,
+    )}–${rangeFormatter.format(
+      shiftedInclusiveTo,
+    )}`,
+  };
+}
+function getActivityBucketSql(
+  column:
+    | typeof respondents.createdAt
+    | typeof assessmentSessions.createdAt
+    | typeof assessmentResultSnapshots.createdAt,
+  aggregation: ActivityAggregation,
+) {
+  switch (aggregation) {
+    case "week":
+      return sql<string>`
+        to_char(
+          date_trunc(
+            'week',
+            timezone(${ACTIVITY_TIME_ZONE}, ${column})
+          ),
+          'YYYY-MM-DD'
+        )
+      `;
+
+    case "month":
+      return sql<string>`
+        to_char(
+          date_trunc(
+            'month',
+            timezone(${ACTIVITY_TIME_ZONE}, ${column})
+          ),
+          'YYYY-MM-DD'
+        )
+      `;
+
+    case "quarter":
+      return sql<string>`
+        to_char(
+          date_trunc(
+            'quarter',
+            timezone(${ACTIVITY_TIME_ZONE}, ${column})
+          ),
+          'YYYY-MM-DD'
+        )
+      `;
+
+    case "day":
+    default:
+      return sql<string>`
+        to_char(
+          date_trunc(
+            'day',
+            timezone(${ACTIVITY_TIME_ZONE}, ${column})
+          ),
+          'YYYY-MM-DD'
+        )
+      `;
+  }
+}
+
+function activityBucketKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatActivityBucketLabel(
+  date: Date,
+  aggregation: ActivityAggregation,
+) {
+  switch (aggregation) {
+    case "week": {
+      const end = addActivityBuckets(date, "day", 6);
+
+      const shortFormatter = new Intl.DateTimeFormat("pl-PL", {
+        timeZone: ACTIVITY_TIME_ZONE,
+        day: "2-digit",
+        month: "2-digit",
+      });
+
+      return `${shortFormatter.format(date)}–${shortFormatter.format(end)}`;
+    }
+
+    case "month":
+      return new Intl.DateTimeFormat("pl-PL", {
+        timeZone: ACTIVITY_TIME_ZONE,
+        month: "short",
+        year: "numeric",
+      }).format(date);
+
+    case "quarter":
+      return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
+
+    case "day":
+    default:
+      return new Intl.DateTimeFormat("pl-PL", {
+        timeZone: ACTIVITY_TIME_ZONE,
+        day: "2-digit",
+        month: "2-digit",
+      }).format(date);
+  }
+}
+
+function buildDashboardActivityTimeline({
+  range,
+  respondentsRows,
+  sessionsRows,
+  snapshotsRows,
+}: {
+  range: ActivityRange;
+  respondentsRows: Array<{ date: string; value: unknown }>;
+  sessionsRows: Array<{ date: string; value: unknown }>;
+  snapshotsRows: Array<{ date: string; value: unknown }>;
+}): TenantActivityPoint[] {
+  const respondentsByDate = new Map(
+    respondentsRows.map((row) => [
+      row.date,
+      numberValue(row.value),
+    ]),
+  );
+
+  const sessionsByDate = new Map(
+    sessionsRows.map((row) => [
+      row.date,
+      numberValue(row.value),
+    ]),
+  );
+
+  const snapshotsByDate = new Map(
+    snapshotsRows.map((row) => [
+      row.date,
+      numberValue(row.value),
+    ]),
+  );
+
+const points: TenantActivityPoint[] = [];
+
+let bucketDate = startOfActivityBucket(
+  range.from,
+  range.aggregation,
+);
+
+while (bucketDate < range.to) {
+  const date = activityBucketKey(bucketDate);
+
+  points.push({
+    date,
+    label: formatActivityBucketLabel(
+      bucketDate,
+      range.aggregation,
+    ),
+    respondents: respondentsByDate.get(date) ?? 0,
+    sessions: sessionsByDate.get(date) ?? 0,
+    snapshots: snapshotsByDate.get(date) ?? 0,
+  });
+
+  bucketDate = addActivityBuckets(
+    bucketDate,
+    range.aggregation,
+    1,
+  );
+}
+
+return points;
+}
+
+
+
+async function getTenantDashboardData({
+  tenantSlug,
+  activityAggregation,
+  activityOffset,
+  activityFrom,
+  activityTo,
+}: {
+  tenantSlug: string;
+  activityAggregation: ActivityAggregation;
+  activityOffset: number;
+  activityFrom: Date | null;
+  activityTo: Date | null;
+}) {
   const ctx = await requireTenantContext({ tenantSlug });
   const db = await getTenantDb(ctx);
+
+  const activityRange = createActivityRange({
+    aggregation: activityAggregation,
+    offset: activityOffset,
+    requestedFrom: activityFrom,
+    requestedTo: activityTo,
+  });
+
+  const respondentBucketSql = getActivityBucketSql(
+    respondents.createdAt,
+    activityAggregation,
+  );
+
+  const sessionBucketSql = getActivityBucketSql(
+    assessmentSessions.createdAt,
+    activityAggregation,
+  );
+
+  const snapshotBucketSql = getActivityBucketSql(
+    assessmentResultSnapshots.createdAt,
+    activityAggregation,
+  );
 
   const [
     projectCountRows,
@@ -145,6 +640,9 @@ async function getTenantDashboardData(tenantSlug: string) {
     accessCodeStatusRows,
     orderStatusRows,
     recentOrders,
+    respondentActivityRows,
+    sessionActivityRows,
+    snapshotActivityRows,
   ] = await Promise.all([
     db
       .select({
@@ -257,6 +755,60 @@ async function getTenantDashboardData(tenantSlug: string) {
       )
       .orderBy(desc(reportAccessOrders.createdAt))
       .limit(5),
+
+    db
+      .select({
+        date: respondentBucketSql,
+        value: count(respondents.id),
+      })
+      .from(respondents)
+      .where(
+        and(
+          isNull(respondents.deletedAt),
+          gte(respondents.createdAt, activityRange.from),
+          lt(respondents.createdAt, activityRange.to),
+        ),
+      )
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
+
+    db
+      .select({
+        date: sessionBucketSql,
+        value: count(assessmentSessions.id),
+      })
+      .from(assessmentSessions)
+      .where(
+        and(
+          isNull(assessmentSessions.deletedAt),
+          gte(assessmentSessions.createdAt, activityRange.from),
+          lt(assessmentSessions.createdAt, activityRange.to),
+        ),
+      )
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
+
+    db
+      .select({
+        date: snapshotBucketSql,
+        value: count(assessmentResultSnapshots.id),
+      })
+      .from(assessmentResultSnapshots)
+      .where(
+        and(
+          isNull(assessmentResultSnapshots.deletedAt),
+          gte(
+            assessmentResultSnapshots.createdAt,
+            activityRange.from,
+          ),
+          lt(
+            assessmentResultSnapshots.createdAt,
+            activityRange.to,
+          ),
+        ),
+      )
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
   ]);
 
   const sessionStatus = {
@@ -269,10 +821,21 @@ async function getTenantDashboardData(tenantSlug: string) {
   for (const row of sessionStatusRows) {
     const value = numberValue(row.value);
 
-    if (row.status === "not_started") sessionStatus.notStarted += value;
-    if (row.status === "in_progress") sessionStatus.inProgress += value;
-    if (row.status === "completed") sessionStatus.completed += value;
-    if (row.status === "cancelled") sessionStatus.cancelled += value;
+    if (row.status === "not_started") {
+      sessionStatus.notStarted += value;
+    }
+
+    if (row.status === "in_progress") {
+      sessionStatus.inProgress += value;
+    }
+
+    if (row.status === "completed") {
+      sessionStatus.completed += value;
+    }
+
+    if (row.status === "cancelled") {
+      sessionStatus.cancelled += value;
+    }
   }
 
   const accessCodes = {
@@ -289,11 +852,25 @@ async function getTenantDashboardData(tenantSlug: string) {
 
     accessCodes.total += value;
 
-    if (row.status === "available") accessCodes.available += value;
-    if (row.status === "assigned") accessCodes.assigned += value;
-    if (row.status === "redeemed") accessCodes.redeemed += value;
-    if (row.status === "expired") accessCodes.expired += value;
-    if (row.status === "cancelled") accessCodes.cancelled += value;
+    if (row.status === "available") {
+      accessCodes.available += value;
+    }
+
+    if (row.status === "assigned") {
+      accessCodes.assigned += value;
+    }
+
+    if (row.status === "redeemed") {
+      accessCodes.redeemed += value;
+    }
+
+    if (row.status === "expired") {
+      accessCodes.expired += value;
+    }
+
+    if (row.status === "cancelled") {
+      accessCodes.cancelled += value;
+    }
   }
 
   const orders = {
@@ -311,16 +888,54 @@ async function getTenantDashboardData(tenantSlug: string) {
 
     orders.total += value;
 
-    if (row.status === "draft") orders.draft += value;
-    if (row.status === "pending_payment") orders.pendingPayment += value;
-    if (row.status === "paid") orders.paid += value;
-    if (row.status === "failed") orders.failed += value;
-    if (row.status === "cancelled") orders.cancelled += value;
-    if (row.status === "refunded") orders.refunded += value;
+    if (row.status === "draft") {
+      orders.draft += value;
+    }
+
+    if (row.status === "pending_payment") {
+      orders.pendingPayment += value;
+    }
+
+    if (row.status === "paid") {
+      orders.paid += value;
+    }
+
+    if (row.status === "failed") {
+      orders.failed += value;
+    }
+
+    if (row.status === "cancelled") {
+      orders.cancelled += value;
+    }
+
+    if (row.status === "refunded") {
+      orders.refunded += value;
+    }
   }
+
+  const activityTimeline = buildDashboardActivityTimeline({
+    range: activityRange,
+    respondentsRows: respondentActivityRows,
+    sessionsRows: sessionActivityRows,
+    snapshotsRows: snapshotActivityRows,
+  });
 
   return {
     ctx,
+    activityTimeline,
+    activityView: {
+      aggregation: activityRange.aggregation,
+      offset: activityRange.offset,
+
+      // Bazowy zakres wybrany w polach dat.
+      from: formatActivityInputDate(activityRange.baseFrom),
+      to: formatActivityInputDate(
+        activityRange.baseInclusiveTo,
+      ),
+
+      // Opis faktycznego zakresu po uwzględnieniu offsetu.
+      rangeLabel: activityRange.rangeLabel,
+    },
     counts: {
       projects: numberValue(projectCountRows[0]?.value),
       respondents: numberValue(respondentCountRows[0]?.value),
@@ -523,10 +1138,36 @@ function EmptyPanel({ children }: { children: ReactNode }) {
 
 export default async function TenantDashboardPage({
   params,
+  searchParams,
 }: TenantDashboardPageProps) {
-  const { tenantSlug } = await params;
+  const [{ tenantSlug }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
 
-  const data = await getTenantDashboardData(tenantSlug);
+  const activityAggregation = parseActivityAggregation(
+    resolvedSearchParams.activityAggregation,
+  );
+
+  const activityOffset = parseActivityOffset(
+    resolvedSearchParams.activityOffset,
+  );
+
+  const activityFrom = parseActivityDate(
+  resolvedSearchParams.activityFrom,
+);
+
+const activityTo = parseActivityDate(
+  resolvedSearchParams.activityTo,
+);
+
+const data = await getTenantDashboardData({
+  tenantSlug,
+  activityAggregation,
+  activityOffset,
+  activityFrom,
+  activityTo,
+});
   const ctx = data.ctx;
 
   const completionRate =
@@ -570,7 +1211,7 @@ export default async function TenantDashboardPage({
           }
         />
 
-        
+
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -602,7 +1243,24 @@ export default async function TenantDashboardPage({
             icon={<PackageCheck size={20} />}
           />
         </section>
+        <DashboardCard>
+          <SectionHeader
+            icon={<Activity size={20} />}
+            title="Aktywność w czasie"
+            description="Liczba nowych respondentów, utworzonych sesji i zapisanych wyników w wybranym oknie czasowym."
+          />
 
+          <div className="px-5 pb-5 md:px-6 md:pb-6">
+<TenantActivityLineChart
+  data={data.activityTimeline}
+  aggregation={data.activityView.aggregation}
+  offset={data.activityView.offset}
+  from={data.activityView.from}
+  to={data.activityView.to}
+  rangeLabel={data.activityView.rangeLabel}
+/>
+          </div>
+        </DashboardCard>
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
           <DashboardCard>
             <SectionHeader

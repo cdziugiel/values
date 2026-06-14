@@ -191,9 +191,17 @@ async function ensureUnitExists({
     throw new Error("Client unit not found.");
   }
 
-  if (clientOrganizationId && unit.clientOrganizationId !== clientOrganizationId) {
-    throw new Error("Client unit does not belong to selected organization.");
-  }
+if (!clientOrganizationId) {
+  throw new Error(
+    "Client organization is required when a client unit is selected.",
+  );
+}
+
+if (unit.clientOrganizationId !== clientOrganizationId) {
+  throw new Error(
+    "Client unit does not belong to selected organization.",
+  );
+}
 
   return unit;
 }

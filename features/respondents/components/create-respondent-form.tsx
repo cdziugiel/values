@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   IdCard,
@@ -35,6 +35,7 @@ type CreateRespondentFormProps = {
 const initialState: RespondentActionState = {
   status: "idle",
   message: "",
+  formVersion: 0,
 };
 
 function ActionMessage({
@@ -80,7 +81,32 @@ export function CreateRespondentForm({
     createRespondentAction,
     initialState,
   );
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
+  const [selectedUnitId, setSelectedUnitId] = useState("");
 
+  const availableUnits = useMemo(
+    () =>
+      selectedOrganizationId
+        ? units.filter(
+          (unit) =>
+            unit.clientOrganizationId === selectedOrganizationId,
+        )
+        : [],
+    [selectedOrganizationId, units],
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      setSelectedUnitId("");
+    }
+  }, [state.formVersion, state.status]);
+
+  function handleOrganizationChange(
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) {
+    setSelectedOrganizationId(event.target.value);
+    setSelectedUnitId("");
+  }
   if (!canCreate) {
     return null;
   }
@@ -89,6 +115,7 @@ export function CreateRespondentForm({
     <section className="rounded-[2rem] hv-brand-card">
       <form
         action={formAction}
+        key={state.formVersion}
         className="grid gap-6 p-5 md:p-6 lg:grid-cols-[0.85fr_1.15fr]"
       >
         <input type="hidden" name="tenantSlug" value={tenantSlug} />
@@ -222,8 +249,9 @@ export function CreateRespondentForm({
               <select
                 id="respondent-organization"
                 name="clientOrganizationId"
+                value={selectedOrganizationId}
+                onChange={handleOrganizationChange}
                 className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
-                defaultValue=""
               >
                 <option value="">Brak</option>
                 {organizations.map((organization) => (
@@ -242,59 +270,66 @@ export function CreateRespondentForm({
               <select
                 id="respondent-unit"
                 name="clientUnitId"
-                className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
-                defaultValue=""
+                value={selectedUnitId}
+                onChange={(event) => setSelectedUnitId(event.target.value)}
+                disabled={!selectedOrganizationId}
+                className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-[#9ca3af] focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
               >
-                <option value="">Brak</option>
-                {units.map((unit) => (
+                <option value="">
+                  {selectedOrganizationId
+                    ? "Brak"
+                    : "Najpierw wybierz organizację"}
+                </option>
+
+                {availableUnits.map((unit) => (
                   <option key={unit.id} value={unit.id}>
                     {unit.name}
                   </option>
                 ))}
               </select>
 
-            
+
             </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="respondent-unit-role" className="text-[#171717]">
-                  Rola w jednostce
-                </Label>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="respondent-unit-role" className="text-[#171717]">
+                Rola w jednostce
+              </Label>
 
-                <Input
-                  id="respondent-unit-role"
-                  name="clientUnitRole"
-                  placeholder="member, manager, director, team_lead"
-                  maxLength={80}
-                  defaultValue="member"
-                  className="rounded-2xl border-black/10 bg-white"
+              <Input
+                id="respondent-unit-role"
+                name="clientUnitRole"
+                placeholder="member, manager, director, team_lead"
+                maxLength={80}
+                defaultValue="member"
+                className="rounded-2xl border-black/10 bg-white"
+              />
+
+              <p className="text-xs leading-5 text-[#6b7280]">
+                Rola opisuje funkcję osoby w jednostce. Do raportów lider vs zespół używana
+                jest osobna flaga poniżej.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/70 p-4 text-sm">
+                <input
+                  type="checkbox"
+                  name="isLeader"
+                  value="true"
+                  className="mt-1 h-4 w-4 rounded border-black/20"
                 />
 
-                <p className="text-xs leading-5 text-[#6b7280]">
-                  Rola opisuje funkcję osoby w jednostce. Do raportów lider vs zespół używana
-                  jest osobna flaga poniżej.
-                </p>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/70 p-4 text-sm">
-                  <input
-                    type="checkbox"
-                    name="isLeader"
-                    value="true"
-                    className="mt-1 h-4 w-4 rounded border-black/20"
-                  />
-
-                  <span>
-                    <span className="block font-medium text-[#171717]">
-                      Traktuj jako lidera / zwierzchnika jednostki
-                    </span>
-                    <span className="mt-1 block leading-5 text-[#6b7280]">
-                      Ta flaga pozwoli później porównywać wyniki lidera z wynikami zespołu.
-                    </span>
+                <span>
+                  <span className="block font-medium text-[#171717]">
+                    Traktuj jako lidera / zwierzchnika jednostki
                   </span>
-                </label>
-              </div>
+                  <span className="mt-1 block leading-5 text-[#6b7280]">
+                    Ta flaga pozwoli później porównywać wyniki lidera z wynikami zespołu.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           {state.status !== "idle" ? (

@@ -2,7 +2,12 @@
 
 "use client";
 
-import { useActionState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Building2,
   CheckCircle2,
@@ -36,6 +41,7 @@ type CreateClientUnitFormProps = {
 const initialState: ClientUnitActionState = {
   status: "idle",
   message: "",
+  formVersion: 0,
 };
 
 function ActionMessage({
@@ -81,7 +87,33 @@ export function CreateClientUnitForm({
     createClientUnitAction,
     initialState,
   );
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState(
+    organizations[0]?.id ?? "",
+  );
 
+  const [selectedParentId, setSelectedParentId] = useState("");
+
+  const availableParentOptions = useMemo(
+    () =>
+      parentOptions.filter(
+        (unit) =>
+          unit.clientOrganizationId === selectedOrganizationId,
+      ),
+    [parentOptions, selectedOrganizationId],
+  );
+useEffect(() => {
+  if (state.status === "success") {
+    setSelectedParentId("");
+  }
+}, [state.formVersion, state.status]);
+  function handleOrganizationChange(
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) {
+    setSelectedOrganizationId(event.target.value);
+
+    // Rodzic wybrany dla poprzedniej organizacji nie może pozostać w formularzu.
+    setSelectedParentId("");
+  }
   if (!canCreate) {
     return null;
   }
@@ -90,6 +122,7 @@ export function CreateClientUnitForm({
     <section className="rounded-[2rem] hv-brand-card">
       <form
         action={formAction}
+        key={state.formVersion}
         className="grid gap-6 p-5 md:p-6 lg:grid-cols-[0.85fr_1.15fr]"
       >
         <input type="hidden" name="tenantSlug" value={tenantSlug} />
@@ -144,18 +177,23 @@ export function CreateClientUnitForm({
                     Organizacja
                   </Label>
 
-                  <select
-                    id="client-unit-org"
-                    name="clientOrganizationId"
-                    className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
-                    required
-                  >
-                    {organizations.map((organization) => (
-                      <option key={organization.id} value={organization.id}>
-                        {organization.name}
-                      </option>
-                    ))}
-                  </select>
+<select
+  id="client-unit-org"
+  name="clientOrganizationId"
+  value={selectedOrganizationId}
+  onChange={(event) => {
+    setSelectedOrganizationId(event.target.value);
+    setSelectedParentId("");
+  }}
+  className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+  required
+>
+  {organizations.map((organization) => (
+    <option key={organization.id} value={organization.id}>
+      {organization.name}
+    </option>
+  ))}
+</select>
                 </div>
 
                 <div className="space-y-2">
@@ -163,20 +201,22 @@ export function CreateClientUnitForm({
                     Jednostka nadrzędna
                   </Label>
 
-                  <select
-                    id="client-unit-parent"
-                    name="parentId"
-                    className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
-                    defaultValue=""
-                  >
-                    <option value="">Brak</option>
+<select
+  id="client-unit-parent"
+  name="parentId"
+  value={selectedParentId}
+  onChange={(event) => setSelectedParentId(event.target.value)}
+  disabled={!selectedOrganizationId}
+  className="h-10 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-[#9ca3af] focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
+>
+  <option value="">Brak</option>
 
-                    {parentOptions.map((unit) => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.name}
-                      </option>
-                    ))}
-                  </select>
+  {availableParentOptions.map((unit) => (
+    <option key={unit.id} value={unit.id}>
+      {unit.name}
+    </option>
+  ))}
+</select>
                 </div>
 
                 <div className="space-y-2">
