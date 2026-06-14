@@ -1,24 +1,29 @@
-// app/(protected)/t/[tenantSlug]/assessment-projects/[projectId]/partner-reports/[grantId]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq, isNull } from "drizzle-orm";
-import { ArrowLeft, BarChart3, Building2, Network } from "lucide-react";
+import {
+  ArrowLeft,
+  BarChart3,
+  Building2,
+  Download,
+  Network,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 import { reportAccessGrants } from "@/drizzle/schema";
 import { controlDb } from "@/server/db/control-db";
-import {
-  getUserVsUserComparisonReport,
-  readComparisonDefinition,
-} from "@/features/comparison-reports/api/comparison-report-render.queries";
+
 import {
   getProjectAggregateReport,
   getOrganizationAggregateReport,
   getTeamAggregateReport,
 } from "@/features/assessment-results/api/aggregate-report.queries";
-
+import {
+  getUserVsUserComparisonReport,
+  readComparisonDefinition,
+} from "@/features/comparison-reports/api/comparison-report-render.queries";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 
@@ -31,6 +36,12 @@ type PageProps = {
     projectId: string;
     grantId: string;
   }>;
+};
+
+type PartnerReportPdfDownloadButtonProps = {
+  tenantSlug: string;
+  projectId: string;
+  grantId: string;
 };
 
 function getReportBadgeLabel(subjectType: string) {
@@ -62,10 +73,6 @@ function getReportIcon(subjectType: string) {
     return <Network className="h-5 w-5" />;
   }
 
-  if (subjectType === "comparison") {
-    return <BarChart3 className="h-5 w-5" />;
-  }
-
   return <BarChart3 className="h-5 w-5" />;
 }
 
@@ -79,8 +86,13 @@ function getScopeName(data: any, subjectType: string) {
   }
 
   if (subjectType === "comparison") {
-    const left = data.payload?.comparison?.left?.label ?? "Pierwszy wynik";
-    const right = data.payload?.comparison?.right?.label ?? "Drugi wynik";
+    const left =
+      data.payload?.comparison?.left?.label ??
+      "Pierwszy wynik";
+
+    const right =
+      data.payload?.comparison?.right?.label ??
+      "Drugi wynik";
 
     return `${left} vs ${right}`;
   }
@@ -88,10 +100,15 @@ function getScopeName(data: any, subjectType: string) {
   return data.project?.name ?? "Projekt";
 }
 
-function getScopeDescription(data: any, subjectType: string) {
+function getScopeDescription(
+  data: any,
+  subjectType: string,
+) {
   if (subjectType === "comparison") {
     return [
-      data.project?.name ? `Projekt: ${data.project.name}` : null,
+      data.project?.name
+        ? `Projekt: ${data.project.name}`
+        : null,
       `porównywane wyniki: ${data.eligibility.nRespondents}`,
       `sesje: ${data.eligibility.nSessions}`,
       `wyniki: ${data.eligibility.nScores}`,
@@ -101,23 +118,66 @@ function getScopeDescription(data: any, subjectType: string) {
   }
 
   const parts = [
-    data.project?.name ? `Projekt: ${data.project.name}` : null,
+    data.project?.name
+      ? `Projekt: ${data.project.name}`
+      : null,
     `respondenci: ${data.eligibility.nRespondents}`,
     `sesje: ${data.eligibility.nSessions}`,
     `wyniki: ${data.eligibility.nScores}`,
   ];
 
   if (subjectType === "client_unit") {
-    parts.push(`jednostki: ${data.unit?.descendantUnitCount ?? 0}`);
+    parts.push(
+      `jednostki: ${
+        data.unit?.descendantUnitCount ?? 0
+      }`,
+    );
   }
 
   return parts.filter(Boolean).join(" · ");
 }
 
+function buildPartnerReportPdfHref({
+  tenantSlug,
+  projectId,
+  grantId,
+}: PartnerReportPdfDownloadButtonProps) {
+  return (
+    `/t/${tenantSlug}` +
+    `/assessment-projects/${projectId}` +
+    `/partner-reports/${grantId}/pdf`
+  );
+}
+
+function PartnerReportPdfDownloadButton({
+  tenantSlug,
+  projectId,
+  grantId,
+}: PartnerReportPdfDownloadButtonProps) {
+  const href = buildPartnerReportPdfHref({
+    tenantSlug,
+    projectId,
+    grantId,
+  });
+
+  return (
+    <Button asChild>
+      <a href={href} target="_blank" rel="noreferrer">
+        <Download className="mr-2 h-4 w-4" />
+        Pobierz PDF
+      </a>
+    </Button>
+  );
+}
+
 export default async function PartnerAggregateReportGrantPage({
   params,
 }: PageProps) {
-  const { tenantSlug, projectId, grantId } = await params;
+  const {
+    tenantSlug,
+    projectId,
+    grantId,
+  } = await params;
 
   const [grant] = await controlDb
     .select({
@@ -128,10 +188,14 @@ export default async function PartnerAggregateReportGrantPage({
       subjectType: reportAccessGrants.subjectType,
       subjectId: reportAccessGrants.subjectId,
 
-      assessmentProjectId: reportAccessGrants.assessmentProjectId,
+      assessmentProjectId:
+        reportAccessGrants.assessmentProjectId,
 
-      reportTemplateId: reportAccessGrants.reportTemplateId,
-      reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+      reportTemplateId:
+        reportAccessGrants.reportTemplateId,
+
+      reportTemplateVersionId:
+        reportAccessGrants.reportTemplateVersionId,
 
       validFrom: reportAccessGrants.validFrom,
       validUntil: reportAccessGrants.validUntil,
@@ -141,86 +205,114 @@ export default async function PartnerAggregateReportGrantPage({
     .where(
       and(
         eq(reportAccessGrants.id, grantId),
-        eq(reportAccessGrants.tenantSlug, tenantSlug),
-        eq(reportAccessGrants.assessmentProjectId, projectId),
+        eq(
+          reportAccessGrants.tenantSlug,
+          tenantSlug,
+        ),
+        eq(
+          reportAccessGrants.assessmentProjectId,
+          projectId,
+        ),
         eq(reportAccessGrants.status, "active"),
         isNull(reportAccessGrants.deletedAt),
       ),
     )
     .limit(1);
 
-  if (!grant?.subjectType || !grant.subjectId || !grant.reportTemplateVersionId) {
+  if (
+    !grant?.subjectType ||
+    !grant.subjectId ||
+    !grant.reportTemplateVersionId
+  ) {
     notFound();
   }
 
   const now = new Date();
 
-  if (grant.validFrom && grant.validFrom > now) {
+  if (
+    grant.validFrom &&
+    grant.validFrom > now
+  ) {
     notFound();
   }
 
-  if (grant.validUntil && grant.validUntil < now) {
+  if (
+    grant.validUntil &&
+    grant.validUntil < now
+  ) {
     notFound();
   }
 
-  const reportTemplateVersionId = grant.reportTemplateVersionId;
+  const reportTemplateVersionId =
+    grant.reportTemplateVersionId;
 
-const comparisonDefinition =
-  grant.subjectType === "comparison"
-    ? readComparisonDefinition(grant.metadata)
-    : null;
+  const comparisonDefinition =
+    grant.subjectType === "comparison"
+      ? readComparisonDefinition(grant.metadata)
+      : null;
 
-const data =
-  grant.subjectType === "comparison"
-    ? comparisonDefinition
-      ? await getUserVsUserComparisonReport({
-          tenantSlug,
-          assessmentProjectId: projectId,
-          reportTemplateVersionId,
-          comparisonDefinition,
-        })
-      : null
-    : grant.subjectType === "assessment_project"
-      ? await getProjectAggregateReport({
-          tenantSlug,
-          assessmentProjectId: projectId,
-          reportTemplateVersionId,
-          previewMode: false,
-        })
-      : grant.subjectType === "client_organization"
-        ? await getOrganizationAggregateReport({
+  const data =
+    grant.subjectType === "comparison"
+      ? comparisonDefinition
+        ? await getUserVsUserComparisonReport({
             tenantSlug,
             assessmentProjectId: projectId,
-            clientOrganizationId: grant.subjectId,
+            reportTemplateVersionId,
+            comparisonDefinition,
+          })
+        : null
+      : grant.subjectType === "assessment_project"
+        ? await getProjectAggregateReport({
+            tenantSlug,
+            assessmentProjectId: projectId,
             reportTemplateVersionId,
             previewMode: false,
           })
-        : grant.subjectType === "client_unit"
-          ? await getTeamAggregateReport({
+        : grant.subjectType ===
+            "client_organization"
+          ? await getOrganizationAggregateReport({
               tenantSlug,
               assessmentProjectId: projectId,
-              clientUnitId: grant.subjectId,
+              clientOrganizationId:
+                grant.subjectId,
               reportTemplateVersionId,
               previewMode: false,
             })
-          : null;
+          : grant.subjectType === "client_unit"
+            ? await getTeamAggregateReport({
+                tenantSlug,
+                assessmentProjectId:
+                  projectId,
+                clientUnitId: grant.subjectId,
+                reportTemplateVersionId,
+                previewMode: false,
+              })
+            : null;
 
-  const reportTemplateVersion = await getReportTemplateVersionForRender({
-    reportTemplateVersionId,
-  });
+  const reportTemplateVersion =
+    await getReportTemplateVersionForRender({
+      reportTemplateVersionId,
+    });
 
   if (!data || !reportTemplateVersion) {
     notFound();
   }
 
-  const backHref = `/t/${tenantSlug}/assessment-projects/${projectId}/respondents`;
+  const backHref =
+    `/t/${tenantSlug}` +
+    `/assessment-projects/${projectId}` +
+    `/respondents`;
 
   if (!data.eligibility.canRender) {
     return (
       <main className="min-h-screen bg-[#f3f4f6] p-6">
         <section className="mx-auto max-w-4xl rounded-[2rem] border border-amber-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+            >
               <Link href={backHref}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Wróć
@@ -240,28 +332,48 @@ const data =
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-            Zakres: <strong>{getScopeName(data, grant.subjectType)}</strong>
+            Zakres:{" "}
+            <strong>
+              {getScopeName(
+                data,
+                grant.subjectType,
+              )}
+            </strong>
           </p>
 
           <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <div>
               Respondenci z wynikami:{" "}
-              <strong>{data.eligibility.nRespondents}</strong>
+              <strong>
+                {data.eligibility.nRespondents}
+              </strong>
             </div>
+
             <div>
               Minimalna liczebność:{" "}
-              <strong>{data.eligibility.minimumN}</strong>
+              <strong>
+                {data.eligibility.minimumN}
+              </strong>
             </div>
+
             <div>
-              Wyniki wymiarów: <strong>{data.eligibility.nScores}</strong>
+              Wyniki wymiarów:{" "}
+              <strong>
+                {data.eligibility.nScores}
+              </strong>
             </div>
           </div>
 
-          {data.eligibility.warnings.length > 0 ? (
+          {data.eligibility.warnings.length >
+          0 ? (
             <ul className="mt-4 list-disc space-y-1 pl-5 text-sm leading-6 text-[#6b7280]">
-              {data.eligibility.warnings.map((warning: string) => (
-                <li key={warning}>{warning}</li>
-              ))}
+              {data.eligibility.warnings.map(
+                (warning: string) => (
+                  <li key={warning}>
+                    {warning}
+                  </li>
+                ),
+              )}
             </ul>
           ) : null}
         </section>
@@ -274,29 +386,17 @@ const data =
     payload: data.payload,
   });
 
-  console.log("PAYLOAD:", data.payload.aggregate)
-  const payload = data.payload
-console.dir(
-  {
-    crossScoresKeys: Object.keys(payload.crossScores ?? {}),
-    byResponseSlotKeys: Object.keys(payload.crossScores?.byResponseSlot ?? {}),
-    currentKeys: Object.keys(payload.crossScores?.byResponseSlot?.current ?? {}),
-    desiredKeys: Object.keys(payload.crossScores?.byResponseSlot?.desired ?? {}),
-    crossScoreRowsLength: payload.crossScoreRows?.length,
-    rowsWithResponseSlot: payload.crossScoreRows?.filter((row: any) => row.responseSlot)?.slice(0, 10),
-    anxietyRows: payload.crossScoreRows
-      ?.filter((row: any) => JSON.stringify(row).toUpperCase().includes("ANXIETY"))
-      ?.slice(0, 10),
-  },
-  { depth: 8 },
-);
   return (
     <main className="min-h-screen bg-[#f3f4f6]">
       <header className="sticky top-0 z-20 border-b border-black/10 bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Button asChild variant="outline" size="sm">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+              >
                 <Link href={backHref}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Wróć
@@ -307,7 +407,9 @@ console.dir(
                 variant="outline"
                 className="rounded-full border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
               >
-                {getReportBadgeLabel(grant.subjectType)}
+                {getReportBadgeLabel(
+                  grant.subjectType,
+                )}
               </Badge>
 
               <Badge
@@ -320,26 +422,44 @@ console.dir(
 
             <div className="mt-3 flex items-start gap-3">
               <div className="mt-1 rounded-2xl border border-black/10 bg-white p-2 text-[#0f766e]">
-                {getReportIcon(grant.subjectType)}
+                {getReportIcon(
+                  grant.subjectType,
+                )}
               </div>
 
               <div className="min-w-0">
                 <h1 className="truncate text-xl font-semibold tracking-[-0.03em] text-[#171717]">
-                  {getScopeName(data, grant.subjectType)}
+                  {getScopeName(
+                    data,
+                    grant.subjectType,
+                  )}
                 </h1>
 
                 <p className="mt-1 text-sm leading-6 text-[#6b7280]">
-                  {getScopeDescription(data, grant.subjectType)}
+                  {getScopeDescription(
+                    data,
+                    grant.subjectType,
+                  )}
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <PartnerReportPdfDownloadButton
+              tenantSlug={tenantSlug}
+              projectId={projectId}
+              grantId={grantId}
+            />
           </div>
         </div>
       </header>
 
       <section className="h-[calc(100vh-104px)]">
         <iframe
-          title={getReportBadgeLabel(grant.subjectType)}
+          title={getReportBadgeLabel(
+            grant.subjectType,
+          )}
           srcDoc={rendered.html}
           className="h-full w-full border-0 bg-white"
           sandbox="allow-scripts allow-same-origin"

@@ -1,9 +1,12 @@
+// app/(protected)/t/[tenantSlug]/assessment-sessions/[sessionId]/report/[reportTemplateVersionId]/page.tsx
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
 import { getTenantAssessmentSessionReport } from "@/features/assessment-results/api/assessment-session-report.queries";
-import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
+import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 
 export const dynamic = "force-dynamic";
@@ -22,40 +25,158 @@ type PageProps = {
   }>;
 };
 
+type ReportScope = {
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+};
+
+type TenantReportPdfDownloadButtonProps = ReportScope & {
+  tenantSlug: string;
+  sessionId: string;
+  reportTemplateVersionId: string;
+};
+
+function normalizeOptionalString(value?: string | null) {
+  const normalized = value?.trim();
+
+  return normalized || null;
+}
+
+function buildReportSearchParams({
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: ReportScope) {
+  const searchParams = new URLSearchParams();
+
+  if (projectQuestionnaireId) {
+    searchParams.set(
+      "projectQuestionnaireId",
+      projectQuestionnaireId,
+    );
+  }
+
+  if (questionnaireVersionId) {
+    searchParams.set(
+      "questionnaireVersionId",
+      questionnaireVersionId,
+    );
+  }
+
+  return searchParams;
+}
+
+function appendSearchParams(
+  pathname: string,
+  searchParams: URLSearchParams,
+) {
+  const query = searchParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function buildSessionResultsHref({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: ReportScope & {
+  tenantSlug: string;
+  sessionId: string;
+}) {
+  const searchParams = buildReportSearchParams({
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
+  return appendSearchParams(
+    `/t/${tenantSlug}/assessment-sessions/${sessionId}/results`,
+    searchParams,
+  );
+}
+
+function buildReportPdfHref({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: TenantReportPdfDownloadButtonProps) {
+  const searchParams = buildReportSearchParams({
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
+  return appendSearchParams(
+    `/t/${tenantSlug}` +
+      `/assessment-sessions/${sessionId}` +
+      `/report/${reportTemplateVersionId}/pdf`,
+    searchParams,
+  );
+}
+
+function TenantReportPdfDownloadButton({
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
+}: TenantReportPdfDownloadButtonProps) {
+  const href = buildReportPdfHref({
+    tenantSlug,
+    sessionId,
+    reportTemplateVersionId,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
+  return (
+    <Button asChild>
+      <a href={href} target="_blank" rel="noreferrer">
+        Pobierz PDF
+      </a>
+    </Button>
+  );
+}
+
 export default async function TenantAssessmentSessionReportPage({
   params,
   searchParams,
 }: PageProps) {
   const {
-  tenantSlug,
-  sessionId,
-  reportTemplateVersionId,
-} = await params;
+    tenantSlug,
+    sessionId,
+    reportTemplateVersionId,
+  } = await params;
 
-const {
-  projectQuestionnaireId,
-  questionnaireVersionId,
-} = await searchParams;
+  const {
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  } = await searchParams;
 
-const result = await getTenantAssessmentSessionReport({
-  tenantSlug,
-  sessionId,
-  reportTemplateVersionId,
+  const normalizedProjectQuestionnaireId =
+    normalizeOptionalString(projectQuestionnaireId);
 
-  projectQuestionnaireId:
-    projectQuestionnaireId?.trim() || null,
+  const normalizedQuestionnaireVersionId =
+    normalizeOptionalString(questionnaireVersionId);
 
-  questionnaireVersionId:
-    questionnaireVersionId?.trim() || null,
-});
+  const result = await getTenantAssessmentSessionReport({
+    tenantSlug,
+    sessionId,
+    reportTemplateVersionId,
+    projectQuestionnaireId:
+      normalizedProjectQuestionnaireId,
+    questionnaireVersionId:
+      normalizedQuestionnaireVersionId,
+  });
 
   if (!result?.payload) {
     notFound();
   }
 
-  const reportTemplateVersion = await getReportTemplateVersionForRender({
-    reportTemplateVersionId,
-  });
+  const reportTemplateVersion =
+    await getReportTemplateVersionForRender({
+      reportTemplateVersionId,
+    });
 
   if (!reportTemplateVersion) {
     notFound();
@@ -65,6 +186,19 @@ const result = await getTenantAssessmentSessionReport({
     reportTemplateVersion,
     payload: result.payload,
   });
+
+  const sessionResultsHref = buildSessionResultsHref({
+    tenantSlug,
+    sessionId,
+    projectQuestionnaireId:
+      normalizedProjectQuestionnaireId,
+    questionnaireVersionId:
+      normalizedQuestionnaireVersionId,
+  });
+
+  const projectResultsHref =
+    `/t/${tenantSlug}` +
+    `/assessment-projects/${result.project.id}/results`;
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
@@ -89,29 +223,37 @@ const result = await getTenantAssessmentSessionReport({
           ) : null}
 
           <p className="mt-2 text-xs text-muted-foreground">
-            Widoczne strony raportu: {rendered.visiblePages.length}
+            Widoczne strony raportu:{" "}
+            {rendered.visiblePages.length}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={
-  `/t/${tenantSlug}/assessment-sessions/${sessionId}/results` +
-  `?projectQuestionnaireId=${encodeURIComponent(
-    projectQuestionnaireId ?? "",
-  )}`
-}
-            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-          >
-            Wróć do wyniku sesji
-          </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <TenantReportPdfDownloadButton
+            tenantSlug={tenantSlug}
+            sessionId={sessionId}
+            reportTemplateVersionId={
+              reportTemplateVersionId
+            }
+            projectQuestionnaireId={
+              normalizedProjectQuestionnaireId
+            }
+            questionnaireVersionId={
+              normalizedQuestionnaireVersionId
+            }
+          />
 
-          <Link
-            href={`/t/${tenantSlug}/assessment-projects/${result.project.id}/results`}
-            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium"
-          >
-            Wróć do wyników projektu
-          </Link>
+          <Button asChild variant="outline">
+            <Link href={sessionResultsHref}>
+              Wróć do wyniku sesji
+            </Link>
+          </Button>
+
+          <Button asChild variant="outline">
+            <Link href={projectResultsHref}>
+              Wróć do wyników projektu
+            </Link>
+          </Button>
         </div>
       </div>
 
