@@ -44,6 +44,7 @@ type ClientUnitRowActionsProps = {
 const initialState: ClientUnitActionState = {
   status: "idle",
   message: "",
+  formVersion: 0,
 };
 
 function ActionMessage({

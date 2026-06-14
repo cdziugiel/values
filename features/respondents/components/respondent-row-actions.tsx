@@ -43,6 +43,7 @@ type RespondentRowActionsProps = {
 const initialState: RespondentActionState = {
   status: "idle",
   message: "",
+  formVersion: 0,
 };
 
 function ActionMessage({

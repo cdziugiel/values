@@ -265,12 +265,17 @@ function resolveFrozenCompositeSources({
   availableSources: CompositeAvailableSource[];
   frozenSelection: FrozenCompositeSelection;
 }): CompositeResolvedSource[] {
-  const availableBySnapshotId = new Map(
-    availableSources.map((source) => [
-      source.assessmentResultSnapshotId,
-      source,
-    ]),
-  );
+  const availableBySnapshotId = new Map<string, CompositeAvailableSource>();
+
+  for (const source of availableSources) {
+    const snapshotId = source.assessmentResultSnapshotId;
+
+    if (!snapshotId) {
+      continue;
+    }
+
+    availableBySnapshotId.set(snapshotId, source);
+  }
 
   const frozenBySlot = new Map(
     frozenSelection.selectedSources.map((source) => [source.slot, source]),
@@ -279,12 +284,16 @@ function resolveFrozenCompositeSources({
   return configuredSources.map((configuredSource) => {
     const frozen = frozenBySlot.get(configuredSource.slot);
 
-    const matched = frozen
-      ? availableBySnapshotId.get(frozen.assessmentResultSnapshotId)
+    const frozenSnapshotId =
+      frozen?.assessmentResultSnapshotId ?? frozen?.snapshotId ?? null;
+
+    const matched = frozenSnapshotId
+      ? availableBySnapshotId.get(frozenSnapshotId) ?? null
       : null;
 
     return {
       ...configuredSource,
+
       available: Boolean(matched),
 
       selectionMode: "frozen",
@@ -292,30 +301,51 @@ function resolveFrozenCompositeSources({
 
       assessmentProjectId:
         matched?.assessmentProjectId ?? frozen?.assessmentProjectId ?? null,
+
       assessmentProjectName:
-        matched?.assessmentProjectName ?? frozen?.assessmentProjectName ?? null,
+        matched?.assessmentProjectName ?? null,
 
       assessmentSessionId:
-        matched?.assessmentSessionId ?? frozen?.assessmentSessionId ?? null,
+        matched?.assessmentSessionId ??
+        frozen?.assessmentSessionId ??
+        frozen?.sessionId ??
+        null,
+
       assessmentResultSnapshotId:
         matched?.assessmentResultSnapshotId ??
         frozen?.assessmentResultSnapshotId ??
+        frozen?.snapshotId ??
         null,
 
       questionnaireVersionId:
-        matched?.questionnaireVersionId ?? frozen?.questionnaireVersionId ?? null,
+        matched?.questionnaireVersionId ??
+        frozen?.questionnaireVersionId ??
+        null,
 
       completedAt:
         matched?.completedAt ??
-        (frozen?.completedAt ? new Date(frozen.completedAt) : null),
+        parseOptionalDate(frozen?.completedAt),
+
       frozenAt:
-        matched?.frozenAt ?? (frozen?.frozenAt ? new Date(frozen.frozenAt) : null),
+        matched?.frozenAt ??
+        parseOptionalDate(frozenSelection.frozenAt),
 
       payload: matched?.payload ?? null,
 
       candidates: matched ? [sourceCandidateDto(matched)] : [],
     };
   });
+}
+function parseOptionalDate(
+  value: string | Date | null | undefined,
+): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function resolveLatestCompletedCompositeSources({
