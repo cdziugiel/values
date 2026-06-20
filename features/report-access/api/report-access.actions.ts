@@ -18,6 +18,27 @@ import {
 } from "./report-access.queries";
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
 
+
+type CompositeManualCandidateSelection = {
+  tenantSlug: string;
+  assessmentSessionId: string;
+  projectQuestionnaireId: string | null;
+  questionnaireVersionId: string | null;
+};
+
+type CompositeManualSelection = {
+  bySlot?: Record<
+    string,
+    CompositeManualCandidateSelection
+  >;
+
+  byQuestionnaireId?: Record<
+    string,
+    CompositeManualCandidateSelection
+  >;
+};
+
+
 export type ReportAccessActionState = {
   status: "idle" | "success" | "error";
   message: string;
@@ -293,21 +314,58 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
   _previousState: ReportAccessActionState,
   formData: FormData,
 ): Promise<ReportAccessActionState> {
-  const tenantSlug = String(formData.get("tenantSlug") ?? "");
+  console.log("UNLOCK_COMPOSITE_ACTION_INPUT", {
+    entries:
+      formData instanceof FormData
+        ? Array.from(formData.entries())
+        : null,
+  });
+
+  const submittedTenantSlug = String(
+    formData.get("tenantSlug") ?? "",
+  ).trim();
+
+  const tenantSlugs = Array.from(
+    new Set(
+      formData
+        .getAll("tenantSlugs")
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    ),
+  );
+
+  const anchorTenantSlug =
+    submittedTenantSlug || tenantSlugs[0] || "";
+
+  if (
+    anchorTenantSlug &&
+    !tenantSlugs.includes(anchorTenantSlug)
+  ) {
+    tenantSlugs.unshift(anchorTenantSlug);
+  }
+
   const reportTemplateVersionId = String(
     formData.get("reportTemplateVersionId") ?? "",
-  );
+  ).trim();
 
   const rawSelectionMode = String(
-    formData.get("selectionMode") ?? "latest_completed",
+    formData.get("selectionMode") ??
+    "latest_completed",
   );
 
-  const selectionMode: "latest_completed" | "same_project" | "manual" =
-    rawSelectionMode === "same_project" || rawSelectionMode === "manual"
+  const selectionMode:
+    | "latest_completed"
+    | "same_project"
+    | "manual" =
+    rawSelectionMode === "same_project" ||
+      rawSelectionMode === "manual"
       ? rawSelectionMode
       : "latest_completed";
 
-  if (!tenantSlug || !reportTemplateVersionId) {
+  if (
+    tenantSlugs.length === 0 ||
+    !reportTemplateVersionId
+  ) {
     return {
       status: "error",
       message: "Brakuje danych raportu złożonego.",
@@ -315,10 +373,14 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
   }
 
   try {
-    const offer = await getCompositeReportAccessOfferForCurrentUser({
-      tenantSlug,
-      reportTemplateVersionId,
-    });
+    const offer =
+      await getCompositeReportAccessOfferForCurrentUser({
+        tenantSlug: anchorTenantSlug,
+        tenantSlugs,
+        reportTemplateVersionId,
+      });
+
+
 
     if (!offer.ok) {
       return {
@@ -346,10 +408,7 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
     }
 
     let manualSelection:
-      | {
-          bySlot?: Record<string, string>;
-          byQuestionnaireId?: Record<string, string>;
-        }
+      | CompositeManualSelection
       | undefined;
 
     if (selectionMode === "manual") {
@@ -376,33 +435,33 @@ export async function unlockCompositeReportWithPlaceholderPaymentAction(
     }
 
     const selectionResult = buildFrozenCompositeSelectionForUserUnlock({
-  respondentId: offer.respondent.id,
-  reportTemplateVersionId,
-  assessmentProjectId: null,
-  configuredSources: offer.eligibility.configuredSources,
-  sourceCandidates: offer.sourceCandidates ?? [],
-  sourceSelection: {
-    mode: selectionMode,
-    manual: manualSelection,
-  },
-});
+      respondentId: offer.respondent.id,
+      reportTemplateVersionId,
+      assessmentProjectId: null,
+      configuredSources: offer.eligibility.configuredSources,
+      sourceCandidates: offer.sourceCandidates ?? [],
+      sourceSelection: {
+        mode: selectionMode,
+        manual: manualSelection,
+      },
+    });
 
-if (!selectionResult.eligibility.canRender) {
-  return {
-    status: "error",
-    message:
-      "Nie można odblokować raportu złożonego dla wybranego zestawu źródeł.",
-  };
-}
+    if (!selectionResult.eligibility.canRender) {
+      return {
+        status: "error",
+        message:
+          "Nie można odblokować raportu złożonego dla wybranego zestawu źródeł.",
+      };
+    }
 
-const frozenSelection = selectionResult.frozenSelection;
+    const frozenSelection = selectionResult.frozenSelection;
 
-if (!frozenSelection) {
-  return {
-    status: "error",
-    message: "Nie udało się zamrozić wyboru źródeł raportu złożonego.",
-  };
-}
+    if (!frozenSelection) {
+      return {
+        status: "error",
+        message: "Nie udało się zamrozić wyboru źródeł raportu złożonego.",
+      };
+    }
 
     const now = new Date();
 
@@ -418,7 +477,7 @@ if (!frozenSelection) {
         .insert(reportAccessOrders)
         .values({
           buyerType: "user",
-          tenantSlug,
+          tenantSlug: anchorTenantSlug,
           buyerUserId: offer.actorUserId,
 
           status: "paid",
@@ -443,6 +502,8 @@ if (!frozenSelection) {
               offer.reportVersion.reportTemplateVersionId,
             compositeSelection: frozenSelection,
             compositeSelectionMode: selectionMode,
+            tenantSlugs,
+            anchorTenantSlug,
             eligibility: selectionResult.eligibility,
           },
 
@@ -473,8 +534,8 @@ if (!frozenSelection) {
 
       const validUntil = product.validityDays
         ? new Date(
-            now.getTime() + product.validityDays * 24 * 60 * 60 * 1000,
-          )
+          now.getTime() + product.validityDays * 24 * 60 * 60 * 1000,
+        )
         : null;
 
       const [grant] = await tx
@@ -490,7 +551,7 @@ if (!frozenSelection) {
           reportTemplateVersionId:
             offer.reportVersion.reportTemplateVersionId,
 
-          tenantSlug,
+          tenantSlug: anchorTenantSlug,
           userId: offer.actorUserId,
           email: offer.actorEmail,
 
@@ -511,7 +572,8 @@ if (!frozenSelection) {
 
             compositeSelection: frozenSelection,
             compositeSelectionMode: selectionMode,
-
+            tenantSlugs,
+            anchorTenantSlug,
             purchasedReportTemplateVersionName:
               offer.reportVersion.reportTemplateVersionName,
             purchasedReportTemplateVersion:
@@ -534,7 +596,7 @@ if (!frozenSelection) {
 
     redirect(
       `/my/reports/composite/grants/${result.grant.id}?tenant=${encodeURIComponent(
-        tenantSlug,
+        anchorTenantSlug,
       )}`,
     );
   } catch (error) {
@@ -550,19 +612,28 @@ type CompositeUnlockSourceCandidate = {
   questionnaireId?: string | null;
   questionnaireCode?: string | null;
   required?: boolean;
+
   candidates: {
+    tenantSlug: string;
+
     assessmentSessionId: string;
+    assessmentProjectId: string | null;
     assessmentProjectName: string | null;
+
+    projectQuestionnaireId: string | null;
+
+    questionnaireId: string;
+    questionnaireVersionId: string | null;
+
+    snapshotId: string;
+
     completedAt: string | Date | null;
   }[];
 };
 
 type CompositeUnlockSourceSelection = {
   mode: "latest_completed" | "same_project" | "manual";
-  manual?: {
-    bySlot?: Record<string, string>;
-    byQuestionnaireId?: Record<string, string>;
-  };
+  manual?: CompositeManualSelection;
 };
 
 function buildFrozenCompositeSelectionForUserUnlock({
@@ -602,27 +673,50 @@ function buildFrozenCompositeSelectionForUserUnlock({
 
     const candidateGroup = candidateBySlot.get(slot);
     const candidates = candidateGroup?.candidates ?? [];
-
-    let selectedSessionId: string | null = null;
+    const questionnaireName =
+      typeof sourceRecord.questionnaireName === "string"
+        ? sourceRecord.questionnaireName
+        : candidateBySlot.get(slot)?.questionnaireName ?? null;
+    let selectedCandidate:
+      | CompositeUnlockSourceCandidate["candidates"][number]
+      | null = null;
 
     if (sourceSelection.mode === "manual") {
-      selectedSessionId =
+      const manualCandidate =
         sourceSelection.manual?.bySlot?.[slot] ??
         (questionnaireId
-          ? sourceSelection.manual?.byQuestionnaireId?.[questionnaireId]
+          ? sourceSelection.manual?.byQuestionnaireId?.[
+          questionnaireId
+          ]
           : undefined) ??
         null;
+
+      if (manualCandidate) {
+        selectedCandidate =
+          candidates.find((candidate) => {
+            return (
+              candidate.tenantSlug ===
+              manualCandidate.tenantSlug &&
+              candidate.assessmentSessionId ===
+              manualCandidate.assessmentSessionId &&
+              (
+                !manualCandidate.projectQuestionnaireId ||
+                candidate.projectQuestionnaireId ===
+                manualCandidate.projectQuestionnaireId
+              ) &&
+              (
+                !manualCandidate.questionnaireVersionId ||
+                candidate.questionnaireVersionId ===
+                manualCandidate.questionnaireVersionId
+              )
+            );
+          }) ?? null;
+      }
     }
 
-    if (!selectedSessionId) {
-      selectedSessionId = candidates[0]?.assessmentSessionId ?? null;
+    if (!selectedCandidate) {
+      selectedCandidate = candidates[0] ?? null;
     }
-
-    const selectedCandidate = selectedSessionId
-      ? candidates.find(
-          (candidate) => candidate.assessmentSessionId === selectedSessionId,
-        )
-      : null;
 
     const available = Boolean(selectedCandidate);
 
@@ -631,18 +725,42 @@ function buildFrozenCompositeSelectionForUserUnlock({
       required,
       available,
 
-      questionnaireId,
-      questionnaireCode,
-      questionnaireName:
-        String(sourceRecord.questionnaireName ?? "").trim() ||
-        candidateGroup?.questionnaireName ||
-        questionnaireCode ||
-        questionnaireId ||
-        slot,
+      tenantSlug:
+        selectedCandidate?.tenantSlug ?? null,
 
-      assessmentSessionId: selectedCandidate?.assessmentSessionId ?? null,
-      assessmentProjectName: selectedCandidate?.assessmentProjectName ?? null,
-      completedAt: selectedCandidate?.completedAt ?? null,
+      questionnaireId:
+        selectedCandidate?.questionnaireId ??
+        questionnaireId,
+
+      questionnaireCode,
+
+      questionnaireName,
+
+      questionnaireVersionId:
+        selectedCandidate?.questionnaireVersionId ??
+        null,
+
+      assessmentSessionId:
+        selectedCandidate?.assessmentSessionId ??
+        null,
+
+      assessmentProjectId:
+        selectedCandidate?.assessmentProjectId ??
+        null,
+
+      assessmentProjectName:
+        selectedCandidate?.assessmentProjectName ??
+        null,
+
+      projectQuestionnaireId:
+        selectedCandidate?.projectQuestionnaireId ??
+        null,
+
+      assessmentResultSnapshotId:
+        selectedCandidate?.snapshotId ?? null,
+
+      completedAt:
+        selectedCandidate?.completedAt ?? null,
     };
   });
 
@@ -676,11 +794,30 @@ function buildFrozenCompositeSelectionForUserUnlock({
       .filter((source) => source.available)
       .map((source) => ({
         slot: source.slot,
+
+        tenantSlug: source.tenantSlug,
+
         questionnaireId: source.questionnaireId,
         questionnaireCode: source.questionnaireCode,
         questionnaireName: source.questionnaireName,
-        assessmentSessionId: source.assessmentSessionId,
-        assessmentProjectName: source.assessmentProjectName,
+        questionnaireVersionId:
+          source.questionnaireVersionId,
+
+        assessmentSessionId:
+          source.assessmentSessionId,
+
+        assessmentProjectId:
+          source.assessmentProjectId,
+
+        assessmentProjectName:
+          source.assessmentProjectName,
+
+        projectQuestionnaireId:
+          source.projectQuestionnaireId,
+
+        assessmentResultSnapshotId:
+          source.assessmentResultSnapshotId,
+
         completedAt: source.completedAt,
       })),
   };

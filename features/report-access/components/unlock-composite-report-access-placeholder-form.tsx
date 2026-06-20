@@ -1,3 +1,4 @@
+// features/report-access/components/unlock-composite-report-access-placeholder-form.tsx
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
@@ -114,11 +115,20 @@ const manualSelection = useMemo(() => {
 
   return (
     <form action={formAction} className="mt-6 space-y-5">
-      <input
-        type="hidden"
-        name="tenantSlugs"
-        value={JSON.stringify(tenantSlugs)}
-      />
+<input
+  type="hidden"
+  name="tenantSlug"
+  value={tenantSlugs[0] ?? ""}
+/>
+
+{tenantSlugs.map((tenantSlug) => (
+  <input
+    key={tenantSlug}
+    type="hidden"
+    name="tenantSlugs"
+    value={tenantSlug}
+  />
+))}
       <input
         type="hidden"
         name="reportTemplateVersionId"

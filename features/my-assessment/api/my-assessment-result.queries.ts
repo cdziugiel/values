@@ -121,49 +121,97 @@ export async function getMyAssessmentCompletedResult({
     throw new Error("Ta sesja badania nie należy do zalogowanego użytkownika.");
   }
 
-const snapshotConditions = [
-  eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
-  isNull(assessmentResultSnapshots.deletedAt),
-];
+  const snapshotRows = await tenant.db
+    .select({
+      id: assessmentResultSnapshots.id,
 
-if (projectQuestionnaireId) {
-  snapshotConditions.push(
-    eq(
-      assessmentResultSnapshots.projectQuestionnaireId,
-      projectQuestionnaireId,
-    ),
-  );
-}
+      projectQuestionnaireId:
+        assessmentResultSnapshots.projectQuestionnaireId,
 
-if (questionnaireVersionId) {
-  snapshotConditions.push(
-    eq(
-      assessmentResultSnapshots.questionnaireVersionId,
-      questionnaireVersionId,
-    ),
-  );
-}
+      questionnaireId:
+        assessmentResultSnapshots.questionnaireId,
 
-const snapshot =
-  await tenant.db.query.assessmentResultSnapshots.findFirst({
-    where: and(
-      eq(assessmentResultSnapshots.assessmentSessionId, sessionId),
-      projectQuestionnaireId
-        ? eq(
+      questionnaireVersionId:
+        assessmentResultSnapshots.questionnaireVersionId,
+
+      payload: assessmentResultSnapshots.payload,
+      createdAt: assessmentResultSnapshots.createdAt,
+    })
+    .from(assessmentResultSnapshots)
+    .where(
+      and(
+        eq(
+          assessmentResultSnapshots.assessmentSessionId,
+          sessionId,
+        ),
+
+        projectQuestionnaireId
+          ? eq(
             assessmentResultSnapshots.projectQuestionnaireId,
             projectQuestionnaireId,
           )
-        : undefined,
-      questionnaireVersionId
-        ? eq(
+          : undefined,
+
+        questionnaireVersionId
+          ? eq(
             assessmentResultSnapshots.questionnaireVersionId,
             questionnaireVersionId,
           )
-        : undefined,
-      isNull(assessmentResultSnapshots.deletedAt),
-    ),
-    orderBy: desc(assessmentResultSnapshots.createdAt),
+          : undefined,
+
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    )
+    .orderBy(desc(assessmentResultSnapshots.createdAt))
+    .limit(2);
+
+  console.log("MY_ASSESSMENT_COMPLETED_RESULT_SNAPSHOTS", {
+    tenantSlug,
+    sessionId,
+
+    requestedProjectQuestionnaireId:
+      projectQuestionnaireId,
+    requestedQuestionnaireVersionId:
+      questionnaireVersionId,
+
+    snapshots: snapshotRows.map((snapshot) => ({
+      snapshotId: snapshot.id,
+      projectQuestionnaireId:
+        snapshot.projectQuestionnaireId,
+      questionnaireId: snapshot.questionnaireId,
+      questionnaireVersionId:
+        snapshot.questionnaireVersionId,
+      createdAt: snapshot.createdAt,
+    })),
   });
+
+  if (
+    !projectQuestionnaireId &&
+    !questionnaireVersionId &&
+    snapshotRows.length > 1
+  ) {
+    console.error(
+      "MY_ASSESSMENT_COMPLETED_RESULT_AMBIGUOUS",
+      {
+        tenantSlug,
+        sessionId,
+        reason:
+          "multiple_snapshots_without_questionnaire_scope",
+        snapshots: snapshotRows.map((snapshot) => ({
+          snapshotId: snapshot.id,
+          projectQuestionnaireId:
+            snapshot.projectQuestionnaireId,
+          questionnaireId: snapshot.questionnaireId,
+          questionnaireVersionId:
+            snapshot.questionnaireVersionId,
+        })),
+      },
+    );
+
+    return null;
+  }
+
+  const snapshot = snapshotRows[0] ?? null;
   /**
    * Po zmianie modelu jedna assessment_session może obejmować kilka
    * kwestionariuszy. Dlatego sesja może być nadal "in_progress",
@@ -177,6 +225,12 @@ const snapshot =
     return {
       tenantSlug: tenant.tenantSlug,
       sessionId,
+
+      snapshotId: null,
+      projectQuestionnaireId: null,
+      questionnaireId: null,
+      questionnaireVersionId: null,
+
       snapshot: null,
       payload: null,
     };
@@ -185,6 +239,18 @@ const snapshot =
   return {
     tenantSlug: tenant.tenantSlug,
     sessionId,
+
+    snapshotId: snapshot.id,
+
+    projectQuestionnaireId:
+      snapshot.projectQuestionnaireId ?? null,
+
+    questionnaireId:
+      snapshot.questionnaireId ?? null,
+
+    questionnaireVersionId:
+      snapshot.questionnaireVersionId ?? null,
+
     snapshot,
     payload: snapshot.payload as any,
   };

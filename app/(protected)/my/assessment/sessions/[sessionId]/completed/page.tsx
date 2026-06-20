@@ -120,8 +120,12 @@ const result = await getMyAssessmentCompletedResult({
     tenantSlug: result.tenantSlug,
     sessionId: result.sessionId,
     payload: result.payload,
-    projectQuestionnaireId: projectQuestionnaireId ?? null,
-    questionnaireVersionId: questionnaireVersionId ?? null,
+
+    projectQuestionnaireId:
+      result.projectQuestionnaireId ?? null,
+
+    questionnaireVersionId:
+      result.questionnaireVersionId ?? null,
   }}
 />
   );
