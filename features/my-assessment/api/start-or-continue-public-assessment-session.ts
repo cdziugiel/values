@@ -135,7 +135,7 @@ async function findOrCreatePublicProject({
     };
     userId: string;
 }) {
-    const publicProjectName = `PUBLIC · ${questionnaire.questionnaireName}`;
+    const publicProjectName = `PUBLICZNE · ${questionnaire.questionnaireName}`;
 
     const existing = await db.query.assessmentProjects.findFirst({
         where: and(
