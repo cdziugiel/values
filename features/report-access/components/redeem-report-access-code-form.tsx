@@ -60,7 +60,7 @@ export function RedeemReportAccessCodeForm({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
+      <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto] items-center">
         <Input
           name="accessCode"
           placeholder="HV-XXXX-XXXX-XXXX-XXXX"

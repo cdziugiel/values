@@ -64,7 +64,7 @@ const respondentNavigationItems: ProtectedNavigationItem[] = [
     icon: <FileText className="h-4 w-4 shrink-0" />,
   },
   {
-    label: "Porównanie",
+    label: "Dopasowanie",
     href: "/my/assessment/compare",
     icon: <GitCompareArrows className="h-4 w-4 shrink-0" />,
   },

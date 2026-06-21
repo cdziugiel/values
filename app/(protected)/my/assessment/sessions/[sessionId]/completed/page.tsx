@@ -31,12 +31,11 @@ export default async function Page({
       <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
         <section className="rounded-2xl border bg-card p-8">
           <h1 className="text-2xl font-semibold">
-            Brakuje informacji o tenancie
+            Brakuje informacji o partnerze
           </h1>
 
           <p className="mt-3 text-muted-foreground">
-            Nie możemy wyświetlić wyniku, ponieważ w adresie brakuje parametru
-            tenant.
+            Nie możemy wyświetlić wyniku, ponieważ w adresie brakuje parametru.
           </p>
 
           <Link
@@ -92,15 +91,15 @@ const result = await getMyAssessmentCompletedResult({
             Badanie zostało zakończone
           </h1>
 
-          <p className="mt-4 text-muted-foreground">
-            Twoje odpowiedzi zostały zapisane, ale nie znaleziono jeszcze
-            zamrożonego snapshotu wyniku. Najprawdopodobniej sesja została
-            zakończona przed wdrożeniem mechanizmu snapshotów.
+          <p className="mt-3 text-muted-foreground">
+            Twoje odpowiedzi zostały zapisane, ale podsumowanie wyniku nie jest
+            obecnie dostępne. Możesz wrócić do swoich badań i spróbować ponownie
+            później.
           </p>
 
           <div className="mt-4 rounded-xl border bg-muted/30 p-4 text-xs text-muted-foreground">
             <div>Sesja: {sessionId}</div>
-            <div>Tenant: {tenant}</div>
+            <div>Partner: {tenant}</div>
           </div>
 
           <Link

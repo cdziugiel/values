@@ -525,243 +525,159 @@ export async function MyAssessmentCompletedResultView({
 }: MyAssessmentCompletedResultViewProps) {
   const payload = result.payload;
 
-const reportAccess = await getMyAssessmentReportAccessState({
-  tenantSlug: result.tenantSlug,
-  sessionId: result.sessionId,
-  projectQuestionnaireId: result.projectQuestionnaireId ?? null,
-  questionnaireVersionId: result.questionnaireVersionId ?? null,
-});
+  const reportAccess = await getMyAssessmentReportAccessState({
+    tenantSlug: result.tenantSlug,
+    sessionId: result.sessionId,
+    projectQuestionnaireId: result.projectQuestionnaireId ?? null,
+    questionnaireVersionId: result.questionnaireVersionId ?? null,
+  });
 
-  const scores = Array.isArray(payload?.scores) ? payload.scores : [];
-  const scoreGroups = groupScoresByCategory(scores);
-
-  const responses = Array.isArray(payload?.responses) ? payload.responses : [];
-  const responseGroups = groupResponsesByPage(responses);
-
-  const answeredCount = responses.filter(
-    (response) => response.responseExists,
-  ).length;
-
-  const totalCount = responses.length;
-  const responseCompletionPercent =
-    totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
+  const projectName =
+    payload?.project?.name?.trim() || "HUMANET VALUES";
 
   return (
     <main className="min-h-screen hv-brand-surface px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-6xl space-y-8">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <section className="overflow-hidden rounded-[2rem] hv-brand-card">
-          <div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-start md:p-8 lg:p-10">
-            <div className="max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
-                <CheckCircle2 size={14} />
-                <span className="hv-brand-eyebrow text-[0.68rem]">
-                  HUMANET VALUES
-                </span>
+          <div className="p-6 text-center sm:p-8 md:p-10">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+              <CheckCircle2 size={32} strokeWidth={1.8} />
+            </div>
+
+            <div className="mt-6 inline-flex items-center rounded-full px-3 py-1 hv-brand-pill">
+              <span className="hv-brand-eyebrow text-[0.68rem]">
+                HUMANET VALUES
+              </span>
+            </div>
+
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#171717] sm:text-4xl">
+              Badanie zostało ukończone
+            </h1>
+
+            <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#6b7280]">
+              Dziękujemy. Twoje odpowiedzi zostały bezpiecznie zapisane.
+            </p>
+
+            <div className="mx-auto mt-7 grid max-w-xl gap-3 rounded-2xl border border-black/10 bg-white/55 p-4 text-left sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-[#8b9099]">
+                  Badanie
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-[#171717]">
+                  {projectName}
+                </p>
               </div>
 
-              <h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
-                Badanie zostało zakończone.
-              </h1>
-
-              <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
-                Poniżej znajduje się zapisane podsumowanie sesji. Raport, jeżeli
-                jest dostępny, możesz otworzyć bezpośrednio z tego miejsca.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2 md:min-w-56">
-              {reportAccess.reportHref ? (
-                <BrandLinkButton href={reportAccess.reportHref}>
-                  <FileText size={16} />
-                  Zobacz raport
-                </BrandLinkButton>
-              ) : reportAccess.unlockHref ? (
-                <BrandLinkButton href={reportAccess.unlockHref}>
-                  <KeyRound size={16} />
-                  Odblokuj raport
-                </BrandLinkButton>
-              ) : null}
-
-              <BrandLinkButton href="/my/assessment" variant="secondary">
-                <ArrowLeft size={16} />
-                Wróć do moich badań
-              </BrandLinkButton>
-
-              {reportAccess.message ? (
-                <p className="mt-2 text-xs leading-5 text-[#6b7280]">
-                  {reportAccess.message}
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-[#8b9099]">
+                  Ukończono
                 </p>
-              ) : null}
+
+                <p className="mt-1 text-sm font-semibold text-[#171717]">
+                  {formatDateTime(payload?.frozenAt)}
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-3 md:p-8">
-            <MetricCard
-              label="Projekt"
-              value={payload?.project?.name ?? "—"}
-              icon={<ShieldCheck size={18} />}
-            />
-
-            <MetricCard
-              label="Odpowiedzi"
-              value={`${answeredCount} / ${totalCount} (${responseCompletionPercent}%)`}
-              icon={<ClipboardCheck size={18} />}
-            />
-
-            <MetricCard
-              label="Zapis wyniku"
-              value={formatDateTime(payload?.frozenAt)}
-              icon={<CheckCircle2 size={18} />}
-            />
           </div>
         </section>
 
-        {!reportAccess.isUnlocked ? (
-          <section className="rounded-[2rem] hv-brand-card p-6 md:p-8">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-[#171717]">
-                <LockKeyhole size={19} />
+        {reportAccess.reportHref ? (
+          <section className="rounded-[2rem] hv-brand-card p-6 sm:p-8">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+                  <FileText size={21} />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+                    Twój raport jest gotowy
+                  </h2>
+
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">
+                    Możesz teraz przejść do wyników i ich indywidualnej
+                    interpretacji.
+                  </p>
+                </div>
+              </div>
+
+              <BrandLinkButton href={reportAccess.reportHref}>
+                <FileText size={16} />
+                Zobacz mój raport
+              </BrandLinkButton>
+            </div>
+          </section>
+        ) : reportAccess.unlockHref ? (
+          <section className="rounded-[2rem] hv-brand-card p-6 sm:p-8">
+            <div className="flex gap-4">
+
+
+              <div className="min-w-0 flex flex-col flex-1 items-center text-center">
+                <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+                  Twój raport może zostać odblokowany
+                </h2>
+
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">
+                  Raport zawiera interpretację wyników oraz indywidualne
+                  wnioski wynikające z badania.
+                </p>
+
+                <div className="mt-5">
+                  <BrandLinkButton href={reportAccess.unlockHref}>
+                    <KeyRound size={16} />
+                    Odblokuj raport
+                  </BrandLinkButton>
+                </div>
+
+                <div className="my-7 flex items-center gap-4">
+                  <div className="h-px flex-1 bg-black/10" />
+                  <span className="text-xs font-medium uppercase tracking-wide text-[#8b9099]">
+                    lub użyj kodu
+                  </span>
+                  <div className="h-px flex-1 bg-black/10" />
+                </div>
+
+                <RedeemReportAccessCodeForm
+                  tenantSlug={result.tenantSlug}
+                  sessionId={result.sessionId}
+                />
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-[2rem] hv-brand-card p-6 sm:p-8">
+            <div className="flex gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-[#6b7280]">
+                <FileText size={21} />
               </div>
 
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
-                  Odblokowanie raportu
+                  Raport nie jest jeszcze dostępny
                 </h2>
 
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6b7280]">
-                  Jeśli masz kod dostępu, wpisz go poniżej. Po odblokowaniu
-                  raport pojawi się w tym widoku oraz w zakładce raportów.
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">
+                  Twoje odpowiedzi zostały zapisane. Informacja o możliwości
+                  otwarcia raportu pojawi się w sekcji „Moje badania”.
                 </p>
+
+                {reportAccess.message ? (
+                  <p className="mt-3 text-sm leading-6 text-[#6b7280]">
+                    {reportAccess.message}
+                  </p>
+                ) : null}
               </div>
             </div>
-
-            <RedeemReportAccessCodeForm
-              tenantSlug={result.tenantSlug}
-              sessionId={result.sessionId}
-            />
           </section>
-        ) : null}
+        )}
 
-        {/* <section className="space-y-5">
-          <SectionIntro
-            eyebrow="Podsumowanie"
-            title="Wyniki wymiarów"
-            description="To zapis wyników utworzony w momencie zakończenia badania. Dzięki temu późniejsze zmiany w kwestionariuszu nie zmienią tego podsumowania."
-            icon={<BarChart3 size={20} />}
-          />
-
-          {scores.length === 0 ? (
-            <EmptyPanel>
-              Brak zapisanych wyników wymiarów. Jeżeli ten widok powinien
-              pokazywać wyniki, sprawdź, czy przed utworzeniem snapshotu
-              uruchamiane jest przeliczenie wyników sesji.
-            </EmptyPanel>
-          ) : (
-            <div className="space-y-5">
-              {scoreGroups.map((group) => (
-                <section key={group.key} className="space-y-3">
-                  <div className="flex flex-wrap items-end justify-between gap-3 px-1">
-                    <div>
-                      <h3 className="text-lg font-semibold tracking-[-0.03em] text-[#171717]">
-                        {group.label}
-                      </h3>
-
-                      <p className="mt-1 text-sm text-[#6b7280]">
-                        Liczba wymiarów: {group.scores.length}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {group.scores.map((score, index) => (
-                      <ScoreCard
-                        key={getScoreKey(score, index)}
-                        score={score}
-                        index={index}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
-        </section> */}
-
-        <section className="space-y-5">
-          <SectionIntro
-            eyebrow="Odpowiedzi"
-            title="Zapisane odpowiedzi"
-            description="Ta sekcja pokazuje odpowiedzi zapisane w sesji. Dla przejrzystości szczegóły są pogrupowane według części kwestionariusza."
-            icon={<FileText size={20} />}
-          />
-
-          {responses.length === 0 ? (
-            <EmptyPanel>Brak zapisanych odpowiedzi w snapshocie.</EmptyPanel>
-          ) : (
-            <div className="space-y-4">
-              {responseGroups.map((group, groupIndex) => (
-                <details
-                  key={group.key}
-                  className="group rounded-[2rem] border border-black/10 bg-white/75 shadow-sm backdrop-blur"
-                >
-                  <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-5 outline-none transition hover:bg-white/60 focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40">
-                    <div className="flex min-w-0 gap-4">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f6] text-sm font-semibold text-[#171717]">
-                        {groupIndex + 1}
-                      </div>
-
-                      <div className="min-w-0">
-                        <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
-                          {group.title}
-                        </h3>
-
-                        {group.description ? (
-                          <p className="mt-1 text-sm leading-6 text-[#6b7280]">
-                            {group.description}
-                          </p>
-                        ) : null}
-
-                        <p className="mt-1 text-xs text-[#8b9099]">
-                          Liczba odpowiedzi: {group.responses.length}
-                        </p>
-                      </div>
-                    </div>
-
-                    <ChevronDown
-                      size={18}
-                      className="mt-1 shrink-0 text-[#6b7280] transition group-open:rotate-180"
-                    />
-                  </summary>
-
-                  <div className="border-t border-black/10">
-                    {group.responses.map((response, responseIndex) => (
-                      <div
-                        key={getResponseKey(response, responseIndex)}
-                        className="border-b border-black/10 px-5 py-4 last:border-b-0"
-                      >
-                        <div className="grid gap-3 md:grid-cols-1 md:items-start">
-                         <div className="flex items-center justify-start space-x-4">
-                           <div className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
-                            {responseIndex + 1}
-                          </div>
-
-                          <p className="text-sm leading-6 text-[#171717]">
-                            {response.itemText ?? "—"}
-                          </p>
-                         </div>
-
-                          <div className="ml-12 w-fit  rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-sm font-semibold text-[#0f766e]">
-                            {response.responseDisplayValue ?? "—"}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
-          )}
-        </section>
+        <div className="flex justify-center pb-4">
+          <BrandLinkButton href="/my/assessment" variant="secondary">
+            <ArrowLeft size={16} />
+            Wróć do moich badań
+          </BrandLinkButton>
+        </div>
       </div>
     </main>
   );

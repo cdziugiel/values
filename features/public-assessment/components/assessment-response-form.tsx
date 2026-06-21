@@ -988,6 +988,7 @@ export function AssessmentResponseForm({
 }: AssessmentResponseFormProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const stickyHeaderRef = useRef<HTMLElement | null>(null);
   const shouldScrollToTopRef = useRef(false);
 
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -1329,10 +1330,10 @@ export function AssessmentResponseForm({
   }
 
   async function fillAllPagesRandomlyForSuperAdmin() {
-/*     if (!isSuperAdmin || isAutoFilling ) {
-      return;
-    }
- */
+    /*     if (!isSuperAdmin || isAutoFilling ) {
+          return;
+        }
+     */
     const form = formRef.current;
 
     if (!form) {
@@ -1491,15 +1492,15 @@ export function AssessmentResponseForm({
 
   function finishAssessment() {
     const form = formRef.current;
-      if (!projectQuestionnaireId) {
-        setState({
-          status: "error",
-          message:
-            "Brakuje identyfikatora kwestionariusza. Nie można zakończyć tej części badania.",
-        });
+    if (!projectQuestionnaireId) {
+      setState({
+        status: "error",
+        message:
+          "Brakuje identyfikatora kwestionariusza. Nie można zakończyć tej części badania.",
+      });
 
-        return;
-      }
+      return;
+    }
 
     if (form && !form.reportValidity()) {
       return;
@@ -1572,208 +1573,286 @@ export function AssessmentResponseForm({
     );
   }
 
+
+  useEffect(() => {
+    const form = formRef.current;
+    const stickyHeader = stickyHeaderRef.current;
+
+    if (!form || !stickyHeader) {
+      return;
+    }
+
+    let animationFrameId: number | null = null;
+
+    function updateItemVisibility() {
+      animationFrameId = null;
+
+      const header = stickyHeaderRef.current;
+
+      if (!header || !form) {
+        return;
+      }
+
+      const headerRect = header.getBoundingClientRect();
+
+      const itemElements = form.querySelectorAll<HTMLElement>(
+        "[data-assessment-item]",
+      );
+
+      itemElements.forEach((itemElement) => {
+        const itemRect = itemElement.getBoundingClientRect();
+
+        /*
+         * Ukrywamy kartę, gdy jej górna część weszła pod sticky header.
+         * Element pozostaje w layoucie, dlatego kolejne pytania nie przeskakują.
+         */
+        const shouldBeHidden = itemRect.bottom <= headerRect.bottom + 8;
+
+        itemElement.style.visibility = shouldBeHidden ? "hidden" : "visible";
+        itemElement.style.pointerEvents = shouldBeHidden ? "none" : "";
+      });
+    }
+
+    function scheduleVisibilityUpdate() {
+      if (animationFrameId !== null) {
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(updateItemVisibility);
+    }
+
+    updateItemVisibility();
+
+    form.addEventListener("scroll", scheduleVisibilityUpdate, {
+      passive: true,
+    });
+
+    window.addEventListener("resize", scheduleVisibilityUpdate);
+
+    const resizeObserver = new ResizeObserver(scheduleVisibilityUpdate);
+
+    resizeObserver.observe(stickyHeader);
+
+    return () => {
+      form.removeEventListener("scroll", scheduleVisibilityUpdate);
+      window.removeEventListener("resize", scheduleVisibilityUpdate);
+      resizeObserver.disconnect();
+
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [currentPageIndex]);
+
   return (
     <div
       ref={rootRef}
-      className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      className="-mx-4 -my-6 h-[calc(100dvh-4rem)] overflow-hidden hv-brand-surface sm:-mx-6 lg:-mx-8"
+    >
 
       <form
         ref={formRef}
         onChangeCapture={refreshAnsweredPageIndexes}
-        className="mx-auto w-full max-w-5xl space-y-8"
+        className="h-full overflow-y-auto overscroll-contain px-4 py-8 sm:px-6 lg:px-8"
       >
-        <input type="hidden" name="token" value={token} />
-        <input type="hidden" name="sessionId" value={sessionId} />
-        <input type="hidden" name="mode" value={mode} />
-        <input type="hidden" name="tenantSlug" value={tenantSlug} />
-        <input
-          type="hidden"
-          name="projectQuestionnaireId"
-          value={projectQuestionnaireId}
-        />
+        <div className="mx-auto w-full max-w-5xl space-y-8">
+          <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="sessionId" value={sessionId} />
+          <input type="hidden" name="mode" value={mode} />
+          <input type="hidden" name="tenantSlug" value={tenantSlug} />
+          <input
+            type="hidden"
+            name="projectQuestionnaireId"
+            value={projectQuestionnaireId}
+          />
 
 
-        <section className="sticky top-4 z-30 overflow-hidden rounded-[2rem] border border-black/10 bg-white/90 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur hv-brand-card">
-          <div className="border-t border-black/10 bg-white/35 p-4 md:p-6">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
-              <FileText size={14} />
-              <span className="hv-brand-eyebrow text-[0.68rem]">
-                {currentPage.questionnaireName}
-              </span>
+<section
+  ref={stickyHeaderRef}
+  className="sticky top-0 z-30 overflow-hidden rounded-[2rem] border border-black/10 bg-white/90 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur hv-brand-card"
+>
+
+            <div className="border-t border-black/10 bg-white/35 p-4 md:p-6">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
+                <FileText size={14} />
+                <span className="hv-brand-eyebrow text-[0.68rem]">
+                  {currentPage.questionnaireName}
+                </span>
+              </div>
+
+              <div className="mb-2 flex flex-wrap justify-between gap-3 text-xs text-[#6b7280]">
+                <span>{Math.round(((answeredPagesCount / pageGroups.length) * 100))}% ukończone</span>
+
+                <span>
+                  {currentPage.items.length}{" "}
+                  {currentPage.items.length === 1 ? "pytanie" : "pytań"} na tej stronie
+                </span>
+
+                <span>
+                  Strona {currentPageIndex + 1} z {pageGroups.length}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleAnsweredProgressClick}
+                  className="group relative h-3 w-full cursor-pointer overflow-hidden rounded-full bg-[#e5e7eb] text-left transition hover:bg-[#d1d5db] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50"
+                  aria-label="Przejdź do strony badania według postępu odpowiedzi"
+                >
+                  {/* Warstwa 1: faktycznie wypełnione strony */}
+                  <span
+                    className="absolute inset-y-0 left-0 z-10 rounded-full bg-[#9ca3af] transition-all group-hover:bg-[#8b95a1]"
+                    style={{ width: `${answeredProgress}%` }}
+                  />
+
+                  {/* Warstwa 2: obecna strona / bieżąca pozycja */}
+                  <span
+                    className="absolute inset-y-0 left-0 z-20 rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf] transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+
+
+                </button>
+
+              </div>
             </div>
 
-            <div className="mb-2 flex flex-wrap justify-between gap-3 text-xs text-[#6b7280]">
-              <span>{Math.round(((answeredPagesCount / pageGroups.length) * 100))}% ukończone</span>
+            <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:px-6 md:py-2 lg:px-7 lg:p-2 py-2">
+              <div className="max-w-4xl">
+                <h1 className="max-w-4xl text-2xl font-semibold leading-[1.08] tracking-[-0.045em] text-[#171717] md:text-4xl">
+                  {currentPage.pageTitle}
+                </h1>
 
-              <span>
-                {currentPage.items.length}{" "}
-                {currentPage.items.length === 1 ? "pytanie" : "pytań"} na tej stronie
-              </span>
-
-              <span>
-                Strona {currentPageIndex + 1} z {pageGroups.length}
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={handleAnsweredProgressClick}
-                className="group relative h-3 w-full cursor-pointer overflow-hidden rounded-full bg-[#e5e7eb] text-left transition hover:bg-[#d1d5db] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50"
-                aria-label="Przejdź do strony badania według postępu odpowiedzi"
-              >
-                {/* Warstwa 1: faktycznie wypełnione strony */}
-                <span
-                  className="absolute inset-y-0 left-0 z-10 rounded-full bg-[#9ca3af] transition-all group-hover:bg-[#8b95a1]"
-                  style={{ width: `${answeredProgress}%` }}
-                />
-
-                {/* Warstwa 2: obecna strona / bieżąca pozycja */}
-                <span
-                  className="absolute inset-y-0 left-0 z-20 rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf] transition-all"
-                  style={{ width: `${progress}%` }}
-                />
-
-
-              </button>
-
-            </div>
-          </div>
-
-          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:px-6 md:py-2 lg:px-7 lg:p-2 py-2">
-            <div className="max-w-4xl">
-              <h1 className="max-w-4xl text-2xl font-semibold leading-[1.08] tracking-[-0.045em] text-[#171717] md:text-4xl">
-                {currentPage.pageTitle}
-              </h1>
-
-              <p className="my-3 text-sm font-medium text-[#6b7280]">
-                {currentPage.questionnaireVersionName}
-              </p>
-
-              {currentPage.pageDescription ? (
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6b7280]">
-                  {currentPage.pageDescription}
+                <p className="my-3 text-sm font-medium text-[#6b7280]">
+                  {currentPage.questionnaireVersionName}
                 </p>
-              ) : null}
+
+                {currentPage.pageDescription ? (
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6b7280]">
+                    {currentPage.pageDescription}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {pageGroups.map((pageGroup, pageIndex) => {
-          const isCurrentPage = pageIndex === currentPageIndex;
+{pageGroups.map((pageGroup, pageIndex) => {
+  const isCurrentPage = pageIndex === currentPageIndex;
 
-          return (
-            <section
-              key={`${pageGroup.versionId}:${pageGroup.pageId}`}
-              className={isCurrentPage ? "space-y-5" : "hidden"}
-              aria-hidden={!isCurrentPage}
-            >
-              <div className="space-y-6">
-                {pageGroup.items.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="group relative overflow-hidden rounded-[1.75rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 has-[input:checked]:border-[rgba(45,212,191,0.42)] has-[input:checked]:bg-[rgba(45,212,191,0.08)] hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)] sm:p-6"
-                  >
-                    <div className="flex flex-col gap-3 md:grid md:grid-cols-[2rem_minmax(0,1fr)_auto] md:items-start md:gap-5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
-                        {index + 1}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="text-[1.05rem] font-medium leading-snug tracking-[-0.01em] text-[#171717] sm:text-lg">
-                          {item.text}
+  return (
+    <section
+      key={`${pageGroup.versionId}:${pageGroup.pageId}`}
+      className={isCurrentPage ? "space-y-5" : "hidden"}
+      aria-hidden={!isCurrentPage}
+    >
+      <div className="space-y-6">
+        {pageGroup.items.map((item, index) => (
+          <div
+            key={item.id}
+            data-assessment-item
+            className="group relative overflow-hidden rounded-[1.75rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition-[border-color,background-color,box-shadow,transform] duration-300 has-[input:checked]:border-[rgba(45,212,191,0.42)] has-[input:checked]:bg-[rgba(45,212,191,0.08)] hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)] sm:p-6"
+          >
+                      <div className="flex flex-col gap-3 md:grid md:grid-cols-[2rem_minmax(0,1fr)_auto] md:items-start md:gap-5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
+                          {index + 1}
                         </div>
 
-                        {item.helpText ? (
-                          <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-                            {item.helpText}
-                          </p>
-                        ) : null}
-                      </div>
+                        <div className="min-w-0">
+                          <div className="text-[1.05rem] font-medium leading-snug tracking-[-0.01em] text-[#171717] sm:text-lg">
+                            {item.text}
+                          </div>
 
-                      <div className="w-full md:flex md:justify-end">
-                        <AssessmentItemInput
-                          item={item}
-                          isCurrentPage={isCurrentPage}
-                        />
+                          {item.helpText ? (
+                            <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                              {item.helpText}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="w-full md:flex md:justify-end">
+                          <AssessmentItemInput
+                            item={item}
+                            isCurrentPage={isCurrentPage}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+
+          {state.status !== "idle" ? (
+            <div
+              className={[
+                "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
+                state.status === "success"
+                  ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+                  : "border-red-200 bg-red-50 text-red-700",
+              ].join(" ")}
+            >
+              <div className="flex gap-2">
+                {state.status === "success" ? (
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                ) : (
+                  <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+                )}
+                <span>{state.message}</span>
               </div>
-            </section>
-          );
-        })}
-
-        {state.status !== "idle" ? (
-          <div
-            className={[
-              "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
-              state.status === "success"
-                ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
-                : "border-red-200 bg-red-50 text-red-700",
-            ].join(" ")}
-          >
-            <div className="flex gap-2">
-              {state.status === "success" ? (
-                <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-              ) : (
-                <TriangleAlert size={16} className="mt-0.5 shrink-0" />
-              )}
-              <span>{state.message}</span>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-[2rem] border border-black/10 bg-white/90 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.14)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            disabled={isFirstPage || isPending || isAutoFilling}
-            onClick={goToPreviousPage}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 bg-white/70 px-5 text-sm font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <ArrowLeft size={16} />
-            Wstecz
-          </button>
+          <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-[2rem] border border-black/10 bg-white/90 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.14)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              disabled={isFirstPage || isPending || isAutoFilling}
+              onClick={goToPreviousPage}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 bg-white/70 px-5 text-sm font-semibold text-[#171717] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ArrowLeft size={16} />
+              Wstecz
+            </button>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {isSuperAdmin || !isSuperAdmin ? (
-              <button
-                type="button"
-                disabled={isPending || isAutoFilling}
-                onClick={fillAllPagesRandomlyForSuperAdmin}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
-              >
-                <Sparkles size={16} />
-                {isAutoFilling
-                  ? "Losowe uzupełnianie..."
-                  : "Losowo uzupełnij wszystkie strony"}
-              </button>
-            ) : null}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {isSuperAdmin || !isSuperAdmin ? (
+                <button
+                  type="button"
+                  disabled={isPending || isAutoFilling}
+                  onClick={fillAllPagesRandomlyForSuperAdmin}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
+                >
+                  <Sparkles size={16} />
+                  {isAutoFilling
+                    ? "Losowe uzupełnianie..."
+                    : "Losowo uzupełnij wszystkie strony"}
+                </button>
+              ) : null}
 
-            {!isLastPage ? (
-              <button
-                type="button"
-                disabled={isPending || isAutoFilling}
-                onClick={goToNextPage}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
-              >
-                {isPending ? "Zapisywanie..." : "Dalej"}
-                <ArrowRight size={16} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={isPending || isAutoFilling}
-                onClick={finishAssessment}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
-              >
-                <ClipboardCheck size={16} />
-                {isPending ? "Zapisywanie..." : "Zakończ ten kwestionariusz"}
-              </button>
-            )}
-          </div>
-        </div>
+              {!isLastPage ? (
+                <button
+                  type="button"
+                  disabled={isPending || isAutoFilling}
+                  onClick={goToNextPage}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
+                >
+                  {isPending ? "Zapisywanie..." : "Dalej"}
+                  <ArrowRight size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isPending || isAutoFilling}
+                  onClick={finishAssessment}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] disabled:opacity-60"
+                >
+                  <ClipboardCheck size={16} />
+                  {isPending ? "Zapisywanie..." : "Zakończ ten kwestionariusz"}
+                </button>
+              )}
+            </div>
+          </div>  </div>
       </form>
     </div>
   );
