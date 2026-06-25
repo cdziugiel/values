@@ -175,7 +175,7 @@ export async function ClientUnitsPage({ tenantSlug }: ClientUnitsPageProps) {
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
-                Odwzoruj strukturę organizacji klienta, aby później prowadzić
+                Odwzoruj strukturę organizacji klienta, aby prowadzić
                 badania i analizować wyniki na poziomie zespołów, działów,
                 lokalizacji lub innych jednostek.
               </p>
@@ -217,7 +217,7 @@ export async function ClientUnitsPage({ tenantSlug }: ClientUnitsPageProps) {
           />
 
           <MetricCard
-            label="Podrzędne"
+            label="Zależne"
             value={childUnitsCount}
             helper="Jednostki osadzone w hierarchii."
             icon={<Layers3 size={20} />}
@@ -254,7 +254,7 @@ export async function ClientUnitsPage({ tenantSlug }: ClientUnitsPageProps) {
 
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6b7280]">
                   Przegląd działów, zespołów i innych jednostek. Ustawienia są
-                  dostępne w kolumnie akcji bez rozpychania tabeli.
+                  dostępne w kolumnie akcji.
                 </p>
               </div>
             </div>

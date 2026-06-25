@@ -1237,9 +1237,9 @@ const data = await getTenantDashboardData({
           />
 
           <StatCard
-            label="Snapshoty"
+            label="Wyniki"
             value={data.counts.snapshots}
-            helper="Zamrożone wyniki gotowe do raportowania."
+            helper="Zapisane wyniki gotowe do raportowania."
             icon={<PackageCheck size={20} />}
           />
         </section>

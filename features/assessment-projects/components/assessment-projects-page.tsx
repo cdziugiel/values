@@ -227,7 +227,7 @@ export async function AssessmentProjectsPage({
           description="Zarządzanie projektami diagnostycznymi, respondentami, kwestionariuszami i raportami dla klientów."
         />
 
-        <section className="overflow-hidden rounded-[2rem] hv-brand-card">
+{/*         <section className="overflow-hidden rounded-[2rem] hv-brand-card">
           <div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-end md:p-8 lg:p-10">
             <div className="max-w-3xl">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
@@ -265,13 +265,13 @@ export async function AssessmentProjectsPage({
               </div>
             </div>
           </div>
-        </section>
+        </section> */}
 
         <section className="grid gap-4 md:grid-cols-4">
           <MetricCard
             label="Projekty"
             value={projects.length}
-            helper="Wszystkie projekty badawcze w tym środowisku."
+            helper="Wszystkie Twoje projekty badawcze."
             icon={<ClipboardList size={20} />}
           />
 
@@ -294,7 +294,7 @@ export async function AssessmentProjectsPage({
           <MetricCard
             label="Kwestionariusze"
             value={assignedQuestionnaireCount}
-            helper="Przypisania narzędzi do projektów."
+            helper="Przypisań do projektów."
             icon={<Layers3 size={20} />}
           />
         </section>

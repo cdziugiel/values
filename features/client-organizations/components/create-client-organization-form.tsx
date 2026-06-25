@@ -100,8 +100,8 @@ export function CreateClientOrganizationForm({
             </h2>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6b7280]">
-              Organizacja klienta porządkuje projekty badawcze, jednostki,
-              respondentów i późniejsze raportowanie w ramach jednego partnera.
+              Do organizacji przypiszesz projekty badawcze, zespoły,
+              i respondentów.
             </p>
           </div>
 

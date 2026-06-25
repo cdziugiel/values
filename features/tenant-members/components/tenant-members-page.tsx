@@ -258,8 +258,6 @@ export async function TenantMembersPage({ tenantSlug }: TenantMembersPageProps) 
 
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6b7280]">
                   Przegląd użytkowników, ich ról, statusów oraz dat dodania.
-                  Ustawienia dostępu są dostępne z poziomu przycisku w kolumnie
-                  akcji.
                 </p>
               </div>
             </div>

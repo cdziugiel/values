@@ -165,7 +165,7 @@ export async function ClientOrganizationsPage({
           <MetricCard
             label="Organizacje"
             value={organizations.length}
-            helper="Wszystkie organizacje klientów w tym środowisku."
+            helper="Wszystkie organizacje."
             icon={<Building2 size={20} />}
           />
 
@@ -230,7 +230,7 @@ export async function ClientOrganizationsPage({
             {organizations.length === 0 ? (
               <EmptyPanel>
                 Brak organizacji klientów. Dodaj pierwszą organizację, aby
-                uporządkować projekty badawcze i respondentów.
+                porządkować projekty badawcze i respondentów.
               </EmptyPanel>
             ) : (
               <>

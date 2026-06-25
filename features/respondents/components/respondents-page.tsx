@@ -160,7 +160,7 @@ export async function RespondentsPage({ tenantSlug }: RespondentsPageProps) {
           description="Uczestnicy badań przypisani do organizacji i jednostek klienta."
         />
 
-        <section className="overflow-hidden rounded-[2rem] hv-brand-card">
+        {/* <section className="overflow-hidden rounded-[2rem] hv-brand-card">
           <div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-end md:p-8 lg:p-10">
             <div className="max-w-3xl">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 hv-brand-pill">
@@ -198,13 +198,13 @@ export async function RespondentsPage({ tenantSlug }: RespondentsPageProps) {
               </div>
             </div>
           </div>
-        </section>
+        </section> */}
 
         <section className="grid gap-4 md:grid-cols-4">
           <MetricCard
             label="Respondenci"
             value={respondents.length}
-            helper="Wszystkie osoby w bazie respondenta partnera."
+            helper="Wszystkie osoby w bazie."
             icon={<Users size={20} />}
           />
 

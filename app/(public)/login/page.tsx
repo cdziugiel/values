@@ -72,9 +72,8 @@ export default async function LoginPage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-8 text-[#6b7280] md:text-lg">
-              Podaj adres email, którego używasz w badaniu. Wyślemy Ci
-              jednorazowy link, dzięki któremu bez hasła przejdziesz do swojego
-              panelu respondenta.
+              Podaj adres email. Wyślemy Ci
+              jednorazowy link dostępowy.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -118,8 +117,7 @@ export default async function LoginPage() {
                 </h2>
 
                 <p className="mt-1 text-xs leading-5 text-[#6b7280]">
-                  Dostęp jest przypisany do Twojego adresu email i konkretnego
-                  procesu badawczego.
+                  Dostęp jest przypisany do Twojego adresu email.
                 </p>
               </div>
             </div>

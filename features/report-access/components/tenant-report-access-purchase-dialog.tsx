@@ -210,6 +210,8 @@ const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(
       ? unitGross * quantity
       : 0;
 
+console.log("PRODUCTS", products)
+
   return (
     <Dialog>
       <DialogTrigger asChild>

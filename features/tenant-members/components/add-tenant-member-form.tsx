@@ -90,12 +90,12 @@ export function AddTenantMemberForm({
             </p>
 
             <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
-              Dodaj użytkownika do partnera.
+              Dodaj użytkownika.
             </h2>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6b7280]">
               Jeśli użytkownik nie istnieje, system utworzy konto. Logowanie
-              nadal odbywa się przez magic link, więc nie musisz ustawiać hasła.
+              nadal odbywa się przez link dostępowy, więc nie musisz ustawiać hasła.
             </p>
           </div>
 

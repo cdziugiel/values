@@ -149,9 +149,8 @@ export function CreateRespondentForm({
               />
 
               <p className="text-sm leading-6 text-[#0f766e]">
-                Minimum identyfikacji to zwykle email albo kod zewnętrzny.
-                Dane osobowe uzupełniaj tylko wtedy, gdy są potrzebne w procesie
-                badania.
+                Minimum identyfikacji to email lub kod zewnętrzny.
+                
               </p>
             </div>
           </div>
@@ -305,10 +304,6 @@ export function CreateRespondentForm({
                 className="rounded-2xl border-black/10 bg-white"
               />
 
-              <p className="text-xs leading-5 text-[#6b7280]">
-                Rola opisuje funkcję osoby w jednostce. Do raportów lider vs zespół używana
-                jest osobna flaga poniżej.
-              </p>
             </div>
 
             <div className="md:col-span-2">
