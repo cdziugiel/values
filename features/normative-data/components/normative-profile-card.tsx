@@ -4,11 +4,13 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
 } from "react";
 import {
   Check,
+  ChevronDown,
   Clipboard,
   Gift,
   Loader2,
@@ -231,36 +233,58 @@ export function NormativeProfileCard({
   );
 
 
-
-  const [isEditing, setIsEditing] =
+const [isEditing, setIsEditing] =
   useState(!initialStatus.completed);
 
 const [copied, setCopied] =
   useState(false);
 
+/**
+ * Pełny kod jest dostępny wyłącznie bezpośrednio po wydaniu.
+ * Zachowujemy go lokalnie, żeby późniejsza aktualizacja profilu
+ * nie zastąpiła go DTO zawierającym tylko podgląd kodu.
+ */
+const [revealedDiscountCode, setRevealedDiscountCode] =
+  useState<string | null>(null);
+
+/**
+ * Pozwala wykryć każde zakończenie Server Action,
+ * również wtedy, gdy status przed i po zapisie jest taki sam.
+ */
+const wasSubmittingRef =
+  useRef(false);
+
+/**
+ * Po zamknięciu formularza przewiniemy widok
+ * do karty podsumowania.
+ */
+const shouldScrollToSummaryRef =
+  useRef(false);
+
+const summaryRef =
+  useRef<HTMLDivElement>(null);
+
 const profile =
   state.profile ??
   initialStatus.profile;
 
-/**
- * Pełna wartość kodu jest zwracana wyłącznie bezpośrednio
- * przez akcję tworzącą kod.
- */
 const actionReward =
   claimState.reward ??
   state.reward ??
   null;
 
-/**
- * Initial status zawiera wyłącznie bezpieczny podgląd kodu.
- */
 const reward =
   actionReward ??
   initialStatus.reward;
 
-const visibleCode =
-  actionReward?.discountCode ??
+const latestActionCode =
+  claimState.reward?.discountCode ??
+  state.reward?.discountCode ??
   null;
+
+const visibleCode =
+  latestActionCode ??
+  revealedDiscountCode;
 
 const preview =
   reward?.discountCodePreview ??
@@ -279,20 +303,78 @@ const completed =
   state.status === "success" ||
   Boolean(state.profile);
 
-/**
- * Po poprawnym utworzeniu albo aktualizacji profilu
- * zamykamy formularz i przechodzimy do podsumowania.
- * Dzięki temu nowo wydany pełny kod rabatowy staje się widoczny.
- */
-useEffect(() => {
-  if (state.status === "success") {
-    setIsEditing(false);
-  }
-}, [state.status]);
-
 const showEditor =
   !completed || isEditing;
 
+/**
+ * Nie usuwamy wcześniej ujawnionego kodu,
+ * jeżeli kolejna akcja zwróci reward bez discountCode.
+ */
+useEffect(() => {
+  if (latestActionCode) {
+    setRevealedDiscountCode(
+      latestActionCode,
+    );
+  }
+}, [latestActionCode]);
+
+/**
+ * Rejestrujemy rozpoczęcie każdej operacji zapisu.
+ */
+useEffect(() => {
+  if (pending) {
+    wasSubmittingRef.current = true;
+    return;
+  }
+
+  if (!wasSubmittingRef.current) {
+    return;
+  }
+
+  wasSubmittingRef.current = false;
+
+  if (state.status !== "success") {
+    return;
+  }
+
+  shouldScrollToSummaryRef.current =
+    true;
+
+  setIsEditing(false);
+}, [
+  pending,
+  state.status,
+]);
+
+/**
+ * Ten efekt uruchamia się dopiero po ponownym renderze,
+ * gdy formularz został już zastąpiony podsumowaniem.
+ */
+useEffect(() => {
+  if (
+    showEditor ||
+    !shouldScrollToSummaryRef.current
+  ) {
+    return;
+  }
+
+  shouldScrollToSummaryRef.current =
+    false;
+
+  const frameId =
+    window.requestAnimationFrame(() => {
+      summaryRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+  return () => {
+    window.cancelAnimationFrame(
+      frameId,
+    );
+  };
+}, [showEditor]);
 
 
 const [employmentStatus, setEmploymentStatus] =
@@ -358,12 +440,16 @@ useEffect(() => {
     );
   }
 
-  if (
-    completed &&
-    !showEditor &&
-    profile
-  ) {
-    return (
+if (
+  completed &&
+  !showEditor &&
+  profile
+) {
+  return (
+    <div
+      ref={summaryRef}
+      className="scroll-mt-4"
+    >
       <Card className="border-emerald-200 bg-emerald-50/40">
         <CardHeader>
           <div className="flex items-start gap-3">
@@ -408,6 +494,7 @@ useEffect(() => {
               <p className="mt-3 text-xs text-muted-foreground">
                 Kod można wykorzystać maksymalnie 4 razy — po jednym zakupie dla każdego raportu.
               </p>
+
             </div>
           ) : reward ? (
             <Alert>
@@ -422,12 +509,12 @@ useEffect(() => {
               </AlertDescription>
             </Alert>
           ) : null}
-          {expiryLabel ? (
+
+                        {expiryLabel ? (
             <p className="text-sm text-muted-foreground w-full">
               Kod jest ważny do {expiryLabel}.
             </p>
           ) : null}
-
 
           
 
@@ -498,6 +585,7 @@ useEffect(() => {
           ) : null}
         </CardContent>
       </Card>
+      </div>
     );
   }
 
@@ -542,6 +630,7 @@ useEffect(() => {
           }
           className="space-y-8"
         >
+          
           <input
             type="hidden"
             name="tenantSlug"
@@ -661,43 +750,16 @@ useEffect(() => {
                 }
               />
 
-              <div className="space-y-2">
-                <Label htmlFor="educationFields">
-                  Dziedzina wykształcenia
-                </Label>
-                <select
-                  id="educationFields"
-                  name="educationFields"
-                  required
-                  multiple
-                  size={6}
-                  defaultValue={
-                    defaultValues?.educationFields ??
-                    []
-                  }
-                  className={`${selectClassName} h-auto min-h-40`}
-                >
-                  {EDUCATION_FIELD_OPTIONS.map(
-                    (option) => (
-                      <option
-                        key={
-                          option.value
-                        }
-                        value={
-                          option.value
-                        }
-                      >
-                        {
-                          option.label
-                        }
-                      </option>
-                    ),
-                  )}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Aby zaznaczyć kilka pozycji, użyj Ctrl na Windows albo Command na macOS.
-                </p>
-              </div>
+<MultiSelectField
+  id="educationFields"
+  name="educationFields"
+  label="Dziedzina wykształcenia"
+  options={EDUCATION_FIELD_OPTIONS}
+  defaultValue={
+    defaultValues?.educationFields ??
+    []
+  }
+/>
             </div>
           </section>
 
@@ -902,5 +964,199 @@ useEffect(() => {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function MultiSelectField({
+  id,
+  name,
+  label,
+  options,
+  defaultValue = [],
+  placeholder = "Wybierz odpowiedzi",
+}: {
+  id: string;
+  name: string;
+  label: string;
+  options: readonly {
+    value: string;
+    label: string;
+  }[];
+  defaultValue?: string[];
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] =
+    useState(false);
+
+  const [selectedValues, setSelectedValues] =
+    useState<string[]>(defaultValue);
+
+  const rootRef =
+    useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSelectedValues(defaultValue);
+  }, [defaultValue]);
+
+  useEffect(() => {
+    function handlePointerDown(
+      event: MouseEvent,
+    ) {
+      if (
+        rootRef.current &&
+        !rootRef.current.contains(
+          event.target as Node,
+        )
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handlePointerDown,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handlePointerDown,
+      );
+    };
+  }, []);
+
+  function toggleValue(value: string) {
+    setSelectedValues((current) =>
+      current.includes(value)
+        ? current.filter(
+            (item) => item !== value,
+          )
+        : [...current, value],
+    );
+  }
+
+  const selectedLabels = options
+    .filter((option) =>
+      selectedValues.includes(
+        option.value,
+      ),
+    )
+    .map((option) => option.label);
+
+  const displayValue =
+    selectedLabels.length > 0
+      ? selectedLabels.join(", ")
+      : placeholder;
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative space-y-2"
+    >
+      <Label htmlFor={id}>
+        {label}
+      </Label>
+
+      <button
+        id={id}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() =>
+          setIsOpen((current) => !current)
+        }
+        className={[
+          selectClassName,
+          "h-auto min-h-10 justify-between gap-2 text-left",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "min-w-0 flex-1 truncate",
+            selectedLabels.length === 0
+              ? "text-muted-foreground"
+              : "",
+          ].join(" ")}
+        >
+          {displayValue}
+        </span>
+
+        <ChevronDown
+          className={[
+            "h-4 w-4 shrink-0 transition-transform",
+            isOpen
+              ? "rotate-180"
+              : "",
+          ].join(" ")}
+        />
+      </button>
+
+      {isOpen ? (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-input bg-popover p-1 text-popover-foreground shadow-md"
+        >
+          {options.map((option) => {
+            const selected =
+              selectedValues.includes(
+                option.value,
+              );
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() =>
+                  toggleValue(
+                    option.value,
+                  )
+                }
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary">
+                  {selected ? (
+                    <Check className="h-3 w-3" />
+                  ) : null}
+                </span>
+
+                <span>
+                  {option.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {selectedValues.map((value) => (
+        <input
+          key={value}
+          type="hidden"
+          name={name}
+          value={value}
+        />
+      ))}
+
+      <input
+        type="text"
+        tabIndex={-1}
+        required
+        value={
+          selectedValues.length > 0
+            ? "selected"
+            : ""
+        }
+        onChange={() => undefined}
+        aria-hidden="true"
+        className="pointer-events-none absolute h-px w-px opacity-0"
+      />
+
+      <p className="text-xs text-muted-foreground">
+        Możesz wybrać więcej niż jedną dziedzinę.
+      </p>
+    </div>
   );
 }

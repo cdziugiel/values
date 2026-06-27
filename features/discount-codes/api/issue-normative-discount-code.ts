@@ -10,7 +10,7 @@ import { createDiscountCodePreview } from "../lib/discount-code-normalize";
 
 const SOURCE_TYPE = "normative_profile_reward" as const;
 const CODE_PREFIX = "NORM";
-const DEFAULT_DISCOUNT_PERCENT_BPS = 2000;
+const DEFAULT_DISCOUNT_PERCENT_BPS = 10000;
 const DEFAULT_VALIDITY_DAYS = 30;
 const DEFAULT_USAGE_LIMIT = 4;
 const MAX_GENERATION_ATTEMPTS = 8;
