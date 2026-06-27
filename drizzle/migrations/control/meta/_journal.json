@@ -148,6 +148,41 @@
       "when": 1781292748887,
       "tag": "0020_clever_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782384062177,
+      "tag": "0021_living_invaders",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782385871833,
+      "tag": "0022_powerful_ogun",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782385979814,
+      "tag": "0023_flippant_exiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782555542954,
+      "tag": "0024_colossal_puck",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782569477311,
+      "tag": "0025_material_toro",
+      "breakpoints": true
     }
   ]
 }

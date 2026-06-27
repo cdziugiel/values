@@ -24,7 +24,8 @@ import {
   Users,
   TicketPercent,
   GitCompare,
-  GitCompareArrows
+  GitCompareArrows,
+  Database
 } from "lucide-react";
 
 export type ProtectedNavigationItem = {
@@ -112,6 +113,11 @@ const adminNavigationGroup: ProtectedNavigationGroup = {
       label: "Rabaty",
       href: "/dashboard/discount-codes",
       icon: <TicketPercent className="h-4 w-4 shrink-0" />,
+    },
+    {
+      label: "Dane normatywne",
+      href: "/dashboard/normative-data",
+      icon: <Database className="h-4 w-4 shrink-0" />,
     },
   ],
 };

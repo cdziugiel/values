@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -38,34 +39,14 @@ export const discountCodes = pgTable(
     description: text("description"),
 
     status: discountCodeStatusEnum("status").notNull().default("active"),
-
     discountType: discountCodeTypeEnum("discount_type").notNull(),
 
-    /**
-     * Dla fixed_amount.
-     * Kwota w groszach, np. 5000 = 50,00 PLN.
-     */
     discountValueCents: integer("discount_value_cents"),
-
-    /**
-     * Dla percent.
-     * Basis points, np. 2000 = 20,00%.
-     */
     discountPercentBps: integer("discount_percent_bps"),
-
-    /**
-     * Pozwala zejść do 0 zł.
-     * U Ciebie domyślnie TAK.
-     */
     allowZeroFinalPrice: boolean("allow_zero_final_price")
       .notNull()
       .default(true),
-
-    /**
-     * Dla procentów opcjonalny bezpiecznik, np. max 200 zł rabatu.
-     */
     maximumDiscountCents: integer("maximum_discount_cents"),
-
     minimumOrderValueCents: integer("minimum_order_value_cents"),
 
     appliesTo: discountCodeAppliesToEnum("applies_to")
@@ -78,6 +59,19 @@ export const discountCodes = pgTable(
     maxRedemptions: integer("max_redemptions"),
     maxRedemptionsPerUser: integer("max_redemptions_per_user"),
     maxRedemptionsPerTenant: integer("max_redemptions_per_tenant"),
+
+    /**
+     * Opcjonalne przypisanie indywidualnego kodu do konkretnego użytkownika.
+     * Walidacja checkoutu musi odrzucić użycie przez inną osobę.
+     */
+    assignedUserId: uuid("assigned_user_id"),
+
+    /**
+     * Jawne pochodzenie kodu. sourceReferenceId jest np. ID rewardu z tenant DB.
+     * Brak FK jest celowy — obiekt źródłowy znajduje się w innej bazie.
+     */
+    sourceType: text("source_type"),
+    sourceReferenceId: uuid("source_reference_id"),
 
     createdBy: uuid("created_by"),
     updatedBy: uuid("updated_by"),
@@ -93,6 +87,12 @@ export const discountCodes = pgTable(
   (table) => ({
     codeHashUidx: uniqueIndex("discount_codes_code_hash_uidx").on(
       table.codeHash,
+    ),
+    sourceReferenceUidx: uniqueIndex(
+      "discount_codes_source_reference_uidx",
+    ).on(table.sourceType, table.sourceReferenceId),
+    assignedUserIdIdx: index("discount_codes_assigned_user_id_idx").on(
+      table.assignedUserId,
     ),
   }),
 );

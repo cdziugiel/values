@@ -1,0 +1,1 @@
+ALTER TABLE "report_access_products" DROP COLUMN "kind";

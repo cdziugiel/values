@@ -104,6 +104,15 @@ export async function validateDiscountForCheckout(
       message: "Ten kod rabatowy nie jest aktywny.",
     };
   }
+  if (code.assignedUserId) {
+    if (!input.userId || code.assignedUserId !== input.userId) {
+      return {
+        ok: false as const,
+        reason: "assigned_to_another_user" as const,
+        message: "Ten kod rabatowy jest przypisany do innego konta.",
+      };
+    }
+  }
 
   if (code.startsAt && code.startsAt > now) {
     return {

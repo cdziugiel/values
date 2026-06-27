@@ -13,3 +13,7 @@ export * from "./users";
 export * from "./assessment-invitation-index";
 export * from "./discount-codes";
 export * from "./discount-code-redemptions";
+export * from "./normative-data-consents"
+export * from "./normative-profile-rewards"
+export * from "./normative-profile-session-links"
+export * from "./normative-profiles"

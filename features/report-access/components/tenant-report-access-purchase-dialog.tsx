@@ -41,8 +41,9 @@ type ReportAccessProductOption = {
   currency?: string | null;
   priceGross?: string | number | null;
   availableCount?: number | string | null;
-};
 
+  reportTemplateKind?: string | null;
+};
 type BillingProfile = {
   type?: string | null;
   companyName?: string | null;
@@ -174,6 +175,42 @@ function TextInput({
   );
 }
 
+
+type ReportProductGroupKey =
+  | "personal"
+  | "special"
+  | "aggregate"
+  | "other";
+
+type ReportProductGroup = {
+  key: ReportProductGroupKey;
+  label: string;
+  products: ReportAccessProductOption[];
+};
+
+function resolveReportProductGroup(
+  reportTemplateKind: string | null | undefined,
+): ReportProductGroupKey {
+  const kind = reportTemplateKind?.trim().toLowerCase() ?? "";
+
+  if (kind === "personal") {
+    return "personal";
+  }
+
+  if (
+    kind === "personal_composite" ||
+    kind === "comparison"
+  ) {
+    return "special";
+  }
+
+  if (kind.includes("aggregate")) {
+    return "aggregate";
+  }
+
+  return "other";
+}
+
 export function TenantReportAccessPurchaseDialog({
   tenantSlug,
   products,
@@ -196,13 +233,68 @@ export function TenantReportAccessPurchaseDialog({
   const [billingType, setBillingType] = useState(
     billingProfile?.type ?? "company",
   );
-const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(
-  null,
-);
+  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(
+    null,
+  );
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId) ?? null,
     [products, selectedProductId],
   );
+
+
+  const groupedProducts = useMemo<ReportProductGroup[]>(() => {
+    const groups: Record<
+      ReportProductGroupKey,
+      ReportAccessProductOption[]
+    > = {
+      personal: [],
+      special: [],
+      aggregate: [],
+      other: [],
+    };
+
+    for (const product of products) {
+      const groupKey = resolveReportProductGroup(
+        product.reportTemplateKind,
+      );
+
+      groups[groupKey].push(product);
+    }
+
+    for (const groupProducts of Object.values(groups)) {
+      groupProducts.sort((left, right) =>
+        left.name.localeCompare(right.name, "pl", {
+          sensitivity: "base",
+          numeric: true,
+        }),
+      );
+    }
+
+    const result: ReportProductGroup[] = [
+      {
+        key: "personal",
+        label: "Raporty indywidualne",
+        products: groups.personal,
+      },
+      {
+        key: "special",
+        label: "Raporty specjalne",
+        products: groups.special,
+      },
+      {
+        key: "aggregate",
+        label: "Raporty grupowe",
+        products: groups.aggregate,
+      },
+      {
+        key: "other",
+        label: "Pozostałe raporty",
+        products: groups.other,
+      },
+    ];
+
+    return result.filter((group) => group.products.length > 0);
+  }, [products]);
 
   const unitGross = selectedProduct ? Number(selectedProduct.priceGross ?? 0) : 0;
   const totalGross =
@@ -210,7 +302,7 @@ const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(
       ? unitGross * quantity
       : 0;
 
-console.log("PRODUCTS", products)
+  console.log("PRODUCTS", products)
 
   return (
     <Dialog>
@@ -249,11 +341,11 @@ console.log("PRODUCTS", products)
             <form action={formAction} className="space-y-6">
               <input type="hidden" name="tenantSlug" value={tenantSlug} />
               <input type="hidden" name="productId" value={selectedProductId} />
-<input
-  type="hidden"
-  name="discountCode"
-  value={appliedDiscount?.discountCode ?? ""}
-/>
+              <input
+                type="hidden"
+                name="discountCode"
+                value={appliedDiscount?.discountCode ?? ""}
+              />
               <section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
                 <div className="mb-5">
                   <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
@@ -273,15 +365,19 @@ console.log("PRODUCTS", products)
                     <select
                       value={selectedProductId}
                       onChange={(event) => {
-  setSelectedProductId(event.target.value);
-  setAppliedDiscount(null);
-}}
+                        setSelectedProductId(event.target.value);
+                        setAppliedDiscount(null);
+                      }}
                       className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40"
                     >
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name} 
-                        </option>
+                      {groupedProducts.map((group) => (
+                        <optgroup key={group.key} label={group.label}>
+                          {group.products.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>
@@ -298,9 +394,9 @@ console.log("PRODUCTS", products)
                       max={500}
                       value={quantity}
                       onChange={(event) => {
-  setQuantity(Number(event.target.value ?? 1));
-  setAppliedDiscount(null);
-}}
+                        setQuantity(Number(event.target.value ?? 1));
+                        setAppliedDiscount(null);
+                      }}
                       className="rounded-2xl border-black/10 bg-white h-11"
                     />
                   </div>
@@ -335,55 +431,55 @@ console.log("PRODUCTS", products)
                 ) : null}
 
               </section>
-<section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
-  <div className="mb-5">
-    <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
-      Kod rabatowy
-    </h3>
-    <p className="mt-1 text-sm leading-6 text-[#6b7280]">
-      Kod może obniżyć wartość zakupu częściowo albo pokryć całą kwotę.
-    </p>
-  </div>
+              <section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
+                <div className="mb-5">
+                  <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
+                    Kod rabatowy
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-[#6b7280]">
+                    Kod może obniżyć wartość zakupu częściowo albo pokryć całą kwotę.
+                  </p>
+                </div>
 
-  <ApplyDiscountCodeForm
-    context="report_access_purchase"
-    originalAmountCents={Math.round(totalGross * 100)}
-    tenantId={null}
-    onApplied={setAppliedDiscount}
-  />
+                <ApplyDiscountCodeForm
+                  context="report_access_purchase"
+                  originalAmountCents={Math.round(totalGross * 100)}
+                  tenantId={null}
+                  onApplied={setAppliedDiscount}
+                />
 
-  {appliedDiscount ? (
-    <div className="mt-4 rounded-[1.25rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.12)] px-4 py-3 text-sm leading-6 text-[#0f766e]">
-      <div className="flex items-start gap-2">
-        <CheckCircle2 size={16} className="mt-1 shrink-0" />
-        <div>
-          <p className="font-semibold">
-            Kod zastosowany.
-          </p>
-          <p>
-            Rabat:{" "}
-            {formatMoney(
-              appliedDiscount.discountAmountCents / 100,
-              selectedProduct?.currency ?? "PLN",
-            )}
-          </p>
-          <p>
-            Do zapłaty:{" "}
-            {formatMoney(
-              appliedDiscount.finalAmountCents / 100,
-              selectedProduct?.currency ?? "PLN",
-            )}
-          </p>
-          {appliedDiscount.isFullyDiscounted ? (
-            <p className="mt-1 font-medium">
-              Kod pokrywa całą kwotę. Dostępy zostaną dodane bez płatności.
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  ) : null}
-</section>
+                {appliedDiscount ? (
+                  <div className="mt-4 rounded-[1.25rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.12)] px-4 py-3 text-sm leading-6 text-[#0f766e]">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-1 shrink-0" />
+                      <div>
+                        <p className="font-semibold">
+                          Kod zastosowany.
+                        </p>
+                        <p>
+                          Rabat:{" "}
+                          {formatMoney(
+                            appliedDiscount.discountAmountCents / 100,
+                            selectedProduct?.currency ?? "PLN",
+                          )}
+                        </p>
+                        <p>
+                          Do zapłaty:{" "}
+                          {formatMoney(
+                            appliedDiscount.finalAmountCents / 100,
+                            selectedProduct?.currency ?? "PLN",
+                          )}
+                        </p>
+                        {appliedDiscount.isFullyDiscounted ? (
+                          <p className="mt-1 font-medium">
+                            Kod pokrywa całą kwotę. Dostępy zostaną dodane bez płatności.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
               <section className="rounded-[1.75rem] border border-black/10 bg-white/70 p-5 shadow-sm">
                 <label className="flex items-start gap-3 text-sm font-medium text-[#171717]">
                   <input
@@ -553,10 +649,10 @@ console.log("PRODUCTS", products)
                 >
                   <PlusCircle size={16} />
                   {isPending
-  ? "Przetwarzanie..."
-  : appliedDiscount?.isFullyDiscounted
-    ? `Dodaj dostępy (${quantity})`
-    : `Kup dostępy (${quantity})`}
+                    ? "Przetwarzanie..."
+                    : appliedDiscount?.isFullyDiscounted
+                      ? `Dodaj dostępy (${quantity})`
+                      : `Kup dostępy (${quantity})`}
                 </Button>
               </div>
             </form>

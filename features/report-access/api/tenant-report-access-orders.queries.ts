@@ -7,6 +7,7 @@ import {
   reportAccessOrderItems,
   reportAccessOrders,
   reportAccessProducts,
+  reportTemplates,
 } from "@/drizzle/schema";
 
 import { controlDb } from "@/server/db/control-db";
@@ -283,8 +284,16 @@ export async function getTenantReportAccessOrdersPageData({
     priceNet: reportAccessProducts.priceNet,
     vatRate: reportAccessProducts.vatRate,
     priceGross: reportAccessProducts.priceGross,
+    reportTemplateKind: reportTemplates.kind,
   })
   .from(reportAccessProducts)
+  .innerJoin(
+    reportTemplates,
+    eq(
+      reportTemplates.id,
+      reportAccessProducts.reportTemplateId,
+    ),
+  )
   .where(
     and(
       eq(reportAccessProducts.status, "active"),
@@ -316,6 +325,7 @@ const products = activeProducts.map((product) => {
     vatRate: product.vatRate,
     priceGross: product.priceGross,
     availableCount: poolItem?.available ?? 0,
+    reportTemplateKind: product.reportTemplateKind,
   };
 });
 

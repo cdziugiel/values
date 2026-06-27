@@ -1,8 +1,10 @@
 // app/(protected)/my/assessment/sessions/[sessionId]/completed/page.tsx
 
 import Link from "next/link";
+
 import { getMyAssessmentCompletedResult } from "@/features/my-assessment/api/my-assessment-result.queries";
 import { MyAssessmentCompletedResultView } from "@/features/my-assessment/components/my-assessment-completed-result-view";
+import { resolveMyNormativeProfile } from "@/features/normative-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,11 +13,11 @@ type PageProps = {
   params: Promise<{
     sessionId: string;
   }>;
-searchParams: Promise<{
-  tenant?: string;
-  projectQuestionnaireId?: string;
-  questionnaireVersionId?: string;
-}>;
+  searchParams: Promise<{
+    tenant?: string;
+    projectQuestionnaireId?: string;
+    questionnaireVersionId?: string;
+  }>;
 };
 
 export default async function Page({
@@ -23,8 +25,12 @@ export default async function Page({
   searchParams,
 }: PageProps) {
   const { sessionId } = await params;
-  const { tenant, projectQuestionnaireId, questionnaireVersionId } =
-  await searchParams;
+
+  const {
+    tenant,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  } = await searchParams;
 
   if (!tenant) {
     return (
@@ -49,12 +55,21 @@ export default async function Page({
     );
   }
 
-const result = await getMyAssessmentCompletedResult({
-  tenantSlug: tenant,
-  sessionId,
-  projectQuestionnaireId: projectQuestionnaireId ?? null,
-  questionnaireVersionId: questionnaireVersionId ?? null,
-});
+  const [result, normativeProfileStatus] = await Promise.all([
+    getMyAssessmentCompletedResult({
+      tenantSlug: tenant,
+      sessionId,
+      projectQuestionnaireId:
+        projectQuestionnaireId ?? null,
+      questionnaireVersionId:
+        questionnaireVersionId ?? null,
+    }),
+
+    resolveMyNormativeProfile({
+      tenantSlug: tenant,
+      assessmentSessionId: sessionId,
+    }),
+  ]);
 
   if (!result) {
     return (
@@ -114,18 +129,23 @@ const result = await getMyAssessmentCompletedResult({
   }
 
   return (
-<MyAssessmentCompletedResultView
-  result={{
-    tenantSlug: result.tenantSlug,
-    sessionId: result.sessionId,
-    payload: result.payload,
+    <MyAssessmentCompletedResultView
+      result={{
+        tenantSlug: result.tenantSlug,
+        sessionId: result.sessionId,
+        payload: result.payload,
 
-    projectQuestionnaireId:
-      result.projectQuestionnaireId ?? null,
+        projectQuestionnaireId:
+          result.projectQuestionnaireId ?? null,
 
-    questionnaireVersionId:
-      result.questionnaireVersionId ?? null,
-  }}
-/>
+        questionnaireVersionId:
+          result.questionnaireVersionId ?? null,
+      }}
+      normativeProfile={{
+        tenantSlug: tenant,
+        assessmentSessionId: sessionId,
+        status: normativeProfileStatus,
+      }}
+    />
   );
 }

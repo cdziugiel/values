@@ -113,6 +113,48 @@
       "when": 1781286606544,
       "tag": "0015_slimy_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782554908456,
+      "tag": "0016_unusual_rocket_racer",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782555138757,
+      "tag": "0017_soft_stingray",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782560338047,
+      "tag": "0018_open_hairball",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782560441313,
+      "tag": "0019_boring_magik",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782560611237,
+      "tag": "0020_green_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782569483989,
+      "tag": "0021_blue_wallop",
+      "breakpoints": true
     }
   ]
 }
