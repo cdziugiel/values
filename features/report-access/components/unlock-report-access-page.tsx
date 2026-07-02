@@ -364,7 +364,7 @@ const offer =
 
 <h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
   {mode === "comparison"
-    ? "Odblokuj raport porównawczy."
+    ? "Odblokuj raport dopasowania."
     : "Odblokuj raport."}
 </h1>
 

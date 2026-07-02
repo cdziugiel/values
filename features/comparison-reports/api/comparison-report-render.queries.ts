@@ -354,7 +354,7 @@ export async function getUserVsUserComparisonReport({
     return buildBlockedResponse({
       project,
       status: "missing_groups",
-      warnings: ["Raport porównawczy wymaga dwóch obiektów porównania."],
+      warnings: ["Raport dopasowania wymaga dwóch obiektów porównania."],
     });
   }
 

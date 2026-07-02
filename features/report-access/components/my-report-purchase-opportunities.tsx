@@ -366,7 +366,7 @@ compositeOffers: compositeOffers.map((offer) => ({
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-col gap-1">
+{/*       <div className="flex flex-col gap-1">
         <div className="mb-1 inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
           <Sparkles size={13} />
           Raporty do odblokowania
@@ -380,14 +380,18 @@ compositeOffers: compositeOffers.map((offer) => ({
           Możesz kupić raport dla konkretnego zakończonego kwestionariusza albo
           odblokować raport złożony, który łączy kilka źródeł.
         </p>
-      </div>
+      </div> */}
 
       {hasSessionOffers ? (
         <section className="space-y-4">
           <div>
-            <h3 className="text-base font-semibold tracking-[-0.02em] text-[#171717]">
-              Raporty dla zakończonych kwestionariuszy
-            </h3>
+                    <div className="mb-1 inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
+                      <ShoppingCart size={13} />
+                      Dostępne
+                    </div>
+        <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+          Raporty do odblokowania
+        </h2>
 
             <p className="mt-1 text-sm leading-6 text-[#6b7280]">
               Wybierz typ raportu, a następnie zakończone badanie, dla którego
@@ -568,8 +572,7 @@ compositeOffers: compositeOffers.map((offer) => ({
 
                     {offer.canBuy ? (
                       <div className="rounded-[1.25rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.10)] px-4 py-3 text-sm leading-6 text-[#0f766e]">
-                        Po odblokowaniu wybierzesz swój wynik bazowy i wkleisz
-                        token drugiej osoby, aby wygenerować raport porównawczy.
+                        Po odblokowaniu będziesz mógł sprawdzić dopasowanie z innym respondentem.
                       </div>
                     ) : (
                       <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">

@@ -29,7 +29,7 @@ export const REPORT_TEMPLATE_FAMILY_OPTIONS = [
   },
   {
     value: "comparison",
-    label: "Raport porównawczy",
+    label: "Raport dopasowania",
     description: "Porównanie dwóch lub więcej grup.",
   },
 ] as const;
@@ -164,7 +164,7 @@ export function getReportTemplateKindLabel(
       return "Raport zbiorczy · Zespół";
 
     case "comparison":
-      return "Raport porównawczy";
+      return "Raport dopasowania";
 
     default:
       return "Nieznany typ";

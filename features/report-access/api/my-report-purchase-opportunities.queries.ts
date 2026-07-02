@@ -647,8 +647,8 @@ async function getComparisonReportPurchaseOpportunities({
       canBuy: hasCompletedSession,
 
       message: hasCompletedSession
-        ? "Możesz odblokować raport porównawczy. Wynik bazowy wybierzesz po odblokowaniu raportu."
-        : "Aby odblokować raport porównawczy, potrzebujesz przynajmniej jednego ukończonego wyniku.",
+        ? "Możesz odblokować raport dopasowania. "
+        : "Aby odblokować raport dopasowania, potrzebujesz przynajmniej jednego ukończonego wyniku.",
     });
   }
 

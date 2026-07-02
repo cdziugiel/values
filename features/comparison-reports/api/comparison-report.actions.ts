@@ -311,7 +311,7 @@ export async function createProjectSubjectComparisonReportAction(
     });
 
     if (!reportTemplate) {
-      throw new Error("Produkt nie jest powiązany z aktywnym raportem porównawczym.");
+      throw new Error("Produkt nie jest powiązany z aktywnym raportem dopasowania.");
     }
 
     const reportVersion =

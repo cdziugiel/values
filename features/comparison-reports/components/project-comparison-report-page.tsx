@@ -228,7 +228,7 @@ const right = useMemo(
 
           <div>
             <div className="text-sm text-muted-foreground">
-              HUMANET VALUES · Raport porównawczy
+              HUMANET VALUES · Raport dopasowania
             </div>
 
             <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em] text-[#171717]">
@@ -407,7 +407,7 @@ const right = useMemo(
             onClick={handleGenerate}
             className="rounded-full bg-[#171717] px-6 text-white hover:bg-[#2a2a2a]"
           >
-            {isPending ? "Generuję raport..." : "Wygeneruj raport porównawczy"}
+            {isPending ? "Generuję raport..." : "Wygeneruj raport dopasowania"}
           </Button>
         </CardContent>
       </Card>

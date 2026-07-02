@@ -85,21 +85,23 @@ export async function resolveCompletedSessionForCurrentUser({
   const authSession = await requireSession();
   const email = normalizeEmail(authSession.user.email);
 
-  if (!email) {
-    return {
-      ok: false as const,
-      message: "Konto użytkownika nie ma adresu e-mail.",
-    };
-  }
+if (!email) {
+  return {
+    ok: false as const,
+    reason: "missing_user_email" as const,
+    message: "Konto użytkownika nie ma adresu e-mail.",
+  };
+}
 
   const tenant = await getTenantDbBySlug(tenantSlug);
 
-  if (!tenant) {
-    return {
-      ok: false as const,
-      message: "Nie znaleziono tenanta badania.",
-    };
-  }
+if (!tenant) {
+  return {
+    ok: false as const,
+    reason: "tenant_not_found" as const,
+    message: "Nie znaleziono tenanta badania.",
+  };
+}
 
   const rows = await tenant.db
     .select({
@@ -514,12 +516,14 @@ export async function getReportAccessOfferForCompletedSession({
     sessionId,
   });
 
-  if (!resolved.ok) {
-    return {
-      ok: false as const,
-      message: resolved.message,
-    };
-  }
+if (!resolved.ok) {
+  return {
+    ok: false as const,
+    tenantSlug,
+    reason: resolved.reason,
+    message: resolved.message,
+  };
+}
 
   let questionnaireVersionIds: string[] = [];
 
@@ -749,24 +753,26 @@ console.log("RESOLVE_RESPONDENT_FOR_CURRENT_USER_INPUT", {
   actorUserId: authSession.user.id,
   actorEmail: authSession.user.email,
 });
-  if (!email) {
-    return {
-      ok: false as const,
-      message: "Konto użytkownika nie ma adresu e-mail.",
-    };
-  }
+if (!email) {
+  return {
+    ok: false as const,
+    reason: "missing_user_email" as const,
+    message: "Konto użytkownika nie ma adresu e-mail.",
+  };
+}
 console.log("RESOLVE_RESPONDENT_NORMALIZED_EMAIL", {
   rawEmail: authSession.user.email,
   email,
 });
   const tenant = await getTenantDbBySlug(tenantSlug);
 
-  if (!tenant) {
-    return {
-      ok: false as const,
-      message: "Nie znaleziono tenanta badania.",
-    };
-  }
+if (!tenant) {
+  return {
+    ok: false as const,
+    reason: "tenant_not_found" as const,
+    message: "Nie znaleziono tenanta badania.",
+  };
+}
 
   const rows = await tenant.db
     .select({
@@ -796,13 +802,14 @@ console.log("RESOLVE_RESPONDENT_TENANT_RESULT", {
 });
   const respondent = rows[0];
 
-  if (!respondent) {
-    return {
-      ok: false as const,
-      message:
-        "Nie znaleziono respondenta powiązanego z adresem e-mail zalogowanego użytkownika.",
-    };
-  }
+if (!respondent) {
+  return {
+    ok: false as const,
+    reason: "respondent_not_found" as const,
+    message:
+      "Nie znaleziono respondenta powiązanego z adresem e-mail zalogowanego użytkownika.",
+  };
+}
 
   return {
     ok: true as const,
@@ -927,13 +934,14 @@ export async function getCompositeReportAccessOfferForCurrentUser({
         tenantSlug: currentTenantSlug,
       });
 
-      if (!resolved.ok) {
-        return {
-          ok: false as const,
-          tenantSlug: currentTenantSlug,
-          message: resolved.message,
-        };
-      }
+if (!resolved.ok) {
+  return {
+    ok: false as const,
+    tenantSlug: currentTenantSlug,
+    reason: resolved.reason,
+    message: resolved.message,
+  };
+}
 
       const rows = await resolved.tenant.db
         .select({
@@ -1009,25 +1017,44 @@ export async function getCompositeReportAccessOfferForCurrentUser({
     > => context.ok,
   );
 
-  if (availableTenantContexts.length === 0) {
-    const messages = tenantContextResults
-      .filter(
-        (
-          context,
-        ): context is Extract<
-          (typeof tenantContextResults)[number],
-          { ok: false }
-        > => !context.ok,
-      )
-      .map((context) => `${context.tenantSlug}: ${context.message}`);
+if (availableTenantContexts.length === 0) {
+  const unavailableTenantContexts = tenantContextResults.filter(
+    (
+      context,
+    ): context is Extract<
+      (typeof tenantContextResults)[number],
+      { ok: false }
+    > => !context.ok,
+  );
 
-    return {
-      ok: false as const,
-      message:
-        "Nie znaleziono respondenta powiązanego z zalogowanym użytkownikiem w żadnym z dostępnych tenantów." +
-        (messages.length > 0 ? ` ${messages.join(" ")}` : ""),
-    };
-  }
+  const onlyRespondentNotFound =
+    unavailableTenantContexts.length > 0 &&
+    unavailableTenantContexts.every(
+      (context) =>
+        context.reason === "respondent_not_found",
+    );
+
+if (onlyRespondentNotFound) {
+  return {
+    ok: false as const,
+    reason: "respondent_not_found" as const,
+    message:
+      "Raport będzie dostępny po rozpoczęciu i ukończeniu wymaganych kwestionariuszy.",
+  };
+}
+
+  const messages = unavailableTenantContexts.map(
+    (context) =>
+      `${context.tenantSlug}: ${context.message}`,
+  );
+
+  return {
+    ok: false as const,
+    message:
+      "Nie udało się sprawdzić dostępności raportu złożonego." +
+      (messages.length > 0 ? ` ${messages.join(" ")}` : ""),
+  };
+}
 
   /**
    * Zachowujemy tenant przy każdym snapshotcie.

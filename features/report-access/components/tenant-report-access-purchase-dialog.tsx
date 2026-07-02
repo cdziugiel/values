@@ -2,7 +2,12 @@
 
 "use client";
 import { ApplyDiscountCodeForm } from "@/features/discount-codes/components/apply-discount-code-form";
-import { useActionState, useMemo, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   CheckCircle2,
   CreditCard,
@@ -216,16 +221,25 @@ export function TenantReportAccessPurchaseDialog({
   products,
   billingProfile,
 }: TenantReportAccessPurchaseDialogProps) {
-  const [state, formAction, isPending] = useActionState(
+
+
+    const [state, formAction, isPending] = useActionState(
     purchaseTenantReportAccessAction,
     initialState,
   );
 
+  useEffect(() => {
+    if (state.status === "success" && !isPending) {
+      setOpen(false);
+    }
+  }, [state.status, isPending]);
+
+  const [open, setOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState(
     products[0]?.id ?? "",
   );
 
-  const [quantity, setQuantity] = useState(10);
+  const [quantity, setQuantity] = useState(1);
   const [invoiceRequested, setInvoiceRequested] = useState(
     Boolean(billingProfile),
   );
@@ -305,7 +319,7 @@ export function TenantReportAccessPurchaseDialog({
   console.log("PRODUCTS", products)
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2 rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a]">
           <PlusCircle size={16} />

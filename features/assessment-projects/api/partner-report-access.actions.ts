@@ -1638,7 +1638,7 @@ if (reportTemplateKind === "comparison") {
   return {
     status: "error",
     message:
-      "Raport porównawczy wymaga najpierw konfiguracji porównywanych obiektów.",
+      "Raport dopasowania wymaga najpierw konfiguracji porównywanych obiektów.",
   };
 }
   try {

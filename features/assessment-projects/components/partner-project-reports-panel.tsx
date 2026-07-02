@@ -52,7 +52,7 @@ function getPartnerReportLabel(kind: string) {
   }
 
   if (kind === "comparison") {
-    return "Raport porównawczy";
+    return "Raport dopasowania";
   }
 
   return "Raport partnera";

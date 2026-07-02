@@ -1,35 +1,43 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { CheckCircle2, ShoppingCart } from "lucide-react";
+import {
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  FileText,
+  Plus,
+  ShoppingBag,
+} from "lucide-react";
 
-type MyReportTabKey = "purchase" | "owned";
+type MyReportTabKey = "owned" | "purchase";
 
 type MyReportTabsProps = {
   purchaseSlot: ReactNode;
   ownedSlot: ReactNode;
   defaultTab?: MyReportTabKey;
+
+  ownedCount?: number;
+  purchaseCount?: number;
 };
 
 const REPORT_TABS: Array<{
   key: MyReportTabKey;
   label: string;
-  description: string;
+  shortLabel: string;
   icon: ReactNode;
 }> = [
   {
-    key: "purchase",
-    label: "Dostępne",
-    description:
-      "Raporty, które możesz odblokować na podstawie zakończonych badań.",
-    icon: <ShoppingCart size={16} />,
+    key: "owned",
+    label: "Moje raporty",
+    shortLabel: "Raporty",
+    icon: <FileText size={17} />,
   },
   {
-    key: "owned",
-    label: "Zakupione",
-    description:
-      "Raporty, do których masz już aktywny dostęp.",
-    icon: <CheckCircle2 size={16} />,
+    key: "purchase",
+    label: "Kup nowy raport",
+    shortLabel: "Kup raport",
+    icon: <ShoppingBag size={17} />,
   },
 ];
 
@@ -44,23 +52,88 @@ function getReportTabButtonId(key: MyReportTabKey) {
 export function MyReportTabs({
   purchaseSlot,
   ownedSlot,
-  defaultTab = "purchase",
+  defaultTab = "owned",
+  ownedCount,
+  purchaseCount,
 }: MyReportTabsProps) {
-  const [activeTab, setActiveTab] = useState<MyReportTabKey>(defaultTab);
+  const [activeTab, setActiveTab] =
+    useState<MyReportTabKey>(defaultTab);
 
   const activeTabConfig =
-    REPORT_TABS.find((tab) => tab.key === activeTab) ?? REPORT_TABS[0];
+    REPORT_TABS.find((tab) => tab.key === activeTab) ??
+    REPORT_TABS[0];
 
   return (
-    <section className="space-y-5">
-      <div className="rounded-[2rem] border border-black/10 bg-white/55 p-1.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+    <section className="space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#0f766e]">
+            {activeTabConfig.icon}
+            <span>
+              {activeTab === "owned"
+                ? "Twoja biblioteka"
+                : "Sklep z raportami"}
+            </span>
+          </div>
+
+          <h2 className="text-2xl font-semibold tracking-[-0.035em] text-[#171717]">
+            {activeTab === "owned"
+              ? "Twoje raporty"
+              : "Wybierz nowy raport"}
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
+            {activeTab === "owned"
+              ? "Tutaj znajdziesz wszystkie raporty, do których masz dostęp."
+              : "Odblokuj raport na podstawie zakończonych przez Ciebie badań."}
+          </p>
+        </div>
+
+        {activeTab === "owned" ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab("purchase")}
+            className={[
+              "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full",
+              "bg-[#171717] px-5 text-sm font-medium text-white",
+              "shadow-[0_8px_22px_rgba(15,23,42,0.14)]",
+              "transition hover:-translate-y-0.5 hover:bg-[#2a2a2a]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50",
+            ].join(" ")}
+          >
+            <Plus size={17} />
+            Kup nowy raport
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setActiveTab("owned")}
+            className={[
+              "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full",
+              "border border-black/10 bg-white px-5 text-sm font-medium text-[#171717]",
+              "shadow-sm transition hover:bg-black/[0.03]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50",
+            ].join(" ")}
+          >
+            <FileText size={17} />
+            Wróć do moich raportów
+          </button>
+        )}
+      </header>
+
+      <div className="border-b border-black/10">
         <div
           role="tablist"
           aria-label="Widoki raportów"
-          className="grid gap-1 sm:grid-cols-2"
+          className="flex items-center gap-7"
         >
           {REPORT_TABS.map((tab) => {
             const isActive = activeTab === tab.key;
+
+            const count =
+              tab.key === "owned"
+                ? ownedCount
+                : purchaseCount;
 
             return (
               <button
@@ -73,26 +146,47 @@ export function MyReportTabs({
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.key)}
                 className={[
-                  "group relative flex min-h-12 items-center justify-center gap-2 rounded-[1.55rem] px-4 py-3 text-sm transition",
+                  "group relative flex h-12 items-center gap-2 text-sm transition",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40",
                   isActive
-                    ? "bg-white text-[#171717] shadow-[0_8px_24px_rgba(15,23,42,0.08)] ring-1 ring-black/10"
-                    : "text-[#6b7280] hover:bg-white/70 hover:text-[#171717]",
+                    ? "font-semibold text-[#171717]"
+                    : "font-medium text-[#7a7f87] hover:text-[#171717]",
                 ].join(" ")}
               >
                 <span
-                  className={[
-                    "shrink-0 transition",
-                    isActive ? "text-[#0f766e]" : "text-[#8b9099]",
-                  ].join(" ")}
+                  className={
+                    isActive
+                      ? "text-[#0f766e]"
+                      : "text-[#9ca3af] transition group-hover:text-[#4b5563]"
+                  }
                 >
                   {tab.icon}
                 </span>
 
-                <span className="truncate font-medium">{tab.label}</span>
+                <span className="hidden sm:inline">
+                  {tab.label}
+                </span>
+
+                <span className="sm:hidden">
+                  {tab.shortLabel}
+                </span>
+
+                {typeof count === "number" ? (
+                  <span
+                    className={[
+                      "inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5",
+                      "text-[11px] font-semibold",
+                      isActive
+                        ? "bg-[rgba(45,212,191,0.15)] text-[#0f766e]"
+                        : "bg-black/[0.05] text-[#6b7280]",
+                    ].join(" ")}
+                  >
+                    {count}
+                  </span>
+                ) : null}
 
                 {isActive ? (
-                  <span className="absolute inset-x-8 -bottom-1 h-[2px] rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]" />
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf]" />
                 ) : null}
               </button>
             );
@@ -100,33 +194,15 @@ export function MyReportTabs({
         </div>
       </div>
 
-      <header className="rounded-[2rem] border border-black/10 bg-white/70 p-5 shadow-sm backdrop-blur">
-        <div className="max-w-2xl">
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] px-3 py-1 text-xs font-medium text-[#0f766e]">
-            {activeTabConfig.icon}
-            {activeTabConfig.label}
-          </div>
-
-          <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
-            {activeTabConfig.label === "Dostępne"
-              ? "Raporty dostępne do odblokowania"
-              : "Twoje odblokowane raporty"}
-          </h2>
-
-          <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-            {activeTabConfig.description}
-          </p>
-        </div>
-      </header>
-
       <div
         id={getReportTabPanelId(activeTab)}
         role="tabpanel"
         aria-labelledby={getReportTabButtonId(activeTab)}
         className="min-h-[240px]"
       >
-        {activeTab === "purchase" ? purchaseSlot : null}
-        {activeTab === "owned" ? ownedSlot : null}
+        {activeTab === "owned"
+          ? ownedSlot
+          : purchaseSlot}
       </div>
     </section>
   );

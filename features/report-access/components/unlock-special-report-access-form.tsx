@@ -52,7 +52,7 @@ export function UnlockSpecialReportAccessForm({
         className="rounded-full bg-[#171717] px-6 text-white hover:bg-[#2a2a2a]"
       >
         <CreditCard size={16} />
-        {isPending ? "Odblokowuję..." : "Odblokuj raport porównawczy"}
+        {isPending ? "Odblokowuję..." : "Odblokuj raport dopasowania"}
       </Button>
     </form>
   );
