@@ -19,6 +19,10 @@ import {
   type CreateRespondentInput,
   type UpdateRespondentInput,
 } from "../forms/respondent.schema";
+import {
+  deactivateRespondentIdentityIndex,
+  upsertRespondentIdentityIndex,
+} from "@/server/respondents/respondent-identity-index";
 
 
 function normalizeRole(value: string | undefined | null) {
@@ -191,17 +195,17 @@ async function ensureUnitExists({
     throw new Error("Client unit not found.");
   }
 
-if (!clientOrganizationId) {
-  throw new Error(
-    "Client organization is required when a client unit is selected.",
-  );
-}
+  if (!clientOrganizationId) {
+    throw new Error(
+      "Client organization is required when a client unit is selected.",
+    );
+  }
 
-if (unit.clientOrganizationId !== clientOrganizationId) {
-  throw new Error(
-    "Client unit does not belong to selected organization.",
-  );
-}
+  if (unit.clientOrganizationId !== clientOrganizationId) {
+    throw new Error(
+      "Client unit does not belong to selected organization.",
+    );
+  }
 
   return unit;
 }
@@ -289,6 +293,13 @@ export async function createRespondent({
       updatedBy: ctx.userId,
     })
     .returning();
+
+  await upsertRespondentIdentityIndex({
+    tenantSlug: ctx.tenantSlug,
+    respondentId: respondent.id,
+    email: identity.email,
+  });
+
   await syncPrimaryUnitMembership({
     db,
     ctx,
@@ -376,13 +387,14 @@ export async function updateRespondent({
     .where(eq(respondents.id, parsed.data.respondentId))
     .returning();
 
+  const normalizedEmail = normalizeOptionalEmail(parsed.data.email);
   const existingIdentity = existing.identity;
 
   if (existingIdentity) {
     await db
       .update(respondentIdentities)
       .set({
-        email: normalizeOptionalEmail(parsed.data.email),
+        email: normalizedEmail,
         firstName: normalizeOptionalText(parsed.data.firstName),
         lastName: normalizeOptionalText(parsed.data.lastName),
         phone: normalizeOptionalText(parsed.data.phone),
@@ -393,7 +405,7 @@ export async function updateRespondent({
   } else {
     await db.insert(respondentIdentities).values({
       respondentId: updatedRespondent.id,
-      email: normalizeOptionalEmail(parsed.data.email),
+      email: normalizedEmail,
       firstName: normalizeOptionalText(parsed.data.firstName),
       lastName: normalizeOptionalText(parsed.data.lastName),
       phone: normalizeOptionalText(parsed.data.phone),
@@ -401,6 +413,12 @@ export async function updateRespondent({
       updatedBy: ctx.userId,
     });
   }
+
+  await upsertRespondentIdentityIndex({
+    tenantSlug: ctx.tenantSlug,
+    respondentId: updatedRespondent.id,
+    email: normalizedEmail,
+  });
   await syncPrimaryUnitMembership({
     db,
     ctx,
@@ -436,7 +454,7 @@ export async function updateRespondent({
         clientUnitId: updatedRespondent.clientUnitId,
       },
       identity: {
-        email: normalizeOptionalEmail(parsed.data.email),
+        email: normalizedEmail,
         firstName: normalizeOptionalText(parsed.data.firstName),
         lastName: normalizeOptionalText(parsed.data.lastName),
       },
@@ -496,6 +514,11 @@ export async function archiveRespondent({
       })
       .where(eq(respondentIdentities.id, existing.identity.id));
   }
+
+  await deactivateRespondentIdentityIndex({
+    tenantSlug: ctx.tenantSlug,
+    respondentId: archivedRespondent.id,
+  });
 
   await writeTenantAuditLog({
     db,

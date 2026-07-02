@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-
+import { bulkUpsertRespondentIdentityIndex } from "@/server/respondents/respondent-identity-index";
 import {
     clientOrganizations,
     clientUnits,
@@ -328,6 +328,12 @@ export async function importRespondentsCsvAction(
         let createdCount = 0;
         let updatedCount = 0;
 
+        const identityIndexRows: Array<{
+            tenantSlug: string;
+            respondentId: string;
+            email: string | null;
+        }> = [];
+
         await db.transaction(async (tx) => {
             for (const resolvedRow of resolvedRows) {
                 const respondentId = resolvedRow.existingRespondentId;
@@ -376,6 +382,12 @@ export async function importRespondentsCsvAction(
                             updatedBy: ctx.userId,
                         });
                     }
+
+                    identityIndexRows.push({
+                        tenantSlug: ctx.tenantSlug,
+                        respondentId,
+                        email: normalizeNullableEmail(resolvedRow.row.email),
+                    });
                     await syncImportedPrimaryUnitMembership({
                         tx,
                         userId: ctx.userId,
@@ -415,6 +427,11 @@ export async function importRespondentsCsvAction(
                     createdBy: ctx.userId,
                     updatedBy: ctx.userId,
                 });
+                identityIndexRows.push({
+                    tenantSlug: ctx.tenantSlug,
+                    respondentId: createdRespondent.id,
+                    email: normalizeNullableEmail(resolvedRow.row.email),
+                });
                 await syncImportedPrimaryUnitMembership({
                     tx,
                     userId: ctx.userId,
@@ -426,7 +443,20 @@ export async function importRespondentsCsvAction(
                 createdCount += 1;
             }
         });
+        let identityIndexSyncFailed = false;
 
+        try {
+            await bulkUpsertRespondentIdentityIndex(identityIndexRows);
+        } catch (error) {
+            identityIndexSyncFailed = true;
+
+            console.error("RESPONDENT_IDENTITY_INDEX_BULK_SYNC_FAILED", {
+                tenantSlug: ctx.tenantSlug,
+                respondentsCount: identityIndexRows.length,
+                errorName:
+                    error instanceof Error ? error.name : "UnknownError",
+            });
+        }
         await writeTenantAuditLog({
             db,
             ctx,
@@ -445,7 +475,9 @@ export async function importRespondentsCsvAction(
 
         return {
             status: "success",
-            message: `Import zakończony. Utworzono ${createdCount}, zaktualizowano ${updatedCount} respondentów.`,
+            message: identityIndexSyncFailed
+                ? `Zaimportowano ${resolvedRows.length} respondentów. Synchronizacja indeksu raportowego wymaga ponowienia przez administratora.`
+                : `Zaimportowano ${resolvedRows.length} respondentów.`,
             errors: [],
             importedCount: resolvedRows.length,
         };

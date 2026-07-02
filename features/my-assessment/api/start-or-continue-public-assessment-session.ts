@@ -20,7 +20,7 @@ import { requireSession } from "@/server/auth/require-session";
 import { controlDb } from "@/server/db/control-db";
 import { getTenantDbByConnection } from "@/server/db/tenant-db-by-connection";
 import { decryptSecret } from "@/server/security/encryption";
-
+import { upsertRespondentIdentityIndex } from "@/server/respondents/respondent-identity-index";
 function normalizeEmail(value: string | null | undefined) {
     const normalized = value?.trim().toLowerCase();
     return normalized || null;
@@ -258,10 +258,12 @@ async function ensureProjectQuestionnaire({
 
 async function findOrCreateRespondentForUser({
     db,
+    tenantSlug,
     email,
     userId,
 }: {
     db: any;
+    tenantSlug: string;
     email: string;
     userId: string;
 }) {
@@ -272,18 +274,26 @@ async function findOrCreateRespondentForUser({
         ),
     });
 
-    if (existingIdentity) {
-        const existingRespondent = await db.query.respondents.findFirst({
-            where: and(
-                eq(respondents.id, existingIdentity.respondentId),
-                isNull(respondents.deletedAt),
-            ),
-        });
+if (existingIdentity) {
+  const existingRespondent =
+    await db.query.respondents.findFirst({
+      where: and(
+        eq(respondents.id, existingIdentity.respondentId),
+        isNull(respondents.deletedAt),
+      ),
+    });
 
-        if (existingRespondent) {
-            return existingRespondent;
-        }
-    }
+  if (existingRespondent) {
+    await upsertRespondentIdentityIndex({
+      tenantSlug,
+      respondentId: existingRespondent.id,
+      email,
+      userId,
+    });
+
+    return existingRespondent;
+  }
+}
 
     const [respondent] = await db
         .insert(respondents)
@@ -304,7 +314,12 @@ async function findOrCreateRespondentForUser({
         createdBy: userId,
         updatedBy: userId,
     });
-
+    await upsertRespondentIdentityIndex({
+        tenantSlug,
+        respondentId: respondent.id,
+        email,
+        userId,
+    });
     return respondent;
 }
 
@@ -411,6 +426,7 @@ export async function startOrContinuePublicAssessmentSession({
 
     const respondent = await findOrCreateRespondentForUser({
         db,
+        tenantSlug,
         email,
         userId: session.user.id,
     });

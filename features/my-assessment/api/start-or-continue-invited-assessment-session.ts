@@ -11,6 +11,7 @@ import {
 import { requireSession } from "@/server/auth/require-session";
 
 import { getMyAssessmentTenantDbBySlug } from "./my-assessment-tenant-db";
+import { upsertRespondentIdentityIndex } from "@/server/respondents/respondent-identity-index";
 
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
@@ -54,6 +55,7 @@ export async function startOrContinueInvitedAssessmentSession({
       projectId: assessmentProjects.id,
       projectQuestionnaireId: assessmentProjectQuestionnaires.id,
       sessionId: assessmentSessions.id,
+      respondentEmail: respondentIdentities.email,
       sessionStatus: assessmentSessions.status,
     })
     .from(assessmentProjectRespondents)
@@ -119,7 +121,12 @@ export async function startOrContinueInvitedAssessmentSession({
         "Nie znaleziono aktywnego zaproszenia przypisanego do Twojego adresu e-mail.",
     };
   }
-
+  await upsertRespondentIdentityIndex({
+    tenantSlug: tenant.tenantSlug,
+    respondentId: row.respondentId,
+    email: row.respondentEmail,
+    userId: session.user.id,
+  });
   let sessionId = row.sessionId;
 
   if (!sessionId) {

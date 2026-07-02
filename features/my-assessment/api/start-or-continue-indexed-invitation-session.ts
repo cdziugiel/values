@@ -14,6 +14,7 @@ import { controlDb } from "@/server/db/control-db";
 
 import { getMyAssessmentTenantDbBySlug } from "./my-assessment-tenant-db";
 import { markAssessmentInvitationIndexSession } from "./assessment-invitation-index.mutations";
+import { upsertRespondentIdentityIndex } from "@/server/respondents/respondent-identity-index";
 
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
@@ -159,7 +160,12 @@ export async function startOrContinueIndexedInvitationSession({
       message: "Projekt lub kwestionariusz nie jest już aktywny.",
     };
   }
-
+  await upsertRespondentIdentityIndex({
+    tenantSlug: tenant.tenantSlug,
+    respondentId: row.respondentId,
+    email: row.respondentEmail,
+    userId: authSession.user.id,
+  });
   const activeSessionRows = await db
     .select({
       id: assessmentSessions.id,

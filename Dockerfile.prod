@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+
 FROM mcr.microsoft.com/playwright:v1.60.0-noble AS deps
 
 WORKDIR /app
@@ -35,6 +36,12 @@ ENV PORT=3020
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+
+# Next.js standalone nie zawsze kopiuje pliki ładowane dynamicznie
+# przez Playwright, m.in. playwright-core/browsers.json.
+# Kopiujemy kompletne pakiety Playwrighta z warstwy builder.
+COPY --from=builder /app/node_modules/playwright ./node_modules/playwright
+COPY --from=builder /app/node_modules/playwright-core ./node_modules/playwright-core
 
 EXPOSE 3020
 
