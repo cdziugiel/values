@@ -12,6 +12,9 @@ import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+import {
+  RetryReportPaymentForm,
+} from "@/features/report-access";
 
 type PageProps = {
   params: Promise<{
@@ -76,30 +79,47 @@ export default async function PaymentReturnPage({
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          {isPaid
-            ? "Dostęp do zakupionego raportu został aktywowany."
-            : isFailed
-              ? "Nie udało się potwierdzić płatności. Możesz wrócić do raportów i rozpocząć płatność ponownie."
-              : "Przelewy24 przekierowało Cię z powrotem do HUMANET. Dostęp zostanie aktywowany po otrzymaniu i zweryfikowaniu potwierdzenia płatności."}
+         {isPaid
+  ? "Dostęp do zakupionego raportu został aktywowany."
+  : isFailed
+    ? "Nie udało się rozpocząć lub zakończyć płatności. Możesz bezpiecznie utworzyć nową transakcję."
+    : "Płatność oczekuje na potwierdzenie. Jeżeli nie została jeszcze wykonana, możesz wrócić do bramki Przelewy24. Jeżeli została opłacona, odśwież status za chwilę."}
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="/my/assessment">
-              Przejdź do badań i raportów
-            </Link>
-          </Button>
+<div className="mt-6 flex flex-wrap items-start gap-3">
+  <Button asChild>
+    <Link href="/my/assessment">
+      Przejdź do badań i raportów
+    </Link>
+  </Button>
 
-          {!isPaid && (
-            <Button asChild variant="outline">
-              <Link
-                href={`/my/payments/${order.id}/return`}
-              >
-                Sprawdź ponownie
-              </Link>
-            </Button>
-          )}
-        </div>
+  {order.status === "pending_payment" ? (
+    <RetryReportPaymentForm
+      orderId={order.id}
+      label="Wróć do płatności"
+    />
+  ) : null}
+
+  {isFailed ? (
+    <RetryReportPaymentForm
+      orderId={order.id}
+      label="Spróbuj zapłacić ponownie"
+    />
+  ) : null}
+
+  {!isPaid ? (
+    <Button
+      asChild
+      variant="ghost"
+    >
+      <Link
+        href={`/my/payments/${order.id}/return`}
+      >
+        Odśwież status
+      </Link>
+    </Button>
+  ) : null}
+</div>
       </section>
     </main>
   );

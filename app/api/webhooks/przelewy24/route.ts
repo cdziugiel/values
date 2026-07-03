@@ -22,6 +22,7 @@ import {
 
 import {
   finalizePaidReportAccessOrder,
+  finalizePaidTenantReportAccessOrder,
 } from "@/features/report-access/api/report-access-payment.mutations";
 
 import { controlDb } from "@/server/db/control-db";
@@ -170,38 +171,6 @@ export async function POST(request: Request) {
     );
   }
 
-  /**
-   * Powtórna notyfikacja po zakończonej realizacji.
-   * Zwracamy 200, żeby P24 zakończyło ponawianie.
-   */
-  if (order.status === "paid") {
-    if (
-      order.paymentProviderOrderId &&
-      order.paymentProviderOrderId !==
-        String(notification.orderId)
-    ) {
-      console.error(
-        "P24_NOTIFICATION_PAID_ORDER_ID_MISMATCH",
-        {
-          orderId: order.id,
-          storedProviderOrderId:
-            order.paymentProviderOrderId,
-          receivedProviderOrderId:
-            notification.orderId,
-        },
-      );
-
-      return webhookError(
-        "Niezgodny identyfikator transakcji.",
-        409,
-      );
-    }
-
-    return NextResponse.json({
-      ok: true,
-      status: "already_processed",
-    });
-  }
 
   if (order.status !== "pending_payment") {
     console.warn(
@@ -279,25 +248,40 @@ export async function POST(request: Request) {
       currency: notification.currency,
     });
 
-    const result =
-      await finalizePaidReportAccessOrder({
+const result =
+  order.buyerType === "tenant"
+    ? await finalizePaidTenantReportAccessOrder({
         orderId: order.id,
+
         providerOrderId:
           notification.orderId,
+
+        providerSessionId:
+          notification.sessionId,
+      })
+    : await finalizePaidReportAccessOrder({
+        orderId: order.id,
+
+        providerOrderId:
+          notification.orderId,
+
         providerSessionId:
           notification.sessionId,
       });
 
-    console.info(
-      "P24_PAYMENT_FULFILLED",
-      {
-        orderId: order.id,
-        providerOrderId:
-          notification.orderId,
-        fulfillmentStatus: result.status,
-        grantId: result.grantId,
-      },
-    );
+console.info(
+  "P24_PAYMENT_FULFILLED",
+  {
+    orderId: order.id,
+    buyerType: order.buyerType,
+
+    providerOrderId:
+      notification.orderId,
+
+    fulfillmentStatus:
+      result.status,
+  },
+);
 
     return NextResponse.json({
       ok: true,

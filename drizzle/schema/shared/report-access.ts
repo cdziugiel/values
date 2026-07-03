@@ -152,8 +152,31 @@ export const reportAccessOrders = pgTable(
   },
   (table) => ({
     buyerUserIdx: index("rao_buyer_user_idx").on(table.buyerUserId),
+
     tenantSlugIdx: index("rao_tenant_slug_idx").on(table.tenantSlug),
+
     statusIdx: index("rao_status_idx").on(table.status),
+
+    paymentProviderSessionUnique: uniqueIndex(
+      "rao_payment_provider_session_unique",
+    )
+      .on(
+        table.paymentProvider,
+        table.paymentProviderSessionId,
+      )
+      .where(
+        sql`
+          deleted_at is null
+          and payment_provider_session_id is not null
+        `,
+      ),
+
+    paymentProviderOrderIdx: index(
+      "rao_payment_provider_order_idx",
+    ).on(
+      table.paymentProvider,
+      table.paymentProviderOrderId,
+    ),
   }),
 );
 

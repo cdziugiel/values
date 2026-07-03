@@ -187,13 +187,13 @@ export async function unlockReportAccessPlaceholderAction(
   formData: FormData,
 ): Promise<UnlockReportAccessActionState> {
 
-  console.error("ACTION DEFINITELY HIT")
+
   const authSession = await requireSession();
 
   const tenantSlug = normalizeString(formData.get("tenantSlug"));
   const sessionId = normalizeString(formData.get("sessionId"));
 
-    const mode = normalizeString(formData.get("mode")) || "standard";
+  const mode = normalizeString(formData.get("mode")) || "standard";
 
   const projectQuestionnaireIdFromInput =
     normalizeOptionalString(formData.get("projectQuestionnaireId"));
@@ -207,30 +207,20 @@ export async function unlockReportAccessPlaceholderAction(
     formData.get("reportTemplateVersionId"),
   );
 
-  console.log("UNLOCK_REPORT_ACTION_INPUT", {
-    tenantSlug,
-    sessionId,
-    mode,
-    productIdFromInput,
-    reportTemplateVersionIdFromInput,
-    projectQuestionnaireIdFromInput,
-    questionnaireVersionIdFromInput,
-    rawProjectQuestionnaireId: formData.get("projectQuestionnaireId"),
-    rawQuestionnaireVersionId: formData.get("questionnaireVersionId"),
-  });
+
   if (!tenantSlug || !sessionId) {
     return fail("Brakuje danych sesji lub tenanta.");
   }
 
-const offer =
-  mode === "comparison" && reportTemplateVersionIdFromInput
-    ? await getReportAccessOfferForCompletedSessionAndReportVersion({
+  const offer =
+    mode === "comparison" && reportTemplateVersionIdFromInput
+      ? await getReportAccessOfferForCompletedSessionAndReportVersion({
         tenantSlug,
         sessionId,
         reportTemplateVersionId: reportTemplateVersionIdFromInput,
         expectedKind: "comparison",
       })
-    : await getReportAccessOfferForCompletedSession({
+      : await getReportAccessOfferForCompletedSession({
         tenantSlug,
         sessionId,
         expectedKind: "personal",
@@ -238,32 +228,17 @@ const offer =
         questionnaireVersionId: questionnaireVersionIdFromInput,
       });
 
-if (!offer.ok) {
-  console.log("UNLOCK_REPORT_ACTION_OFFER_FAILED", {
-    message: offer.message,
-    tenantSlug,
-    sessionId,
-    mode,
-    projectQuestionnaireIdFromInput,
-    questionnaireVersionIdFromInput,
-  });
+  if (!offer.ok) {
 
-  return fail(offer.message);
-}
 
-if (!offer.product) {
-  console.log("UNLOCK_REPORT_ACTION_NO_PRODUCT", {
-    tenantSlug,
-    sessionId,
-    mode,
-    reportTemplateVersionId:
-      offer.ok ? offer.reportVersion.reportTemplateVersionId : null,
-    projectQuestionnaireIdFromInput,
-    questionnaireVersionIdFromInput,
-  });
+    return fail(offer.message);
+  }
 
-  return fail("Dla tego raportu nie ma aktywnego produktu sprzedażowego.");
-}
+  if (!offer.product) {
+
+
+    return fail("Dla tego raportu nie ma aktywnego produktu sprzedażowego.");
+  }
 
   const existingGrant =
     offer.existingGrant ??
@@ -276,27 +251,21 @@ if (!offer.product) {
       questionnaireVersionId: questionnaireVersionIdFromInput,
     }));
 
-if (existingGrant) {
-  const href = buildReportHref({
-    sessionId,
-    tenantSlug,
-    reportTemplateVersionId: existingGrant.reportTemplateVersionId,
-    mode,
-    productId: productIdFromInput ?? offer.product?.id ?? null,
-    projectQuestionnaireId: projectQuestionnaireIdFromInput,
-    questionnaireVersionId: questionnaireVersionIdFromInput,
-  });
+  if (existingGrant) {
+    const href = buildReportHref({
+      sessionId,
+      tenantSlug,
+      reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+      mode,
+      productId: productIdFromInput ?? offer.product?.id ?? null,
+      projectQuestionnaireId: projectQuestionnaireIdFromInput,
+      questionnaireVersionId: questionnaireVersionIdFromInput,
+    });
 
-  console.log("UNLOCK_REPORT_ACTION_EXISTING_GRANT_REDIRECT", {
-    href,
-    grantId: existingGrant.id,
-    projectQuestionnaireIdFromInput,
-    questionnaireVersionIdFromInput,
-    grantMetadata: existingGrant.metadata,
-  });
 
-  redirect(href);
-}
+
+    redirect(href);
+  }
 
   /**
    * Dodatkowe zabezpieczenie:
@@ -331,246 +300,137 @@ if (existingGrantByReportType) {
   const now = new Date();
   const discountCode = normalizeOptionalString(formData.get("discountCode"));
 
-const originalGrossCents = moneyToCents(offer.product.priceGross);
+  const originalGrossCents = moneyToCents(offer.product.priceGross);
 
-let discountRedemptionId: string | null = null;
-let discountAmountCents = 0;
-let finalGrossCents = originalGrossCents;
-let isFullyDiscounted = false;
+  let discountRedemptionId: string | null = null;
+  let discountAmountCents = 0;
+  let finalGrossCents = originalGrossCents;
+  let isFullyDiscounted = false;
 
-if (discountCode) {
-  const discount = await redeemDiscountForCheckout({
-    code: discountCode,
-    context: "report_unlock",
-    originalAmountCents: originalGrossCents,
-    currency: "PLN",
-    userId: authSession.user.id,
-    tenantId: null,
-    assessmentSessionId: sessionId,
-  });
-
-  if (!discount.ok) {
-    console.log("UNLOCK_REPORT_ACTION_FAIL_DISCOUNT", {
-      message: discount.message,
-      tenantSlug,
-      sessionId,
-      mode,
-      discountCode,
-      productIdFromInput,
-      reportTemplateVersionIdFromInput,
-      projectQuestionnaireIdFromInput,
-      questionnaireVersionIdFromInput,
+  if (discountCode) {
+    const discount = await redeemDiscountForCheckout({
+      code: discountCode,
+      context: "report_unlock",
+      originalAmountCents: originalGrossCents,
+      currency: "PLN",
+      userId: authSession.user.id,
+      tenantId: null,
+      assessmentSessionId: sessionId,
     });
 
-    return fail(discount.message);
+    if (!discount.ok) {
+
+
+      return fail(discount.message);
+    }
+
+    discountRedemptionId = discount.redemptionId;
+    discountAmountCents = discount.discountAmountCents;
+    finalGrossCents = discount.finalAmountCents;
+    isFullyDiscounted = discount.isFullyDiscounted;
   }
 
-  discountRedemptionId = discount.redemptionId;
-  discountAmountCents = discount.discountAmountCents;
-  finalGrossCents = discount.finalAmountCents;
-  isFullyDiscounted = discount.isFullyDiscounted;
-}
-
-const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
-  originalNet: offer.product.priceNet,
-  originalGross: offer.product.priceGross,
-  finalGrossCents,
-});
-
-const originalNet = moneyString(offer.product.priceNet);
-const originalGross = moneyString(offer.product.priceGross);
-const originalVat = calculateVatAmount({
-  priceNet: offer.product.priceNet,
-  priceGross: offer.product.priceGross,
-});
-
-const currency = offer.product.currency ?? "PLN";
-const paymentSessionId = `humanet:${randomUUID()}`;
-
-const [order] = await controlDb
-  .insert(reportAccessOrders)
-  .values({
-    buyerType: "user",
-
-    tenantSlug,
-    buyerUserId: authSession.user.id,
-
-    status: isFullyDiscounted ? "paid" : "pending_payment",
-
-    paymentProvider: isFullyDiscounted
-      ? "discount"
-      : "przelewy24",
-
-    paymentProviderOrderId: isFullyDiscounted
-      ? `discount:${randomUUID()}`
-      : null,
-
-    paymentProviderSessionId: isFullyDiscounted
-      ? null
-      : paymentSessionId,
-
-    currency,
-
-    totalNet,
-    totalVat,
-    totalGross,
-
-    invoiceRequested: false,
-    billingSnapshot: {},
-
-    metadata: {
-      paidByDiscount: isFullyDiscounted,
-      tenantSlug,
-      mode,
-
-      reportKind:
-        mode === "comparison"
-          ? "comparison"
-          : "personal",
-
-      assessmentSessionId: sessionId,
-
-      projectQuestionnaireId:
-        projectQuestionnaireIdFromInput,
-
-      questionnaireVersionId:
-        questionnaireVersionIdFromInput,
-
-      reportScope: {
-        type: "project_questionnaire",
-        projectQuestionnaireId:
-          projectQuestionnaireIdFromInput,
-        questionnaireVersionId:
-          questionnaireVersionIdFromInput,
-      },
-
-      reportTemplateId:
-        offer.reportVersion.reportTemplateId,
-
-      reportTemplateVersionId:
-        offer.reportVersion.reportTemplateVersionId,
-
-      productId: offer.product.id,
-      productCode: offer.product.code,
-      productName: offer.product.name,
-
-      discount: discountRedemptionId
-        ? {
-            redemptionId: discountRedemptionId,
-            originalGrossCents,
-            discountAmountCents,
-            finalGrossCents,
-          }
-        : null,
-    },
-
-    paidAt: isFullyDiscounted ? now : null,
-
-    createdAt: now,
-    updatedAt: now,
-    createdBy: authSession.user.id,
-    updatedBy: authSession.user.id,
-  })
-  .returning({
-    id: reportAccessOrders.id,
+  const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
+    originalNet: offer.product.priceNet,
+    originalGross: offer.product.priceGross,
+    finalGrossCents,
   });
 
-await controlDb.insert(reportAccessOrderItems).values({
-  orderId: order.id,
-  productId: offer.product.id,
+  const originalNet = moneyString(offer.product.priceNet);
+  const originalGross = moneyString(offer.product.priceGross);
+  const originalVat = calculateVatAmount({
+    priceNet: offer.product.priceNet,
+    priceGross: offer.product.priceGross,
+  });
 
-  quantity: 1,
+  const currency = (
+    offer.product.currency ?? "PLN"
+  ).toUpperCase();
 
-  unitNet: originalNet,
-  unitVat: originalVat,
-  unitGross: originalGross,
+  const paymentSessionId = `humanet:${randomUUID()}`;
 
-  totalNet,
-  totalVat,
-  totalGross,
+  const orderMetadata = {
+    paidByDiscount: isFullyDiscounted,
+    tenantSlug,
+    mode,
 
-  createdAt: now,
-  updatedAt: now,
-});
+    reportKind:
+      mode === "comparison"
+        ? "comparison"
+        : "personal",
 
-/**
- * Zamówienie pokryte w 100% rabatem nie trafia do P24.
- * Możemy od razu przyznać dostęp.
- */
-if (isFullyDiscounted) {
-  const validUntil =
-    typeof offer.product.validityDays === "number" &&
-    offer.product.validityDays > 0
-      ? new Date(
-          now.getTime() +
-            offer.product.validityDays *
-              24 *
-              60 *
-              60 *
-              1000,
-        )
-      : null;
+    assessmentSessionId: sessionId,
 
-  const [grant] = await controlDb
-    .insert(reportAccessGrants)
+    projectQuestionnaireId:
+      projectQuestionnaireIdFromInput,
+
+    questionnaireVersionId:
+      questionnaireVersionIdFromInput,
+
+    reportScope: {
+      type: "project_questionnaire",
+      projectQuestionnaireId:
+        projectQuestionnaireIdFromInput,
+      questionnaireVersionId:
+        questionnaireVersionIdFromInput,
+    },
+
+    reportTemplateId:
+      offer.reportVersion.reportTemplateId,
+
+    reportTemplateVersionId:
+      offer.reportVersion.reportTemplateVersionId,
+
+    productId: offer.product.id,
+    productCode: offer.product.code,
+    productName: offer.product.name,
+
+    discount: discountRedemptionId
+      ? {
+        redemptionId: discountRedemptionId,
+        originalGrossCents,
+        discountAmountCents,
+        finalGrossCents,
+      }
+      : null,
+  };
+
+  const [order] = await controlDb
+    .insert(reportAccessOrders)
     .values({
-      source: "discount",
-      status: "active",
-
-      productId: offer.product.id,
-      orderId: order.id,
-
-      reportTemplateId:
-        offer.reportVersion.reportTemplateId,
-
-      reportTemplateVersionId:
-        offer.reportVersion.reportTemplateVersionId,
+      buyerType: "user",
 
       tenantSlug,
-      userId: authSession.user.id,
-      email: authSession.user.email ?? null,
+      buyerUserId: authSession.user.id,
 
-      assessmentSessionId: sessionId,
+      status: isFullyDiscounted
+        ? "paid"
+        : "pending_payment",
 
-      validFrom: now,
-      validUntil,
+      paymentProvider: isFullyDiscounted
+        ? "discount"
+        : "przelewy24",
 
-      metadata: {
-        paidByDiscount: true,
-        mode,
+      paymentProviderOrderId: isFullyDiscounted
+        ? `discount:${randomUUID()}`
+        : null,
 
-        reportKind:
-          mode === "comparison"
-            ? "comparison"
-            : "personal",
+      paymentProviderSessionId: isFullyDiscounted
+        ? null
+        : paymentSessionId,
 
-        projectQuestionnaireId:
-          projectQuestionnaireIdFromInput,
+      currency,
 
-        questionnaireVersionId:
-          questionnaireVersionIdFromInput,
+      totalNet,
+      totalVat,
+      totalGross,
 
-        reportScope: {
-          type: "project_questionnaire",
-          projectQuestionnaireId:
-            projectQuestionnaireIdFromInput,
-          questionnaireVersionId:
-            questionnaireVersionIdFromInput,
-        },
+      invoiceRequested: false,
+      billingSnapshot: {},
 
-        productCode: offer.product.code,
-        productName: offer.product.name,
-        orderId: order.id,
+      metadata: orderMetadata,
 
-        discount: discountRedemptionId
-          ? {
-              redemptionId: discountRedemptionId,
-              originalGrossCents,
-              discountAmountCents,
-              finalGrossCents,
-            }
-          : null,
-      },
+      paidAt: isFullyDiscounted ? now : null,
 
       createdAt: now,
       updatedAt: now,
@@ -578,188 +438,226 @@ if (isFullyDiscounted) {
       updatedBy: authSession.user.id,
     })
     .returning({
-      id: reportAccessGrants.id,
-      reportTemplateVersionId:
-        reportAccessGrants.reportTemplateVersionId,
+      id: reportAccessOrders.id,
     });
 
-  const href = buildReportHref({
-    sessionId,
-    tenantSlug,
-    reportTemplateVersionId:
-      grant.reportTemplateVersionId,
-    mode,
-    productId:
-      productIdFromInput ?? offer.product.id,
-    projectQuestionnaireId:
-      projectQuestionnaireIdFromInput,
-    questionnaireVersionId:
-      questionnaireVersionIdFromInput,
+  await controlDb.insert(reportAccessOrderItems).values({
+    orderId: order.id,
+    productId: offer.product.id,
+
+    quantity: 1,
+
+    unitNet: originalNet,
+    unitVat: originalVat,
+    unitGross: originalGross,
+
+    totalNet,
+    totalVat,
+    totalGross,
+
+    createdAt: now,
+    updatedAt: now,
   });
 
-  redirect(href);
-}
+  /**
+   * Zamówienie pokryte w 100% rabatem nie trafia do P24.
+   * Możemy od razu przyznać dostęp.
+   */
 
-/**
- * Płatność większa niż 0 zł:
- * rejestrujemy transakcję w P24.
- */
-if (!authSession.user.email) {
-  await controlDb
-    .update(reportAccessOrders)
-    .set({
-      status: "failed",
-      updatedAt: new Date(),
-      updatedBy: authSession.user.id,
-      metadata: {
-        paymentRegistrationError:
-          "missing_user_email",
-      },
-    })
-    .where(eq(reportAccessOrders.id, order.id));
 
-  return fail(
-    "Do rozpoczęcia płatności wymagany jest adres e-mail użytkownika.",
-  );
-}
 
-try {
-  const registration =
-    await registerPrzelewy24Transaction({
-      sessionId: paymentSessionId,
-      amount: finalGrossCents,
-      currency,
+  if (isFullyDiscounted) {
+    const validUntil =
+      typeof offer.product.validityDays === "number" &&
+        offer.product.validityDays > 0
+        ? new Date(
+          now.getTime() +
+          offer.product.validityDays *
+          24 *
+          60 *
+          60 *
+          1000,
+        )
+        : null;
 
-      description: `HUMANET — ${offer.product.name}`,
 
-      email: authSession.user.email,
-      client:
-        authSession.user.name ??
-        authSession.user.email,
 
-      country: "PL",
-      language: "pl",
 
-      urlReturn: buildPaymentReturnUrl({
+    const [grant] = await controlDb
+      .insert(reportAccessGrants)
+      .values({
+        source: "discount",
+        status: "active",
+
+        productId: offer.product.id,
         orderId: order.id,
-      }),
-
-      urlStatus: buildPaymentStatusUrl(),
-    });
-
-  await controlDb
-    .update(reportAccessOrders)
-    .set({
-      updatedAt: new Date(),
-      updatedBy: authSession.user.id,
-
-      metadata: {
-        paidByDiscount: false,
-        tenantSlug,
-        mode,
-
-        reportKind:
-          mode === "comparison"
-            ? "comparison"
-            : "personal",
-
-        assessmentSessionId: sessionId,
-
-        projectQuestionnaireId:
-          projectQuestionnaireIdFromInput,
-
-        questionnaireVersionId:
-          questionnaireVersionIdFromInput,
-
-        reportScope: {
-          type: "project_questionnaire",
-          projectQuestionnaireId:
-            projectQuestionnaireIdFromInput,
-          questionnaireVersionId:
-            questionnaireVersionIdFromInput,
-        },
 
         reportTemplateId:
           offer.reportVersion.reportTemplateId,
 
         reportTemplateVersionId:
-          offer.reportVersion
-            .reportTemplateVersionId,
+          offer.reportVersion.reportTemplateVersionId,
 
-        productId: offer.product.id,
-        productCode: offer.product.code,
-        productName: offer.product.name,
+        tenantSlug,
+        userId: authSession.user.id,
+        email: authSession.user.email ?? null,
 
-        p24: {
-          token: registration.token,
-          registeredAt:
-            new Date().toISOString(),
-        },
+        assessmentSessionId: sessionId,
 
-        discount: discountRedemptionId
-          ? {
-              redemptionId:
-                discountRedemptionId,
-              originalGrossCents,
-              discountAmountCents,
-              finalGrossCents,
-            }
-          : null,
-      },
-    })
-    .where(eq(reportAccessOrders.id, order.id));
+        validFrom: now,
+        validUntil,
 
-  redirect(
-    buildPrzelewy24PaymentUrl(
-      registration.token,
-    ),
-  );
-} catch (error) {
-  /**
-   * redirect() w Next.js rzuca specjalny wyjątek.
-   * Nie wolno oznaczać zamówienia jako failed po prawidłowym redirect.
-   */
-  if (isRedirectError(error)) {
-    throw error;
+        metadata: orderMetadata,
+
+        createdAt: now,
+        updatedAt: now,
+        createdBy: authSession.user.id,
+        updatedBy: authSession.user.id,
+      })
+      .returning({
+        id: reportAccessGrants.id,
+        reportTemplateVersionId:
+          reportAccessGrants.reportTemplateVersionId,
+      });
+
+    const href = buildReportHref({
+      sessionId,
+      tenantSlug,
+      reportTemplateVersionId:
+        grant.reportTemplateVersionId,
+      mode,
+      productId:
+        productIdFromInput ?? offer.product.id,
+      projectQuestionnaireId:
+        projectQuestionnaireIdFromInput,
+      questionnaireVersionId:
+        questionnaireVersionIdFromInput,
+    });
+
+    redirect(href);
   }
 
-  await controlDb
-    .update(reportAccessOrders)
-    .set({
-      status: "failed",
-      updatedAt: new Date(),
-      updatedBy: authSession.user.id,
+  /**
+   * Płatność większa niż 0 zł:
+   * rejestrujemy transakcję w P24.
+   */
 
-      metadata: {
-        paymentRegistrationError:
+  if (!authSession.user.email) {
+    await controlDb
+      .update(reportAccessOrders)
+      .set({
+        status: "failed",
+        updatedAt: new Date(),
+        updatedBy: authSession.user.id,
+        metadata: {
+          ...orderMetadata,
+
+          payment: {
+            status: "registration_failed",
+            errorCode: "missing_user_email",
+            failedAt: new Date().toISOString(),
+          },
+        },
+      })
+      .where(eq(reportAccessOrders.id, order.id));
+
+    return fail(
+      "Do rozpoczęcia płatności wymagany jest adres e-mail użytkownika.",
+    );
+  }
+
+  try {
+    const registration =
+      await registerPrzelewy24Transaction({
+        sessionId: paymentSessionId,
+        amount: finalGrossCents,
+        currency,
+
+        description: `HUMANET — ${offer.product.name}`,
+
+        email: authSession.user.email,
+        client:
+          authSession.user.name ??
+          authSession.user.email,
+
+        country: "PL",
+        language: "pl",
+
+        urlReturn: buildPaymentReturnUrl({
+          orderId: order.id,
+        }),
+
+        urlStatus: buildPaymentStatusUrl(),
+      });
+
+    await controlDb
+      .update(reportAccessOrders)
+      .set({
+        updatedAt: new Date(),
+        updatedBy: authSession.user.id,
+
+        metadata: {
+          ...orderMetadata,
+
+          payment: {
+            status: "registered",
+            provider: "przelewy24",
+            token: registration.token,
+            registeredAt: new Date().toISOString(),
+          },
+        },
+      })
+      .where(eq(reportAccessOrders.id, order.id));
+
+    redirect(
+      buildPrzelewy24PaymentUrl(
+        registration.token,
+      ),
+    );
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    const failedAt = new Date();
+
+    await controlDb
+      .update(reportAccessOrders)
+      .set({
+        status: "failed",
+        updatedAt: failedAt,
+        updatedBy: authSession.user.id,
+
+        metadata: {
+          ...orderMetadata,
+
+          payment: {
+            status: "registration_failed",
+            errorCode:
+              error instanceof Error
+                ? error.name
+                : "UnknownError",
+            failedAt: failedAt.toISOString(),
+          },
+        },
+      })
+      .where(eq(reportAccessOrders.id, order.id));
+
+    console.error(
+      "P24_TRANSACTION_REGISTRATION_FAILED",
+      {
+        orderId: order.id,
+        errorName:
           error instanceof Error
             ? error.name
             : "UnknownError",
       },
-    })
-    .where(eq(reportAccessOrders.id, order.id));
+    );
 
-  console.error(
-    "P24_TRANSACTION_REGISTRATION_FAILED",
-    {
-      orderId: order.id,
-      tenantSlug,
-      sessionId,
-      errorName:
-        error instanceof Error
-          ? error.name
-          : "UnknownError",
-      errorMessage:
-        error instanceof Error
-          ? error.message
-          : "Unknown error",
-    },
-  );
-
-  return fail(
-    "Nie udało się rozpocząć płatności. Spróbuj ponownie.",
-  );
-}
+    return fail(
+      "Nie udało się rozpocząć płatności. Spróbuj ponownie.",
+    );
+  }
 }
 
 
@@ -816,6 +714,8 @@ export async function purchaseTenantReportAccessAction(
   const tenantSlug = normalizeString(formData.get("tenantSlug"));
   const productId = normalizeString(formData.get("productId"));
   const quantity = Number(formData.get("quantity") ?? 0);
+  const authSession =
+    await requireSession();
 
   if (!tenantSlug || !productId) {
     return purchaseFail("Brakuje produktu lub tenanta.");
@@ -850,57 +750,54 @@ export async function purchaseTenantReportAccessAction(
   const unitGrossNumber = moneyToNumber(product.priceGross);
   const unitVatNumber = Math.max(unitGrossNumber - unitNetNumber, 0);
 
-  const totalNetNumber = unitNetNumber * quantity;
-  const totalGrossNumber = unitGrossNumber * quantity;
-  const totalVatNumber = unitVatNumber * quantity;
 
 
   const originalTotalNetNumber = unitNetNumber * quantity;
-const originalTotalGrossNumber = unitGrossNumber * quantity;
-const originalTotalVatNumber = unitVatNumber * quantity;
+  const originalTotalGrossNumber = unitGrossNumber * quantity;
+  const originalTotalVatNumber = unitVatNumber * quantity;
 
-const unitNet = moneyString(unitNetNumber);
-const unitVat = moneyString(unitVatNumber);
-const unitGross = moneyString(unitGrossNumber);
+  const unitNet = moneyString(unitNetNumber);
+  const unitVat = moneyString(unitVatNumber);
+  const unitGross = moneyString(unitGrossNumber);
 
-const originalTotalNet = moneyString(originalTotalNetNumber);
-const originalTotalVat = moneyString(originalTotalVatNumber);
-const originalTotalGross = moneyString(originalTotalGrossNumber);
+  const originalTotalNet = moneyString(originalTotalNetNumber);
+  const originalTotalVat = moneyString(originalTotalVatNumber);
+  const originalTotalGross = moneyString(originalTotalGrossNumber);
 
-const discountCode = normalizeOptionalString(formData.get("discountCode"));
+  const discountCode = normalizeOptionalString(formData.get("discountCode"));
 
-const originalGrossCents = moneyToCents(originalTotalGrossNumber);
+  const originalGrossCents = moneyToCents(originalTotalGrossNumber);
 
-let discountRedemptionId: string | null = null;
-let discountAmountCents = 0;
-let finalGrossCents = originalGrossCents;
-let isFullyDiscounted = false;
+  let discountRedemptionId: string | null = null;
+  let discountAmountCents = 0;
+  let finalGrossCents = originalGrossCents;
+  let isFullyDiscounted = false;
 
-if (discountCode) {
-  const discount = await redeemDiscountForCheckout({
-    code: discountCode,
-    context: "report_access_purchase",
-    originalAmountCents: originalGrossCents,
-    currency: "PLN",
-    userId: ctx.userId,
-    tenantId: ctx.tenantId,
-  });
+  if (discountCode) {
+    const discount = await redeemDiscountForCheckout({
+      code: discountCode,
+      context: "report_access_purchase",
+      originalAmountCents: originalGrossCents,
+      currency: "PLN",
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+    });
 
-  if (!discount.ok) {
-    return purchaseFail(discount.message);
+    if (!discount.ok) {
+      return purchaseFail(discount.message);
+    }
+
+    discountRedemptionId = discount.redemptionId;
+    discountAmountCents = discount.discountAmountCents;
+    finalGrossCents = discount.finalAmountCents;
+    isFullyDiscounted = discount.isFullyDiscounted;
   }
 
-  discountRedemptionId = discount.redemptionId;
-  discountAmountCents = discount.discountAmountCents;
-  finalGrossCents = discount.finalAmountCents;
-  isFullyDiscounted = discount.isFullyDiscounted;
-}
-
-const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
-  originalNet: originalTotalNetNumber,
-  originalGross: originalTotalGrossNumber,
-  finalGrossCents,
-});
+  const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
+    originalNet: originalTotalNetNumber,
+    originalGross: originalTotalGrossNumber,
+    finalGrossCents,
+  });
 
   const invoiceRequested = checkboxValue(formData.get("invoiceRequested"));
   const saveBillingProfile = checkboxValue(formData.get("saveBillingProfile"));
@@ -912,23 +809,23 @@ const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
 
   const billingSnapshot = invoiceRequested
     ? {
-        type: billingType,
-        companyName: normalizeOptionalString(formData.get("companyName")),
-        taxId: normalizeOptionalString(formData.get("taxId")),
-        firstName: normalizeOptionalString(formData.get("firstName")),
-        lastName: normalizeOptionalString(formData.get("lastName")),
-        email: normalizeOptionalString(formData.get("billingEmail")),
-        phone: normalizeOptionalString(formData.get("phone")),
-        country: normalizeOptionalString(formData.get("country")) ?? "PL",
-        postalCode: normalizeOptionalString(formData.get("postalCode")),
-        city: normalizeOptionalString(formData.get("city")),
-        street: normalizeOptionalString(formData.get("street")),
-        buildingNumber: normalizeOptionalString(formData.get("buildingNumber")),
-        apartmentNumber: normalizeOptionalString(
-          formData.get("apartmentNumber"),
-        ),
-        invoiceEmail: normalizeOptionalString(formData.get("invoiceEmail")),
-      }
+      type: billingType,
+      companyName: normalizeOptionalString(formData.get("companyName")),
+      taxId: normalizeOptionalString(formData.get("taxId")),
+      firstName: normalizeOptionalString(formData.get("firstName")),
+      lastName: normalizeOptionalString(formData.get("lastName")),
+      email: normalizeOptionalString(formData.get("billingEmail")),
+      phone: normalizeOptionalString(formData.get("phone")),
+      country: normalizeOptionalString(formData.get("country")) ?? "PL",
+      postalCode: normalizeOptionalString(formData.get("postalCode")),
+      city: normalizeOptionalString(formData.get("city")),
+      street: normalizeOptionalString(formData.get("street")),
+      buildingNumber: normalizeOptionalString(formData.get("buildingNumber")),
+      apartmentNumber: normalizeOptionalString(
+        formData.get("apartmentNumber"),
+      ),
+      invoiceEmail: normalizeOptionalString(formData.get("invoiceEmail")),
+    }
     : {};
 
   let billingProfileId: string | null = null;
@@ -978,6 +875,54 @@ const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
     billingProfileId = billingProfile.id;
   }
 
+  const currency = (
+    product.currency ?? "PLN"
+  ).toUpperCase();
+
+  const paymentSessionId =
+    `humanet-tenant:${randomUUID()}`;
+
+  const orderMetadata = {
+    paidByDiscount: isFullyDiscounted,
+
+    source:
+      "tenant_report_access_orders_page",
+
+    tenantSlug: ctx.tenantSlug,
+    tenantId: ctx.tenantId,
+
+    productId: product.id,
+    productCode: product.code,
+    productName: product.name,
+
+    productAccessCount:
+      accessCountPerProduct,
+
+    quantity,
+    generatedAccessCount,
+
+    pricing: {
+      originalTotalNet,
+      originalTotalVat,
+      originalTotalGross,
+
+      totalNet,
+      totalVat,
+      totalGross,
+    },
+
+    discount: discountRedemptionId
+      ? {
+        redemptionId:
+          discountRedemptionId,
+
+        originalGrossCents,
+        discountAmountCents,
+        finalGrossCents,
+      }
+      : null,
+  };
+
   const [order] = await controlDb
     .insert(reportAccessOrders)
     .values({
@@ -985,16 +930,29 @@ const { totalNet, totalVat, totalGross } = calculateDiscountedTotals({
 
       tenantSlug: ctx.tenantSlug,
       tenantId: ctx.tenantId,
+
       buyerUserId: ctx.userId,
 
-      status: "paid",
+      status: isFullyDiscounted
+        ? "paid"
+        : "pending_payment",
 
-paymentProvider: isFullyDiscounted ? "discount" : "placeholder",
-paymentProviderOrderId: isFullyDiscounted
-  ? `tenant-discount:${randomUUID()}`
-  : `tenant-placeholder:${randomUUID()}`,
+      paymentProvider:
+        isFullyDiscounted
+          ? "discount"
+          : "przelewy24",
 
-      currency: product.currency ?? "PLN",
+      paymentProviderOrderId:
+        isFullyDiscounted
+          ? `tenant-discount:${randomUUID()}`
+          : null,
+
+      paymentProviderSessionId:
+        isFullyDiscounted
+          ? null
+          : paymentSessionId,
+
+      currency,
 
       totalNet,
       totalVat,
@@ -1004,39 +962,15 @@ paymentProviderOrderId: isFullyDiscounted
       billingProfileId,
       billingSnapshot,
 
-metadata: {
-  placeholderPayment: !isFullyDiscounted,
-  paidByDiscount: isFullyDiscounted,
-  source: "tenant_report_access_orders_page",
-  tenantSlug: ctx.tenantSlug,
-  tenantId: ctx.tenantId,
-  productId: product.id,
-  productCode: product.code,
-  productName: product.name,
-  productAccessCount: accessCountPerProduct,
-  quantity,
-  generatedAccessCount,
-  pricing: {
-    originalTotalNet,
-    originalTotalVat,
-    originalTotalGross,
-    totalNet,
-    totalVat,
-    totalGross,
-  },
-  discount: discountRedemptionId
-    ? {
-        redemptionId: discountRedemptionId,
-        originalGrossCents,
-        discountAmountCents,
-        finalGrossCents,
-      }
-    : null,
-},
+      metadata: orderMetadata,
 
-      paidAt: now,
+      paidAt: isFullyDiscounted
+        ? now
+        : null,
+
       createdAt: now,
       updatedAt: now,
+
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
     })
@@ -1044,84 +978,325 @@ metadata: {
       id: reportAccessOrders.id,
     });
 
-await controlDb.insert(reportAccessOrderItems).values({
-  orderId: order.id,
-  productId: product.id,
 
-  quantity,
 
-  unitNet,
-  unitVat,
-  unitGross,
+  await controlDb.insert(reportAccessOrderItems).values({
+    orderId: order.id,
+    productId: product.id,
 
-  totalNet,
-  totalVat,
-  totalGross,
+    quantity,
 
-  createdAt: now,
-  updatedAt: now,
-});
+    unitNet,
+    unitVat,
+    unitGross,
 
-  const validUntil = buildValidUntil(now, product.validityDays);
+    totalNet,
+    totalVat,
+    totalGross,
 
-  const codeRows = Array.from({ length: generatedAccessCount }, () => {
-    const rawCode = generateRawReportAccessCode();
-
-    return {
-      productId: product.id,
-      orderId: order.id,
-
-      codeHash: hashReportAccessCode(rawCode),
-      codePreview: buildCodePreview(rawCode),
-
-      status: "available",
-
-      tenantSlug: ctx.tenantSlug,
-      tenantId: ctx.tenantId,
-
-      ownerUserId: null,
-      purchasedByUserId: ctx.userId,
-
-      assignedToEmail: null,
-      assignedToUserId: null,
-
-      assessmentProjectId: null,
-      assessmentSessionId: null,
-      assessmentAccessLinkId: null,
-
-      redeemedByUserId: null,
-      redeemedAt: null,
-
-      validFrom: now,
-      validUntil,
-
-metadata: {
-  placeholderPayment: !isFullyDiscounted,
-  paidByDiscount: isFullyDiscounted,
-  source: "tenant_purchase",
-  productCode: product.code,
-  productName: product.name,
-  orderQuantity: quantity,
-  productAccessCount: accessCountPerProduct,
-  discountRedemptionId,
-},
-
-      createdAt: now,
-      updatedAt: now,
-      createdBy: ctx.userId,
-      updatedBy: ctx.userId,
-    };
+    createdAt: now,
+    updatedAt: now,
   });
 
-  await controlDb.insert(reportAccessCodes).values(codeRows);
+  if (isFullyDiscounted) {
+    const validUntil = buildValidUntil(
+      now,
+      product.validityDays,
+    );
 
-  revalidatePath(`/t/${ctx.tenantSlug}/report-access`);
-  revalidatePath(`/t/${ctx.tenantSlug}/assessment-projects`);
 
-return {
-  status: "success",
-  message: isFullyDiscounted
-    ? `Kod rabatowy pokrył całą kwotę. Dodano ${generatedAccessCount} dostępów do puli partnera.`
-    : `Zakupiono ${generatedAccessCount} dostępów. Dostępy trafiły do puli partnera.`,
-};
+    const codeRows = Array.from(
+      { length: generatedAccessCount },
+      () => {
+        const rawCode =
+          generateRawReportAccessCode();
+
+        return {
+          productId: product.id,
+          orderId: order.id,
+
+          codeHash:
+            hashReportAccessCode(rawCode),
+
+          codePreview:
+            buildCodePreview(rawCode),
+
+          status: "available",
+
+          tenantSlug: ctx.tenantSlug,
+          tenantId: ctx.tenantId,
+
+          ownerUserId: null,
+          purchasedByUserId:
+            ctx.userId,
+
+          assignedToEmail: null,
+          assignedToUserId: null,
+
+          subjectType: null,
+          subjectId: null,
+
+          assessmentProjectId: null,
+          assessmentSessionId: null,
+          assessmentAccessLinkId: null,
+
+          redeemedByUserId: null,
+          redeemedAt: null,
+
+          validFrom: now,
+          validUntil,
+
+          metadata: {
+            paidByDiscount: true,
+            source: "tenant_purchase",
+
+            productCode: product.code,
+            productName: product.name,
+
+            orderQuantity: quantity,
+
+            productAccessCount:
+              accessCountPerProduct,
+
+            discountRedemptionId,
+          },
+
+          createdAt: now,
+          updatedAt: now,
+
+          createdBy: ctx.userId,
+          updatedBy: ctx.userId,
+        };
+      },
+    );
+
+    await controlDb
+      .insert(reportAccessCodes)
+      .values(codeRows);
+
+    revalidatePath(
+      `/t/${ctx.tenantSlug}/report-access`,
+    );
+
+    revalidatePath(
+      `/t/${ctx.tenantSlug}/assessment-projects`,
+    );
+
+    return {
+      status: "success",
+      message:
+        `Kod rabatowy pokrył całą kwotę. Dodano ${generatedAccessCount} dostępów do puli partnera.`,
+    };
+  }
+
+  const paymentEmail =
+    normalizeOptionalString(
+      formData.get("billingEmail"),
+    ) ??
+    normalizeOptionalString(
+      formData.get("invoiceEmail"),
+    ) ??
+    authSession.user.email;
+
+
+  if (!paymentEmail) {
+    const failedAt = new Date();
+
+    await controlDb
+      .update(reportAccessOrders)
+      .set({
+        status: "failed",
+
+        updatedAt: failedAt,
+        updatedBy: ctx.userId,
+
+        metadata: {
+          ...orderMetadata,
+
+          payment: {
+            status:
+              "registration_failed",
+
+            errorCode:
+              "missing_payment_email",
+
+            failedAt:
+              failedAt.toISOString(),
+          },
+        },
+      })
+      .where(
+        eq(
+          reportAccessOrders.id,
+          order.id,
+        ),
+      );
+
+    return purchaseFail(
+      "Do rozpoczęcia płatności wymagany jest adres e-mail.",
+    );
+  }
+
+  try {
+    const registration =
+      await registerPrzelewy24Transaction({
+        sessionId: paymentSessionId,
+
+        amount: finalGrossCents,
+        currency,
+
+        description:
+          `HUMANET — ${product.name} × ${quantity}`,
+
+        email: paymentEmail,
+
+        client:
+          normalizeOptionalString(
+            formData.get("companyName"),
+          ) ??
+          normalizeOptionalString(
+            formData.get("firstName"),
+          ) ??
+          paymentEmail,
+
+        country:
+          normalizeOptionalString(
+            formData.get("country"),
+          ) ?? "PL",
+
+        language: "pl",
+
+        urlReturn:
+          `${env.APP_URL.replace(
+            /\/+$/,
+            "",
+          )}/t/${encodeURIComponent(
+            ctx.tenantSlug,
+          )}/report-access?paymentOrderId=${encodeURIComponent(
+            order.id,
+          )}`,
+
+        urlStatus:
+          `${env.APP_URL.replace(
+            /\/+$/,
+            "",
+          )}/api/webhooks/przelewy24`,
+      });
+
+    const registeredAt = new Date();
+
+    await controlDb
+      .update(reportAccessOrders)
+      .set({
+        updatedAt: registeredAt,
+        updatedBy: ctx.userId,
+
+        metadata: {
+          ...orderMetadata,
+
+          payment: {
+            status: "registered",
+            provider: "przelewy24",
+
+            token: registration.token,
+
+            registeredAt:
+              registeredAt.toISOString(),
+          },
+        },
+      })
+      .where(
+        and(
+          eq(
+            reportAccessOrders.id,
+            order.id,
+          ),
+          eq(
+            reportAccessOrders.status,
+            "pending_payment",
+          ),
+          eq(
+            reportAccessOrders.paymentProvider,
+            "przelewy24",
+          ),
+          isNull(
+            reportAccessOrders.deletedAt,
+          ),
+        ),
+      );
+
+    redirect(
+      buildPrzelewy24PaymentUrl(
+        registration.token,
+      ),
+    );
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    const failedAt = new Date();
+
+    await controlDb
+      .update(reportAccessOrders)
+      .set({
+        status: "failed",
+
+        updatedAt: failedAt,
+        updatedBy: ctx.userId,
+
+        metadata: {
+          ...orderMetadata,
+
+          payment: {
+            status:
+              "registration_failed",
+
+            errorCode:
+              error instanceof Error
+                ? error.name
+                : "UnknownError",
+
+            failedAt:
+              failedAt.toISOString(),
+          },
+        },
+      })
+      .where(
+        and(
+          eq(
+            reportAccessOrders.id,
+            order.id,
+          ),
+          eq(
+            reportAccessOrders.status,
+            "pending_payment",
+          ),
+          eq(
+            reportAccessOrders.paymentProvider,
+            "przelewy24",
+          ),
+          isNull(
+            reportAccessOrders.deletedAt,
+          ),
+        ),
+      );
+
+    console.error(
+      "P24_TENANT_TRANSACTION_REGISTRATION_FAILED",
+      {
+        orderId: order.id,
+
+        errorName:
+          error instanceof Error
+            ? error.name
+            : "UnknownError",
+      },
+    );
+
+    return purchaseFail(
+      "Nie udało się rozpocząć płatności. Spróbuj ponownie.",
+    );
+  }
+
 }

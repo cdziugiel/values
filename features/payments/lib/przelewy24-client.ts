@@ -15,6 +15,7 @@ import {
   createPrzelewy24VerifySign,
 } from "./przelewy24-sign";
 
+const P24_REQUEST_TIMEOUT_MS = 15_000;
 
 export function buildPrzelewy24PaymentUrl(token: string): string {
   const paymentBaseUrl = env.P24_BASE_URL.replace(/\/api\/v1\/?$/, "");
@@ -49,40 +50,70 @@ async function p24Request<T>({
   method: "GET" | "POST" | "PUT";
   body?: unknown;
 }): Promise<T> {
-  const response = await fetch(`${env.P24_BASE_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: getBasicAuthorization(),
-      Accept: "application/json",
-      ...(body
-        ? {
-            "Content-Type": "application/json",
-          }
-        : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
+  const controller = new AbortController();
 
-    // Płatności nie powinny korzystać z cache Next.js.
-    cache: "no-store",
-  });
-
-  let responseBody: unknown = null;
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, P24_REQUEST_TIMEOUT_MS);
 
   try {
-    responseBody = await response.json();
-  } catch {
-    responseBody = null;
-  }
+    const response = await fetch(
+      `${env.P24_BASE_URL}${path}`,
+      {
+        method,
 
-  if (!response.ok) {
-    throw new Przelewy24ApiError(
-      `Przelewy24 zwróciło status HTTP ${response.status}.`,
-      response.status,
-      responseBody,
+        headers: {
+          Authorization: getBasicAuthorization(),
+          Accept: "application/json",
+
+          ...(body
+            ? {
+                "Content-Type": "application/json",
+              }
+            : {}),
+        },
+
+        body: body
+          ? JSON.stringify(body)
+          : undefined,
+
+        cache: "no-store",
+        signal: controller.signal,
+      },
     );
-  }
 
-  return responseBody as T;
+    let responseBody: unknown = null;
+
+    try {
+      responseBody = await response.json();
+    } catch {
+      responseBody = null;
+    }
+
+    if (!response.ok) {
+      throw new Przelewy24ApiError(
+        `Przelewy24 zwróciło status HTTP ${response.status}.`,
+        response.status,
+        responseBody,
+      );
+    }
+
+    return responseBody as T;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.name === "AbortError"
+    ) {
+      throw new Przelewy24ApiError(
+        "Przekroczono czas oczekiwania na odpowiedź Przelewy24.",
+        504,
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function testPrzelewy24Access(): Promise<boolean> {

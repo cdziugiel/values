@@ -316,8 +316,6 @@ export function TenantReportAccessPurchaseDialog({
       ? unitGross * quantity
       : 0;
 
-  console.log("PRODUCTS", products)
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
