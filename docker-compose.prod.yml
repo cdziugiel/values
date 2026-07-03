@@ -9,12 +9,6 @@ services:
     container_name: humanet-values-web
     restart: unless-stopped
 
-    ports:
-      - "3020:3020"
-
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      
     env_file:
       - .env.production
 
@@ -25,6 +19,47 @@ services:
       HOSTNAME: "0.0.0.0"
       PORT: "3020"
 
+    expose:
+      - "3020"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    networks:
+      - web
+
+    labels:
+      - "traefik.enable=true"
+
+      # Traefik ma komunikować się z aplikacją przez sieć web
+      - "traefik.docker.network=web"
+
+      # Router HTTPS
+      - "traefik.http.routers.humanet-values-test.rule=Host(`test-values.humanet.me`)"
+      - "traefik.http.routers.humanet-values-test.entrypoints=websecure"
+      - "traefik.http.routers.humanet-values-test.tls=true"
+      - "traefik.http.routers.humanet-values-test.tls.certresolver=myresolver"
+      - "traefik.http.routers.humanet-values-test.service=humanet-values-test"
+
+      # Port aplikacji wewnątrz kontenera
+      - "traefik.http.services.humanet-values-test.loadbalancer.server.port=3020"
+      - "traefik.http.services.humanet-values-test.loadbalancer.server.scheme=http"
+
+      # Router HTTP
+      - "traefik.http.routers.humanet-values-test-http.rule=Host(`test-values.humanet.me`)"
+      - "traefik.http.routers.humanet-values-test-http.entrypoints=web"
+      - "traefik.http.routers.humanet-values-test-http.middlewares=humanet-values-test-https"
+      - "traefik.http.routers.humanet-values-test-http.service=noop@internal"
+
+      # Przekierowanie HTTP → HTTPS
+      - "traefik.http.middlewares.humanet-values-test-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.humanet-values-test-https.redirectscheme.permanent=true"
+
 secrets:
   prod_env:
     file: .env.production
+
+networks:
+  web:
+    external: true
+    name: web
