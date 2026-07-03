@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 
 const booleanFromEnv = z
@@ -48,6 +49,17 @@ const envSchema = z.object({
   TENANT_DATABASE_PASSWORD: z.string().min(1),
   TENANT_DATABASE_SSL: booleanFromEnv,
   DATABASE_ENCRYPTION_KEY: z.string().min(32),
+
+  P24_BASE_URL: z
+    .string()
+    .url()
+    .transform((value) => value.replace(/\/+$/, "")),
+
+  P24_MERCHANT_ID: z.coerce.number().int().positive(),
+  P24_POS_ID: z.coerce.number().int().positive(),
+
+  P24_API_KEY: z.string().min(1),
+  P24_CRC: z.string().min(1),
 });
 
 export const env = envSchema.parse({
@@ -82,4 +94,10 @@ export const env = envSchema.parse({
   TENANT_DATABASE_PASSWORD: process.env.TENANT_DATABASE_PASSWORD,
   TENANT_DATABASE_SSL: process.env.TENANT_DATABASE_SSL,
   DATABASE_ENCRYPTION_KEY: process.env.DATABASE_ENCRYPTION_KEY,
+
+  P24_BASE_URL: process.env.P24_BASE_URL,
+  P24_MERCHANT_ID: process.env.P24_MERCHANT_ID,
+  P24_POS_ID: process.env.P24_POS_ID,
+  P24_API_KEY: process.env.P24_API_KEY,
+  P24_CRC: process.env.P24_CRC,
 });

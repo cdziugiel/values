@@ -10,7 +10,12 @@ import {
   reportAccessCodes,
   reportAccessProducts,
 } from "@/drizzle/schema";
+import {
+  buildPrzelewy24PaymentUrl,
+  registerPrzelewy24Transaction,
+} from "@/features/payments";
 
+import { env } from "@/shared/config/env";
 import { requirePermission } from "@/server/permissions/require-permission";
 import { requireTenantContext } from "@/server/tenant/require-tenant-context";
 import { and, eq, isNull } from "drizzle-orm";
@@ -32,6 +37,7 @@ import {
 } from "./report-access.queries";
 
 import { redeemDiscountForCheckout } from "@/features/discount-codes/api/discount-code.mutations";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 export type UnlockReportAccessActionState = {
   status: "idle" | "success" | "error";
@@ -154,6 +160,26 @@ function buildReportHref({
   }
 
   return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
+}
+
+function withoutTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function buildPaymentReturnUrl({
+  orderId,
+}: {
+  orderId: string;
+}): string {
+  return `${withoutTrailingSlash(
+    env.APP_URL,
+  )}/my/payments/${encodeURIComponent(orderId)}/return`;
+}
+
+function buildPaymentStatusUrl(): string {
+  return `${withoutTrailingSlash(
+    env.APP_URL,
+  )}/api/webhooks/przelewy24`;
 }
 
 export async function unlockReportAccessPlaceholderAction(
@@ -358,70 +384,96 @@ const originalVat = calculateVatAmount({
   priceGross: offer.product.priceGross,
 });
 
-  const [order] = await controlDb
-    .insert(reportAccessOrders)
-    .values({
-      buyerType: "user",
+const currency = offer.product.currency ?? "PLN";
+const paymentSessionId = `humanet:${randomUUID()}`;
 
+const [order] = await controlDb
+  .insert(reportAccessOrders)
+  .values({
+    buyerType: "user",
+
+    tenantSlug,
+    buyerUserId: authSession.user.id,
+
+    status: isFullyDiscounted ? "paid" : "pending_payment",
+
+    paymentProvider: isFullyDiscounted
+      ? "discount"
+      : "przelewy24",
+
+    paymentProviderOrderId: isFullyDiscounted
+      ? `discount:${randomUUID()}`
+      : null,
+
+    paymentProviderSessionId: isFullyDiscounted
+      ? null
+      : paymentSessionId,
+
+    currency,
+
+    totalNet,
+    totalVat,
+    totalGross,
+
+    invoiceRequested: false,
+    billingSnapshot: {},
+
+    metadata: {
+      paidByDiscount: isFullyDiscounted,
       tenantSlug,
-      buyerUserId: authSession.user.id,
+      mode,
 
-      status: "paid",
+      reportKind:
+        mode === "comparison"
+          ? "comparison"
+          : "personal",
 
-      paymentProvider: isFullyDiscounted ? "discount" : "placeholder",
-      paymentProviderOrderId: isFullyDiscounted
-        ? `discount:${randomUUID()}`
-        : `placeholder:${randomUUID()}`,
+      assessmentSessionId: sessionId,
 
-      currency: offer.product.currency ?? "PLN",
+      projectQuestionnaireId:
+        projectQuestionnaireIdFromInput,
 
-      totalNet,
-      totalVat,
-      totalGross,
+      questionnaireVersionId:
+        questionnaireVersionIdFromInput,
 
-      invoiceRequested: false,
-      billingSnapshot: {},
+      reportScope: {
+        type: "project_questionnaire",
+        projectQuestionnaireId:
+          projectQuestionnaireIdFromInput,
+        questionnaireVersionId:
+          questionnaireVersionIdFromInput,
+      },
 
-metadata: {
-  placeholder: !isFullyDiscounted,
-  paidByDiscount: isFullyDiscounted,
-  tenantSlug,
-  mode,
-  reportKind: mode === "comparison" ? "comparison" : "personal",
-  assessmentSessionId: sessionId,
+      reportTemplateId:
+        offer.reportVersion.reportTemplateId,
 
-  projectQuestionnaireId: projectQuestionnaireIdFromInput,
-  questionnaireVersionId: questionnaireVersionIdFromInput,
-  reportScope: {
-    type: "project_questionnaire",
-    projectQuestionnaireId: projectQuestionnaireIdFromInput,
-    questionnaireVersionId: questionnaireVersionIdFromInput,
-  },
+      reportTemplateVersionId:
+        offer.reportVersion.reportTemplateVersionId,
 
-  reportTemplateId: offer.reportVersion.reportTemplateId,
-  reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
-  productId: offer.product.id,
-  productCode: offer.product.code,
-  productName: offer.product.name,
-  discount: discountRedemptionId
-    ? {
-        redemptionId: discountRedemptionId,
-        originalGrossCents,
-        discountAmountCents,
-        finalGrossCents,
-      }
-    : null,
-},
+      productId: offer.product.id,
+      productCode: offer.product.code,
+      productName: offer.product.name,
 
-      paidAt: now,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: authSession.user.id,
-      updatedBy: authSession.user.id,
-    })
-    .returning({
-      id: reportAccessOrders.id,
-    });
+      discount: discountRedemptionId
+        ? {
+            redemptionId: discountRedemptionId,
+            originalGrossCents,
+            discountAmountCents,
+            finalGrossCents,
+          }
+        : null,
+    },
+
+    paidAt: isFullyDiscounted ? now : null,
+
+    createdAt: now,
+    updatedAt: now,
+    createdBy: authSession.user.id,
+    updatedBy: authSession.user.id,
+  })
+  .returning({
+    id: reportAccessOrders.id,
+  });
 
 await controlDb.insert(reportAccessOrderItems).values({
   orderId: order.id,
@@ -441,23 +493,38 @@ await controlDb.insert(reportAccessOrderItems).values({
   updatedAt: now,
 });
 
+/**
+ * Zamówienie pokryte w 100% rabatem nie trafia do P24.
+ * Możemy od razu przyznać dostęp.
+ */
+if (isFullyDiscounted) {
   const validUntil =
     typeof offer.product.validityDays === "number" &&
     offer.product.validityDays > 0
-      ? new Date(now.getTime() + offer.product.validityDays * 24 * 60 * 60 * 1000)
+      ? new Date(
+          now.getTime() +
+            offer.product.validityDays *
+              24 *
+              60 *
+              60 *
+              1000,
+        )
       : null;
 
   const [grant] = await controlDb
     .insert(reportAccessGrants)
     .values({
-      source: isFullyDiscounted ? "discount" : "placeholder_payment",
+      source: "discount",
       status: "active",
 
       productId: offer.product.id,
       orderId: order.id,
 
-      reportTemplateId: offer.reportVersion.reportTemplateId,
-      reportTemplateVersionId: offer.reportVersion.reportTemplateVersionId,
+      reportTemplateId:
+        offer.reportVersion.reportTemplateId,
+
+      reportTemplateVersionId:
+        offer.reportVersion.reportTemplateVersionId,
 
       tenantSlug,
       userId: authSession.user.id,
@@ -468,32 +535,42 @@ await controlDb.insert(reportAccessOrderItems).values({
       validFrom: now,
       validUntil,
 
-metadata: {
-  placeholder: !isFullyDiscounted,
-  paidByDiscount: isFullyDiscounted,
-  mode,
-  reportKind: mode === "comparison" ? "comparison" : "personal",
+      metadata: {
+        paidByDiscount: true,
+        mode,
 
-  projectQuestionnaireId: projectQuestionnaireIdFromInput,
-  questionnaireVersionId: questionnaireVersionIdFromInput,
-  reportScope: {
-    type: "project_questionnaire",
-    projectQuestionnaireId: projectQuestionnaireIdFromInput,
-    questionnaireVersionId: questionnaireVersionIdFromInput,
-  },
+        reportKind:
+          mode === "comparison"
+            ? "comparison"
+            : "personal",
 
-  productCode: offer.product.code,
-  productName: offer.product.name,
-  orderId: order.id,
-  discount: discountRedemptionId
-    ? {
-        redemptionId: discountRedemptionId,
-        originalGrossCents,
-        discountAmountCents,
-        finalGrossCents,
-      }
-    : null,
-},
+        projectQuestionnaireId:
+          projectQuestionnaireIdFromInput,
+
+        questionnaireVersionId:
+          questionnaireVersionIdFromInput,
+
+        reportScope: {
+          type: "project_questionnaire",
+          projectQuestionnaireId:
+            projectQuestionnaireIdFromInput,
+          questionnaireVersionId:
+            questionnaireVersionIdFromInput,
+        },
+
+        productCode: offer.product.code,
+        productName: offer.product.name,
+        orderId: order.id,
+
+        discount: discountRedemptionId
+          ? {
+              redemptionId: discountRedemptionId,
+              originalGrossCents,
+              discountAmountCents,
+              finalGrossCents,
+            }
+          : null,
+      },
 
       createdAt: now,
       updatedAt: now,
@@ -502,26 +579,187 @@ metadata: {
     })
     .returning({
       id: reportAccessGrants.id,
-      reportTemplateVersionId: reportAccessGrants.reportTemplateVersionId,
+      reportTemplateVersionId:
+        reportAccessGrants.reportTemplateVersionId,
     });
-const href = buildReportHref({
-  sessionId,
-  tenantSlug,
-  reportTemplateVersionId: grant.reportTemplateVersionId,
-  mode,
-  productId: productIdFromInput ?? offer.product.id,
-  projectQuestionnaireId: projectQuestionnaireIdFromInput,
-  questionnaireVersionId: questionnaireVersionIdFromInput,
-});
 
-console.log("UNLOCK_REPORT_ACTION_CREATED_GRANT_REDIRECT", {
-  href,
-  grantId: grant.id,
-  projectQuestionnaireIdFromInput,
-  questionnaireVersionIdFromInput,
-});
+  const href = buildReportHref({
+    sessionId,
+    tenantSlug,
+    reportTemplateVersionId:
+      grant.reportTemplateVersionId,
+    mode,
+    productId:
+      productIdFromInput ?? offer.product.id,
+    projectQuestionnaireId:
+      projectQuestionnaireIdFromInput,
+    questionnaireVersionId:
+      questionnaireVersionIdFromInput,
+  });
 
-redirect(href);
+  redirect(href);
+}
+
+/**
+ * Płatność większa niż 0 zł:
+ * rejestrujemy transakcję w P24.
+ */
+if (!authSession.user.email) {
+  await controlDb
+    .update(reportAccessOrders)
+    .set({
+      status: "failed",
+      updatedAt: new Date(),
+      updatedBy: authSession.user.id,
+      metadata: {
+        paymentRegistrationError:
+          "missing_user_email",
+      },
+    })
+    .where(eq(reportAccessOrders.id, order.id));
+
+  return fail(
+    "Do rozpoczęcia płatności wymagany jest adres e-mail użytkownika.",
+  );
+}
+
+try {
+  const registration =
+    await registerPrzelewy24Transaction({
+      sessionId: paymentSessionId,
+      amount: finalGrossCents,
+      currency,
+
+      description: `HUMANET — ${offer.product.name}`,
+
+      email: authSession.user.email,
+      client:
+        authSession.user.name ??
+        authSession.user.email,
+
+      country: "PL",
+      language: "pl",
+
+      urlReturn: buildPaymentReturnUrl({
+        orderId: order.id,
+      }),
+
+      urlStatus: buildPaymentStatusUrl(),
+    });
+
+  await controlDb
+    .update(reportAccessOrders)
+    .set({
+      updatedAt: new Date(),
+      updatedBy: authSession.user.id,
+
+      metadata: {
+        paidByDiscount: false,
+        tenantSlug,
+        mode,
+
+        reportKind:
+          mode === "comparison"
+            ? "comparison"
+            : "personal",
+
+        assessmentSessionId: sessionId,
+
+        projectQuestionnaireId:
+          projectQuestionnaireIdFromInput,
+
+        questionnaireVersionId:
+          questionnaireVersionIdFromInput,
+
+        reportScope: {
+          type: "project_questionnaire",
+          projectQuestionnaireId:
+            projectQuestionnaireIdFromInput,
+          questionnaireVersionId:
+            questionnaireVersionIdFromInput,
+        },
+
+        reportTemplateId:
+          offer.reportVersion.reportTemplateId,
+
+        reportTemplateVersionId:
+          offer.reportVersion
+            .reportTemplateVersionId,
+
+        productId: offer.product.id,
+        productCode: offer.product.code,
+        productName: offer.product.name,
+
+        p24: {
+          token: registration.token,
+          registeredAt:
+            new Date().toISOString(),
+        },
+
+        discount: discountRedemptionId
+          ? {
+              redemptionId:
+                discountRedemptionId,
+              originalGrossCents,
+              discountAmountCents,
+              finalGrossCents,
+            }
+          : null,
+      },
+    })
+    .where(eq(reportAccessOrders.id, order.id));
+
+  redirect(
+    buildPrzelewy24PaymentUrl(
+      registration.token,
+    ),
+  );
+} catch (error) {
+  /**
+   * redirect() w Next.js rzuca specjalny wyjątek.
+   * Nie wolno oznaczać zamówienia jako failed po prawidłowym redirect.
+   */
+  if (isRedirectError(error)) {
+    throw error;
+  }
+
+  await controlDb
+    .update(reportAccessOrders)
+    .set({
+      status: "failed",
+      updatedAt: new Date(),
+      updatedBy: authSession.user.id,
+
+      metadata: {
+        paymentRegistrationError:
+          error instanceof Error
+            ? error.name
+            : "UnknownError",
+      },
+    })
+    .where(eq(reportAccessOrders.id, order.id));
+
+  console.error(
+    "P24_TRANSACTION_REGISTRATION_FAILED",
+    {
+      orderId: order.id,
+      tenantSlug,
+      sessionId,
+      errorName:
+        error instanceof Error
+          ? error.name
+          : "UnknownError",
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    },
+  );
+
+  return fail(
+    "Nie udało się rozpocząć płatności. Spróbuj ponownie.",
+  );
+}
 }
 
 

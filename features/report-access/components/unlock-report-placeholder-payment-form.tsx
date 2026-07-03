@@ -71,8 +71,8 @@ export function UnlockReportPlaceholderPaymentForm({
       >
         <CreditCard size={16} />
         {isPending
-          ? "Odblokowywanie raportu..."
-          : "Przejdź przez placeholder płatności i odblokuj raport"}
+  ? "Przekierowywanie do płatności..."
+  : "Kup raport przez Przelewy24"}
       </Button>
 
       <ActionMessage status={state.status} message={state.message} />
