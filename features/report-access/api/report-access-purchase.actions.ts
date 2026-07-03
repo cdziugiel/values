@@ -1166,15 +1166,14 @@ export async function purchaseTenantReportAccessAction(
 
         language: "pl",
 
-        urlReturn:
-          `${env.APP_URL.replace(
-            /\/+$/,
-            "",
-          )}/t/${encodeURIComponent(
-            ctx.tenantSlug,
-          )}/report-access?paymentOrderId=${encodeURIComponent(
-            order.id,
-          )}`,
+urlReturn:
+  `${withoutTrailingSlash(
+    env.APP_URL,
+  )}/t/${encodeURIComponent(
+    ctx.tenantSlug,
+  )}/report-access/payment/${encodeURIComponent(
+    order.id,
+  )}/return`,
 
         urlStatus:
           `${env.APP_URL.replace(
