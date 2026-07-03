@@ -7,11 +7,11 @@ import { CheckCircle2, CreditCard, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
-  unlockReportWithPlaceholderPaymentAction,
-  type ReportAccessActionState,
-} from "../api/report-access.actions";
+  unlockReportAccessPlaceholderAction,
+  type UnlockReportAccessActionState,
+} from "../api/report-access-purchase.actions";
 
-const initialState: ReportAccessActionState = {
+const initialState: UnlockReportAccessActionState = {
   status: "idle",
   message: "",
 };
@@ -54,10 +54,10 @@ export function UnlockReportPlaceholderPaymentForm({
   tenantSlug: string;
   sessionId: string;
 }) {
-  const [state, formAction, isPending] = useActionState(
-    unlockReportWithPlaceholderPaymentAction,
-    initialState,
-  );
+const [state, formAction, isPending] = useActionState(
+  unlockReportAccessPlaceholderAction,
+  initialState,
+);
 
   return (
     <form action={formAction} className="mt-5 space-y-4">
