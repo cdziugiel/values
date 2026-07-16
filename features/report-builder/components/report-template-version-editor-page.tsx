@@ -17,12 +17,14 @@ import { PageHeader } from "@/shared/ui";
 
 import { getReportTemplateVersionEditorData } from "../api/report-template-admin.queries";
 import { listReportPreviewSessionOptions } from "../api/report-preview-session.queries";
-import { ReportTemplateVersionEditForm } from "./report-template-version-edit-form";
+import { getReportPreviewDefinition } from "../api/report-preview-data.queries";
+import { ReportDataPreviewPicker } from "./report-data-preview-picker";
 import { ReportRealDataPreviewPicker } from "./report-real-data-preview-picker";
 import {
   getReportTemplateKindLabel,
   isPersonalReportTemplateKind,
 } from "../constants/report-template-kind-options";
+import { ReportTemplateVersionEditForm } from "./report-template-version-edit-form";
 
 function statusLabel(status: string) {
   if (status === "active") return "Aktywny";
@@ -143,9 +145,14 @@ export async function ReportTemplateVersionEditorPage({
   const templateKindLabel = getReportTemplateKindLabel(
     version.reportTemplateKind,
   );
-  const previewSessions = await listReportPreviewSessionOptions({
+const [previewSessions, previewDefinition] = await Promise.all([
+  listReportPreviewSessionOptions({
     reportTemplateVersionId: version.reportTemplateVersionId,
-  });
+  }),
+  getReportPreviewDefinition({
+    reportTemplateVersionId: version.reportTemplateVersionId,
+  }),
+]);
 
   return (
     <div className="-mx-4 -my-6 min-h-[calc(100vh-4rem)] hv-brand-surface px-4 py-8 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -155,10 +162,11 @@ export async function ReportTemplateVersionEditorPage({
           description={`${version.reportTemplateName} · ${version.version}`}
           actions={
             <div className="flex flex-wrap gap-2">
-              <ReportRealDataPreviewPicker
-                reportTemplateVersionId={version.reportTemplateVersionId}
-                sessions={previewSessions}
-              />
+<ReportDataPreviewPicker
+  reportTemplateVersionId={version.reportTemplateVersionId}
+  sessions={previewSessions}
+  definition={previewDefinition}
+/>
 
               <BrandButton
                 href={`/dashboard/report-builder/${version.reportTemplateVersionId}`}

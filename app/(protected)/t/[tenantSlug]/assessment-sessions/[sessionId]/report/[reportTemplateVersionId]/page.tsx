@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTenantAssessmentSessionReport } from "@/features/assessment-results/api/assessment-session-report.queries";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
-
+import { getSuperAdminBuilderPreviewReport } from "@/features/report-builder/api/report-preview-real-session.queries";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -22,6 +22,7 @@ type PageProps = {
   searchParams: Promise<{
     projectQuestionnaireId?: string;
     questionnaireVersionId?: string;
+    source?: string;
   }>;
 };
 
@@ -148,10 +149,12 @@ export default async function TenantAssessmentSessionReportPage({
     reportTemplateVersionId,
   } = await params;
 
-  const {
-    projectQuestionnaireId,
-    questionnaireVersionId,
-  } = await searchParams;
+const {
+  projectQuestionnaireId,
+  questionnaireVersionId,
+  source,
+} = await searchParams;
+
 
   const normalizedProjectQuestionnaireId =
     normalizeOptionalString(projectQuestionnaireId);
@@ -159,28 +162,107 @@ export default async function TenantAssessmentSessionReportPage({
   const normalizedQuestionnaireVersionId =
     normalizeOptionalString(questionnaireVersionId);
 
-  const result = await getTenantAssessmentSessionReport({
+const isBuilderPreview = source === "builder-preview";
+
+const result = isBuilderPreview
+  ? await getSuperAdminBuilderPreviewReport({
+      tenantSlug,
+      sessionId,
+      reportTemplateVersionId,
+      projectQuestionnaireId:
+        normalizedProjectQuestionnaireId,
+      questionnaireVersionId:
+        normalizedQuestionnaireVersionId,
+    })
+  : await getTenantAssessmentSessionReport({
+      tenantSlug,
+      sessionId,
+      reportTemplateVersionId,
+      projectQuestionnaireId:
+        normalizedProjectQuestionnaireId,
+      questionnaireVersionId:
+        normalizedQuestionnaireVersionId,
+    });
+
+console.log("[TenantAssessmentSessionReportPage] report result", {
+  tenantSlug,
+  sessionId,
+  reportTemplateVersionId,
+  projectQuestionnaireId:
+    normalizedProjectQuestionnaireId,
+  questionnaireVersionId:
+    normalizedQuestionnaireVersionId,
+  hasResult: Boolean(result),
+  hasPayload: Boolean(result?.payload),
+});
+
+if (!result?.payload) {
+  const sessionResultsHref = buildSessionResultsHref({
     tenantSlug,
     sessionId,
-    reportTemplateVersionId,
     projectQuestionnaireId:
       normalizedProjectQuestionnaireId,
     questionnaireVersionId:
       normalizedQuestionnaireVersionId,
   });
 
-  if (!result?.payload) {
-    notFound();
-  }
+  return (
+    <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center px-6 py-12">
+      <section className="w-full rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
+        <div className="flex items-start gap-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+            <AlertCircle className="size-5" aria-hidden="true" />
+          </div>
 
-  const reportTemplateVersion =
-    await getReportTemplateVersionForRender({
-      reportTemplateVersionId,
-    });
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold">
+              Nie można otworzyć raportu
+            </h1>
 
-  if (!reportTemplateVersion) {
-    notFound();
-  }
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Nie znaleziono dostępu do tego raportu dla bieżącego
+              użytkownika i wskazanej sesji.
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Raport może być przypisany do innej sesji, innego projektu
+              badawczego lub innego tenanta. Sprawdź wybraną sesję albo
+              przyznany zakres dostępu do raportu.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href={sessionResultsHref}>
+                  Wróć do wyników sesji
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline">
+                <Link href={`/t/${tenantSlug}/dashboard`}>
+                  Przejdź do panelu
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+const reportTemplateVersion =
+  await getReportTemplateVersionForRender({
+    reportTemplateVersionId,
+  });
+
+console.log("[TenantAssessmentSessionReportPage] template result", {
+  reportTemplateVersionId,
+  found: Boolean(reportTemplateVersion),
+});
+
+if (!reportTemplateVersion) {
+  notFound();
+}
 
   const rendered = renderReportDocument({
     reportTemplateVersion,
@@ -207,7 +289,11 @@ export default async function TenantAssessmentSessionReportPage({
           <div className="text-sm text-muted-foreground">
             HUMANET VALUES · Raport respondenta
           </div>
-
+{isBuilderPreview ? (
+  <div className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+    PODGLĄD BUILDERA · SUPERADMIN
+  </div>
+) : null}
           <h1 className="mt-1 text-3xl font-semibold">
             {result.respondent.displayName}
           </h1>

@@ -646,6 +646,7 @@ export const VALUE_SYSTEMS_BAR_CHART_CSS = `
 
 
 const DEFAULT_BAR_COLOR = "#526F70";
+const DEFAULT_BAR_COLOR_NEGATIVE = "#804459";
 const MAX_COLOR = "#2FAFA2";
 
 const VALUE_SYSTEM_CODE_ALIASES: Record<string, string> = {
@@ -982,7 +983,7 @@ export function renderValueSystemsBarChart(
 
     return {
       ...item,
-      color: isMax ? MAX_COLOR : DEFAULT_BAR_COLOR,
+      color: isMax ? MAX_COLOR : item.rawValue >= 0 ? DEFAULT_BAR_COLOR : DEFAULT_BAR_COLOR_NEGATIVE ,
     };
   });
 

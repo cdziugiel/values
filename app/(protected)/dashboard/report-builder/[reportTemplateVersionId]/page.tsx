@@ -10,6 +10,9 @@ import { getReportTemplateVersionEditor } from "@/features/report-builder/api/re
 import { ReportTemplateVersionEditor } from "@/features/report-builder/components/report-template-version-editor";
 import { ReportConditionHelpDialog } from "@/features/report-builder";
 import { ReportDataReferencePanel } from "@/features/report-builder/components/report-data-reference-panel";
+import { listReportPreviewSessionOptions } from "@/features/report-builder/api/report-preview-session.queries";
+import { getReportPreviewDefinition } from "@/features/report-builder/api/report-preview-data.queries";
+import { ReportDataPreviewPicker } from "@/features/report-builder/components/report-data-preview-picker";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -32,6 +35,17 @@ export default async function ReportBuilderPage({ params }: PageProps) {
   if (!reportTemplateVersion) {
     notFound();
   }
+
+
+  const [previewSessions, previewDefinition] = await Promise.all([
+  listReportPreviewSessionOptions({
+    reportTemplateVersionId,
+  }),
+  getReportPreviewDefinition({
+    reportTemplateVersionId,
+  }),
+]);
+
   const questionnaireLabel =
     reportTemplateVersion.questionnaireName &&
       reportTemplateVersion.questionnaireVersionName
@@ -61,7 +75,11 @@ export default async function ReportBuilderPage({ params }: PageProps) {
 
         <div className="flex flex-wrap gap-2 items-center">
           <ReportConditionHelpDialog />
-
+<ReportDataPreviewPicker
+  reportTemplateVersionId={reportTemplateVersionId}
+  sessions={previewSessions}
+  definition={previewDefinition}
+/>
           <ReportDataReferencePanel />
           <Button asChild variant="outline">
             <Link

@@ -18,3 +18,4 @@ export * from "./normative-profile-rewards"
 export * from "./normative-profile-session-links"
 export * from "./normative-profiles"
 export * from "./respondent-identity-index";
+export * from "./report-preview-snapshots";
