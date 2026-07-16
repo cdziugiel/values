@@ -5,6 +5,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { LifeBuoy } from "lucide-react";
 import type { Session } from "next-auth";
 import {
   FileText,
@@ -96,8 +97,8 @@ function ProtectedAppShellInner({
           : "fixed inset-0 grid overflow-hidden bg-background text-foreground lg:grid-cols-[280px_1fr]"
       }
     >
-<aside className="hidden h-screen min-h-0 border-r bg-muted/20 lg:block">
-  <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <aside className="hidden h-screen min-h-0 border-r bg-muted/20 lg:block">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
           <div
             className={
               isSidebarCollapsed
@@ -141,71 +142,83 @@ function ProtectedAppShellInner({
 
           <Separator />
 
-<nav
-  className={
-    isSidebarCollapsed
-      ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-4 [scrollbar-gutter:stable]"
-      : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 [scrollbar-gutter:stable]"
-  }
->
-  <div className={isSidebarCollapsed ? "space-y-5" : "space-y-6"}>
-    {navigationGroups.map((group) => (
-      <section key={group.label} className="space-y-1">
-        {isSidebarCollapsed ? (
-          <div
-            className="mx-auto mb-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold uppercase text-muted-foreground"
-            title={group.label}
-          >
-            {getNavigationGroupShortLabel(group.label)}
-          </div>
-        ) : (
-          <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {group.label}
-          </div>
-        )}
-
-        {group.items.map((item) => (
-          <Button
-            key={item.href}
-            asChild
-            variant="ghost"
+          <nav
             className={
               isSidebarCollapsed
-                ? "h-10 w-full justify-center px-0"
-                : "w-full justify-start"
+                ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-4 [scrollbar-gutter:stable]"
+                : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 [scrollbar-gutter:stable]"
             }
-            title={item.label}
           >
-            <Link
-              href={item.href}
-              className={
-                isSidebarCollapsed
-                  ? "flex w-full items-center justify-center"
-                  : "flex w-full items-center gap-2"
-              }
-            >
-              {isSidebarCollapsed ? (
-                item.icon ? (
-                  item.icon
-                ) : (
-                  <span className="text-xs font-semibold">
-                    {item.label.slice(0, 1).toUpperCase()}
-                  </span>
-                )
-              ) : (
-                <>
-                  {item.icon}
-                  <span className="truncate">{item.label}</span>
-                </>
-              )}
-            </Link>
-          </Button>
-        ))}
-      </section>
-    ))}
-  </div>
-</nav>
+            <div className={isSidebarCollapsed ? "space-y-5" : "space-y-6"}>
+              {navigationGroups.map((group) => (
+                <section key={group.label} className="space-y-1">
+                  {isSidebarCollapsed ? (
+                    <div
+                      className="mx-auto mb-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold uppercase text-muted-foreground"
+                      title={group.label}
+                    >
+                      {getNavigationGroupShortLabel(group.label)}
+                    </div>
+                  ) : (
+                    <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </div>
+                  )}
 
+                  {group.items.map((item) => (
+                    <Button
+                      key={item.href}
+                      asChild
+                      variant="ghost"
+                      className={
+                        isSidebarCollapsed
+                          ? "h-10 w-full justify-center px-0"
+                          : "w-full justify-start"
+                      }
+                      title={item.label}
+                    >
+                      <Link
+                        href={item.href}
+                        className={
+                          isSidebarCollapsed
+                            ? "flex w-full items-center justify-center"
+                            : "flex w-full items-center gap-2"
+                        }
+                      >
+                        {isSidebarCollapsed ? (
+                          item.icon ? (
+                            item.icon
+                          ) : (
+                            <span className="text-xs font-semibold">
+                              {item.label.slice(0, 1).toUpperCase()}
+                            </span>
+                          )
+                        ) : (
+                          <>
+                            {item.icon}
+                            <span className="truncate">{item.label}</span>
+                          </>
+                        )}
+                      </Link>
+                    </Button>
+                  ))}
+                </section>
+              ))}
+            </div>
+          </nav>
+          <div className="mt-auto border-t p-3">
+            <Link
+              href="/my/support"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-xs"
+            >
+              <LifeBuoy
+                size={18}
+                className="shrink-0"
+              />
+
+              <span>Zgłoś problem</span>
+            </Link>
+          </div>
           <Separator />
 
           {isSidebarCollapsed ? (
@@ -264,42 +277,42 @@ function ProtectedAppShellInner({
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <header className="shrink-0 bg-background/90 backdrop-blur">
           <div className="flex min-h-16 items-center justify-between gap-4 px-5 lg:px-8">
-<div className="min-w-0">
-  {topbarContext ? (
-    <>
-      <div className="text-xs font-medium text-muted-foreground">
-        {topbarContext.eyebrow ?? "Kontekst"}
-      </div>
+            <div className="min-w-0">
+              {topbarContext ? (
+                <>
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {topbarContext.eyebrow ?? "Kontekst"}
+                  </div>
 
-      <div className="max-w-[260px] truncate text-sm font-semibold text-foreground md:max-w-[380px]">
-        {topbarContext.title ?? "HUMANET VALUES"}
-      </div>
-    </>
-  ) : (
-    <>
-      <div className="text-sm font-medium">HUMANET VALUES</div>
-      <div className="text-xs text-muted-foreground">Sesja aktywna</div>
-    </>
-  )}
-</div>
+                  <div className="max-w-[260px] truncate text-sm font-semibold text-foreground md:max-w-[380px]">
+                    {topbarContext.title ?? "HUMANET VALUES"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm font-medium">HUMANET VALUES</div>
+                  <div className="text-xs text-muted-foreground">Sesja aktywna</div>
+                </>
+              )}
+            </div>
 
-<div className="flex items-center gap-2 sm:gap-3">
-  {topbarContext?.badges?.length ? (
-    <div className="hidden items-center gap-2 md:flex">
-      {topbarContext.badges.map((badge) => (
-        <Badge
-          key={`${badge.label}-${badge.tone ?? "neutral"}`}
-          className={getTopbarBadgeClassName(badge.tone)}
-        >
-          {badge.label}
-        </Badge>
-      ))}
-    </div>
-  ) : null}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {topbarContext?.badges?.length ? (
+                <div className="hidden items-center gap-2 md:flex">
+                  {topbarContext.badges.map((badge) => (
+                    <Badge
+                      key={`${badge.label}-${badge.tone ?? "neutral"}`}
+                      className={getTopbarBadgeClassName(badge.tone)}
+                    >
+                      {badge.label}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
 
-  <div className="hidden max-w-[260px] truncate text-sm text-muted-foreground sm:block">
-    {userLabel}
-  </div>
+              <div className="hidden max-w-[260px] truncate text-sm text-muted-foreground sm:block">
+                {userLabel}
+              </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -356,6 +369,20 @@ function ProtectedAppShellInner({
                       </Link>
                     </DropdownMenuItem>
                   ))}
+                  <Separator className="my-1" />
+                  <DropdownMenuItem key={'support'} asChild>
+                    <Link
+                      href="/my/support"
+                      className="flex w-full items-center gap-2 text-xs"
+                    >
+                      <LifeBuoy
+                        size={18}
+                        className="shrink-0"
+                      />
+
+                      <span>Zgłoś problem</span>
+                    </Link>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 

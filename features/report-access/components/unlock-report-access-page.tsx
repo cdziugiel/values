@@ -7,12 +7,12 @@ import {
   CreditCard,
   FileText,
   LockKeyhole,
+  Sparkles,
   ReceiptText,
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { requireSession } from "@/server/auth/require-session";
 
 import {
@@ -45,7 +45,6 @@ type ExtendedReportVersion = {
   questionnaireVersionName?: string | null;
   questionnaireVersion?: string | null;
 };
-
 
 function buildUnlockedReportHref({
   mode,
@@ -86,7 +85,6 @@ function buildUnlockedReportHref({
 
   return `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}?${params.toString()}`;
 }
-
 
 function formatMoney({
   amount,
@@ -179,7 +177,9 @@ function InfoCard({
           </div>
 
           {helper ? (
-            <div className="mt-1 text-xs leading-5 text-[#6b7280]">{helper}</div>
+            <div className="mt-1 text-xs leading-5 text-[#6b7280]">
+              {helper}
+            </div>
           ) : null}
         </div>
 
@@ -233,34 +233,22 @@ export async function UnlockReportAccessPage({
   projectQuestionnaireId = null,
   questionnaireVersionId = null,
 }: UnlockReportAccessPageProps) {
-
-  console.log("UNLOCK_REPORT_ACCESS_PAGE_PROPS", {
-  tenantSlug,
-  sessionId,
-  mode,
-  productId,
-  reportTemplateVersionId,
-  projectQuestionnaireId,
-  questionnaireVersionId,
-});
-
-
   const authSession = await requireSession();
 
-const offer =
-  mode === "comparison" && reportTemplateVersionId
-    ? await getReportAccessOfferForCompletedSessionAndReportVersion({
-        tenantSlug,
-        sessionId,
-        reportTemplateVersionId,
-        expectedKind: "comparison",
-      })
-: await getReportAccessOfferForCompletedSession({
-    tenantSlug,
-    sessionId,
-    projectQuestionnaireId,
-    questionnaireVersionId,
-  });
+  const offer =
+    mode === "comparison" && reportTemplateVersionId
+      ? await getReportAccessOfferForCompletedSessionAndReportVersion({
+          tenantSlug,
+          sessionId,
+          reportTemplateVersionId,
+          expectedKind: "comparison",
+        })
+      : await getReportAccessOfferForCompletedSession({
+          tenantSlug,
+          sessionId,
+          projectQuestionnaireId,
+          questionnaireVersionId,
+        });
 
   if (!offer.ok) {
     return (
@@ -297,33 +285,33 @@ const offer =
         title="Raport jest już odblokowany"
         description="Masz aktywny dostęp do tego raportu. Możesz przejść bezpośrednio do podglądu albo wrócić do wyniku badania."
       >
-<BrandLinkButton
-  href={buildUnlockedReportHref({
-    mode,
-    tenantSlug,
-    sessionId,
-    productId: productId ?? offer.product?.id ?? null,
-    reportTemplateVersionId: existingGrant.reportTemplateVersionId,
-    projectQuestionnaireId,
-    questionnaireVersionId,
-  })}
->
-  <FileText size={16} />
-  {mode === "comparison" ? "Przejdź do porównania" : "Zobacz raport"}
-</BrandLinkButton>
+        <BrandLinkButton
+          href={buildUnlockedReportHref({
+            mode,
+            tenantSlug,
+            sessionId,
+            productId: productId ?? offer.product?.id ?? null,
+            reportTemplateVersionId: existingGrant.reportTemplateVersionId,
+            projectQuestionnaireId,
+            questionnaireVersionId,
+          })}
+        >
+          <FileText size={16} />
+          {mode === "comparison" ? "Przejdź do porównania" : "Zobacz raport"}
+        </BrandLinkButton>
 
         <BrandLinkButton
           href={
-  `/my/assessment/sessions/${sessionId}/completed?tenant=${encodeURIComponent(
-    tenantSlug,
-  )}` +
-  (projectQuestionnaireId
-    ? `&projectQuestionnaireId=${encodeURIComponent(projectQuestionnaireId)}`
-    : "") +
-  (questionnaireVersionId
-    ? `&questionnaireVersionId=${encodeURIComponent(questionnaireVersionId)}`
-    : "")
-}
+            `/my/assessment/sessions/${sessionId}/completed?tenant=${encodeURIComponent(
+              tenantSlug,
+            )}` +
+            (projectQuestionnaireId
+              ? `&projectQuestionnaireId=${encodeURIComponent(projectQuestionnaireId)}`
+              : "") +
+            (questionnaireVersionId
+              ? `&questionnaireVersionId=${encodeURIComponent(questionnaireVersionId)}`
+              : "")
+          }
           variant="secondary"
         >
           <ArrowLeft size={16} />
@@ -334,21 +322,6 @@ const offer =
   }
 
   const product = offer.product;
-  console.log("OFFER", offer)
-
-  if (!offer.ok) {
-    return (
-      <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
-        <div className="rounded-[1.5rem] border border-black/10 bg-white/80 p-6">
-          <h1 className="text-xl font-semibold">
-            Raport niedostępny do odblokowania
-          </h1>
-
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen hv-brand-surface px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl space-y-8">
@@ -362,43 +335,54 @@ const offer =
                 </span>
               </div>
 
-<h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
-  {mode === "comparison"
-    ? "Odblokuj raport dopasowania."
-    : "Odblokuj raport."}
-</h1>
+              <h1 className="max-w-3xl text-3xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#171717] md:text-5xl">
+                {mode === "comparison"
+                  ? "Odblokuj raport dopasowania"
+                  : "Odblokuj pełny raport"}
+              </h1>
 
-<p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
-  {mode === "comparison"
-    ? "Ten raport umożliwia porównanie Twojego wyniku z wynikiem udostępnionym przez inną osobę za pomocą tokenu. Po odblokowaniu przejdziesz do konfiguracji porównania."
-    : "Ten raport wymaga aktywnego dostępu. Na tym etapie używany jest placeholder płatności — kliknięcie przycisku zasymuluje opłacenie dostępu i zapisze dostęp do tej konkretnej wersji raportu."}
-</p>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-[#6b7280]">
+                {mode === "comparison"
+                  ? "Uzyskaj dostęp do analizy podobieństw i różnic między Twoim wynikiem a wynikiem udostępnionym przez drugą osobę. Po opłaceniu zamówienia od razu przejdziesz do konfiguracji porównania."
+                  : "Uzyskaj pełny dostęp do interpretacji Twojego wyniku. Po potwierdzeniu płatności raport zostanie automatycznie odblokowany i pozostanie dostępny na Twoim koncie."}
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#4b5563]">
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-[#0f766e]" />
+                  Dostęp po potwierdzeniu płatności
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-[#0f766e]" />
+                  Bezpieczna płatność online
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 md:min-w-56">
-<BrandLinkButton
-  href={
-    `/my/assessment/sessions/${sessionId}/completed?tenant=${encodeURIComponent(
-      tenantSlug,
-    )}` +
-    (projectQuestionnaireId
-      ? `&projectQuestionnaireId=${encodeURIComponent(projectQuestionnaireId)}`
-      : "") +
-    (questionnaireVersionId
-      ? `&questionnaireVersionId=${encodeURIComponent(questionnaireVersionId)}`
-      : "")
-  }
-  variant="secondary"
->
+              <BrandLinkButton
+                href={
+                  `/my/assessment/sessions/${sessionId}/completed?tenant=${encodeURIComponent(
+                    tenantSlug,
+                  )}` +
+                  (projectQuestionnaireId
+                    ? `&projectQuestionnaireId=${encodeURIComponent(projectQuestionnaireId)}`
+                    : "") +
+                  (questionnaireVersionId
+                    ? `&questionnaireVersionId=${encodeURIComponent(questionnaireVersionId)}`
+                    : "")
+                }
+                variant="secondary"
+              >
                 <ArrowLeft size={16} />
                 Wróć do wyniku
               </BrandLinkButton>
             </div>
           </div>
 
-          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-3 md:p-8">
+          <div className="grid gap-3 border-t border-black/10 bg-white/35 p-6 md:grid-cols-2 md:p-8">
             <InfoCard
-              label="Raport"
+              label="Dokument"
               value={
                 reportVersion.reportTemplateName ??
                 reportVersion.reportTemplateVersionName ??
@@ -408,11 +392,11 @@ const offer =
               icon={<FileText size={18} />}
             />
 
-            <InfoCard
+{/*             <InfoCard
               label="Kwestionariusz"
               value={formatQuestionnaireLabel(reportVersion)}
               icon={<ShieldCheck size={18} />}
-            />
+            /> */}
 
             <InfoCard
               label="Cena"
@@ -435,11 +419,13 @@ const offer =
             <div className="flex gap-3">
               <TriangleAlert size={20} className="mt-0.5 shrink-0" />
               <div>
-                <h2 className="font-semibold">Brak produktu sprzedażowego</h2>
+                <h2 className="font-semibold">
+                  Zakup tego raportu jest chwilowo niedostępny
+                </h2>
                 <p className="mt-1">
-                  Dla tego raportu nie ma jeszcze aktywnego produktu
-                  sprzedażowego. Utwórz produkt raportowy w panelu
-                  administracyjnym i ustaw jego status na active.
+                  Nie możemy teraz rozpocząć płatności za ten raport. Wróć do
+                  swoich badań i spróbuj ponownie później. Jeżeli problem będzie
+                  się powtarzał, skontaktuj się z obsługą HUMANET.
                 </p>
               </div>
             </div>
@@ -451,34 +437,83 @@ const offer =
                 <CreditCard size={19} />
               </div>
 
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
-                  Placeholder płatności
+                  Finalizacja zamówienia
                 </p>
 
                 <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
-                  Symulacja zakupu dostępu
+                  Po przejściu dalej możesz wybrać formę płatności (Blik, przelew lub płatność odroczona)
                 </h2>
 
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
-                  Możesz odblokować raport płatnością placeholderową albo użyć kodu
-                  rabatowego. Jeśli kod pokryje całą kwotę, raport zostanie odblokowany
-                  bez przechodzenia przez płatność.
-                </p>
+              
+
+                <div className="mt-4 grid gap-3 text-sm text-[#4b5563] sm:grid-cols-2">
+                  <div className="flex gap-3 rounded-2xl  bg-white/55 p-4">
+                    <ShieldCheck
+                      size={18}
+                      className="mt-0.5 shrink-0 text-[#0f766e]"
+                    />
+                    <div>
+                      <p className="font-semibold text-[#171717]">
+                        Bezpieczna transakcja
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#6b7280]">
+                        Dane płatnicze są obsługiwane przez zewnętrznego
+                        operatora płatności.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/55 p-4">
+                    <Sparkles
+                      size={18}
+                      className="mt-0.5 shrink-0 text-[#0f766e]"
+                    />
+                    <div>
+                      <p className="font-semibold text-[#171717]">
+                        Automatyczne odblokowanie
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#6b7280]">
+                        Dostęp pojawi się na koncie po potwierdzeniu płatności.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-<UnlockReportAccessPlaceholderForm
-  tenantSlug={tenantSlug}
-  sessionId={sessionId}
-  mode={mode}
-  productId={productId ?? product.id}
-  reportTemplateVersionId={reportVersion.reportTemplateVersionId}
-  projectQuestionnaireId={projectQuestionnaireId}
-  questionnaireVersionId={questionnaireVersionId}
-  originalAmountCents={Math.round(Number(product.priceGross ?? 0) * 100)}
-  currency={product.currency ?? "PLN"}
-/>
+            <UnlockReportAccessPlaceholderForm
+              tenantSlug={tenantSlug}
+              sessionId={sessionId}
+              mode={mode}
+              productId={productId ?? product.id}
+              reportTemplateVersionId={reportVersion.reportTemplateVersionId}
+              projectQuestionnaireId={projectQuestionnaireId}
+              questionnaireVersionId={questionnaireVersionId}
+              originalAmountCents={Math.round(
+                Number(product.priceGross ?? 0) * 100,
+              )}
+              currency={product.currency ?? "PLN"}
+            />
+
+            <p className="mt-6 border-t border-black/10 pt-5 text-xs leading-5 text-[#6b7280]">
+              Kontynuując zakup, potwierdzasz zapoznanie się z{" "}
+              <Link
+                href="/legal/regulamin"
+                className="font-medium text-[#171717] underline decoration-black/25 underline-offset-4 hover:decoration-black"
+              >
+                regulaminem
+              </Link>{" "}
+              oraz{" "}
+              <Link
+                href="/legal/polityka-prywatnosci"
+                className="font-medium text-[#171717] underline decoration-black/25 underline-offset-4 hover:decoration-black"
+              >
+                polityką prywatności
+              </Link>
+              .
+            </p>
           </section>
         )}
       </div>

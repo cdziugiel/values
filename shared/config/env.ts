@@ -30,6 +30,7 @@ const envSchema = z.object({
   EMAIL_SERVER_USER: z.string().optional(),
   EMAIL_SERVER_PASSWORD: z.string().optional(),
   EMAIL_FROM: z.string().min(1),
+  SUPPORT_EMAIL: z.string().email(),
 
   AUTH_GOOGLE_ID: z.string().optional(),
   AUTH_GOOGLE_SECRET: z.string().optional(),
@@ -76,6 +77,7 @@ export const env = envSchema.parse({
   EMAIL_SERVER_USER: process.env.EMAIL_SERVER_USER,
   EMAIL_SERVER_PASSWORD: process.env.EMAIL_SERVER_PASSWORD,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
 
   AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
   AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,

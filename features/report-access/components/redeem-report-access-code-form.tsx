@@ -49,9 +49,7 @@ export function RedeemReportAccessCodeForm({
           </h3>
 
           <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-            Wpisz otrzymany kod, aby odblokować raport dla tej zakończonej
-            sesji. Po poprawnym użyciu raport pojawi się również w zakładce
-            raportów.
+            Jeżeli masz kod dostępu otrzymany od Partnera, wprowadź to tutaj aby odblokować dostęp do raportu dla tej sesji.
           </p>
         </div>
 

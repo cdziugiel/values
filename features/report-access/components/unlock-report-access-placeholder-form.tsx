@@ -216,7 +216,7 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
           ? "Przetwarzanie..."
           : appliedDiscount?.isFullyDiscounted
             ? "Odblokuj raport"
-            : "Symuluj płatność i odblokuj raport"}
+            : "Przejdź do płatności"}
       </Button>
 
       <ActionMessage status={state.status} message={state.message} />
