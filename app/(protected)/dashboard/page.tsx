@@ -26,6 +26,29 @@ import {
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { controlDb } from "@/server/db/control-db";
 import { PageHeader } from "@/shared/ui";
+import {
+  AdminTenantActivityLineChart,
+} from "@/features/dashboard/components/admin-tenant-activity-line-chart";
+import {
+  getAdminDashboardActivity,
+  parseAdminActivityAggregation,
+  parseAdminActivityDate,
+  parseAdminActivityMetric,
+  parseAdminActivityOffset,
+  parseAdminActivityTenants,
+} from "@/features/dashboard/api/admin-dashboard-activity.queries";
+
+type DashboardPageProps = {
+  searchParams: Promise<{
+    activityTenants?: string | string[];
+    activityMetric?: string | string[];
+    activityAggregation?: string | string[];
+    activityOffset?: string | string[];
+    activityFrom?: string | string[];
+    activityTo?: string | string[];
+  }>;
+};
+
 
 function formatDateTime(value: unknown) {
   if (!value) return "—";
@@ -361,12 +384,43 @@ function EmptyPanel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   await requireSuperAdmin();
 
-  const [data, tenantActivity] = await Promise.all([
+  const resolvedSearchParams = await searchParams;
+
+  const activityAggregation = parseAdminActivityAggregation(
+    resolvedSearchParams.activityAggregation,
+  );
+  const activityMetric = parseAdminActivityMetric(
+    resolvedSearchParams.activityMetric,
+  );
+  const activityOffset = parseAdminActivityOffset(
+    resolvedSearchParams.activityOffset,
+  );
+  const activityFrom = parseAdminActivityDate(
+    resolvedSearchParams.activityFrom,
+  );
+  const activityTo = parseAdminActivityDate(
+    resolvedSearchParams.activityTo,
+  );
+  const activityTenants = parseAdminActivityTenants(
+    resolvedSearchParams.activityTenants,
+  );
+
+  const [data, tenantActivity, adminActivity] = await Promise.all([
     getDashboardData(),
     listDashboardTenantActivity(),
+    getAdminDashboardActivity({
+      selectedTenantSlugs: activityTenants,
+      metric: activityMetric,
+      aggregation: activityAggregation,
+      offset: activityOffset,
+      requestedFrom: activityFrom,
+      requestedTo: activityTo,
+    }),
   ]);
 
   const readyTenantActivityCount = tenantActivity.filter(
@@ -454,7 +508,29 @@ export default async function DashboardPage() {
             )}
           />
         </section>
+<DashboardCard>
+  <SectionHeader
+    icon={<Activity size={20} />}
+    title="Aktywność platformy w czasie"
+    description="Porównaj liczbę respondentów, sesji lub zapisanych wyników pomiędzy partnerami. Przy jednym partnerze widzisz jego trend, a przy wielu — osobną linię dla każdego partnera."
+  />
 
+  <div className="px-5 pb-5 md:px-6 md:pb-6">
+    <AdminTenantActivityLineChart
+      tenantOptions={adminActivity.tenantOptions}
+      selectedTenantSlugs={adminActivity.selectedTenantSlugs}
+      metric={adminActivity.metric}
+      aggregation={adminActivity.aggregation}
+      offset={adminActivity.offset}
+      from={adminActivity.from}
+      to={adminActivity.to}
+      rangeLabel={adminActivity.rangeLabel}
+      series={adminActivity.series}
+      aggregate={adminActivity.aggregate}
+      failures={adminActivity.failures}
+    />
+  </div>
+</DashboardCard>
         <section className="grid gap-4 md:grid-cols-4">
           <DashboardCard className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
