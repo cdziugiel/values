@@ -783,7 +783,7 @@ async function restoreBaseline(tx: Sql) {
 }
 
 async function resetControlDatabase(controlSql: Sql) {
-  await controlSql.begin(async (tx) => {
+  await controlSql.begin(async (tx: any) => {
     await createBaselineTemporaryCopies(tx);
 
     await truncatePublicTables(tx, [
@@ -814,7 +814,7 @@ async function resetTenantDatabase(databaseUrl: string) {
   const sql = postgres(databaseUrl, { max: 1 });
 
   try {
-    await sql.begin(async (tx) => {
+    await sql.begin(async (tx: any) => {
       await truncatePublicTables(tx);
     });
   } finally {
