@@ -11,6 +11,8 @@ services:
 
     env_file:
       - .env.production
+    volumes:
+      - ./scripts:/app/scripts:ro
 
     environment:
       NODE_ENV: production

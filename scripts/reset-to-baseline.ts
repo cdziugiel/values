@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 
-import dotenv from "dotenv";
 import postgres, { type Sql } from "postgres";
 
 const DEFAULT_USER_EMAIL = "cezary@humanet.me";
@@ -35,10 +34,6 @@ type ValidationIssue = {
   message: string;
 };
 
-function loadEnvironment() {
-  dotenv.config({ path: ".env.local" });
-  dotenv.config();
-}
 
 function requireEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -935,7 +930,6 @@ async function verifyFinalState(controlSql: Sql) {
 }
 
 async function main() {
-  loadEnvironment();
 
   const mode = parseMode();
   const dropOtherTenantDatabases = hasFlag(
