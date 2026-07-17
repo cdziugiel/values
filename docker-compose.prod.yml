@@ -30,30 +30,39 @@ services:
 
     labels:
       - "traefik.enable=true"
-
-      # Traefik ma komunikować się z aplikacją przez sieć web
       - "traefik.docker.network=web"
 
-      # Router HTTPS
-      - "traefik.http.routers.humanet-values-test.rule=Host(`test-values.humanet.me`)"
-      - "traefik.http.routers.humanet-values-test.entrypoints=websecure"
-      - "traefik.http.routers.humanet-values-test.tls=true"
-      - "traefik.http.routers.humanet-values-test.tls.certresolver=myresolver"
-      - "traefik.http.routers.humanet-values-test.service=humanet-values-test"
+      # HTTPS — nowa aplikacja HUMANET
+      - >-
+        traefik.http.routers.humanet-values.rule=
+        Host(`dev.humanet.me`) ||
+        Host(`values.humanet.me`) ||
+        Host(`test.humanet.me`) ||
+        Host(`test-values.humanet.me`) ||
+        Host(`coachingirekrutacja.humanet.me`)
+      - "traefik.http.routers.humanet-values.entrypoints=websecure"
+      - "traefik.http.routers.humanet-values.tls=true"
+      - "traefik.http.routers.humanet-values.tls.certresolver=myresolver"
+      - "traefik.http.routers.humanet-values.service=humanet-values"
 
-      # Port aplikacji wewnątrz kontenera
-      - "traefik.http.services.humanet-values-test.loadbalancer.server.port=3020"
-      - "traefik.http.services.humanet-values-test.loadbalancer.server.scheme=http"
+      # Port nowej aplikacji
+      - "traefik.http.services.humanet-values.loadbalancer.server.port=3020"
+      - "traefik.http.services.humanet-values.loadbalancer.server.scheme=http"
 
-      # Router HTTP
-      - "traefik.http.routers.humanet-values-test-http.rule=Host(`test-values.humanet.me`)"
-      - "traefik.http.routers.humanet-values-test-http.entrypoints=web"
-      - "traefik.http.routers.humanet-values-test-http.middlewares=humanet-values-test-https"
-      - "traefik.http.routers.humanet-values-test-http.service=noop@internal"
+      # HTTP → HTTPS
+      - >-
+        traefik.http.routers.humanet-values-http.rule=
+        Host(`dev.humanet.me`) ||
+        Host(`values.humanet.me`) ||
+        Host(`test.humanet.me`) ||
+        Host(`test-values.humanet.me`) ||
+        Host(`coachingirekrutacja.humanet.me`)
+      - "traefik.http.routers.humanet-values-http.entrypoints=web"
+      - "traefik.http.routers.humanet-values-http.middlewares=humanet-values-https"
+      - "traefik.http.routers.humanet-values-http.service=noop@internal"
 
-      # Przekierowanie HTTP → HTTPS
-      - "traefik.http.middlewares.humanet-values-test-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.humanet-values-test-https.redirectscheme.permanent=true"
+      - "traefik.http.middlewares.humanet-values-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.humanet-values-https.redirectscheme.permanent=true"
 
 secrets:
   prod_env:

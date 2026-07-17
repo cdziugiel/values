@@ -19,7 +19,9 @@
     "db:tenant:check": "drizzle-kit check --config drizzle.tenant.config.ts",
     "db:setup:control": "npm run db:migrate && npm run db:seed:control && npm run db:seed:questionnaires",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:reset-baseline:preview": "tsx scripts/reset-to-baseline.ts --preview",
+    "db:reset-baseline:execute": "tsx scripts/reset-to-baseline.ts --execute"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
