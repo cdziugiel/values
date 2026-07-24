@@ -7,6 +7,7 @@ import { getReportTemplateVersionForRender } from "@/features/report-builder/api
 import { getSyntheticReportPreview } from "@/features/report-builder/api/report-preview-snapshot.queries";
 import { SyntheticReportLivePreview } from "@/features/report-builder/components/synthetic-report-live-preview";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
+import type { SnapshotPayload } from "@/features/report-builder/lib/report-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -43,7 +44,7 @@ export default async function SyntheticReportPreviewPage({
 
   const rendered = renderReportDocument({
     reportTemplateVersion,
-    payload: preview.payload,
+    payload: preview.payload as SnapshotPayload | null,
   });
 
   return (
