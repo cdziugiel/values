@@ -22,6 +22,7 @@ import {
 } from "../api/report-access.queries";
 
 import { UnlockReportAccessPlaceholderForm } from "./unlock-report-access-placeholder-form";
+import { NormativeProfileCard, resolveMyNormativeProfile } from "@/features/normative-data";
 
 type UnlockReportAccessPageProps = {
   tenantSlug: string;
@@ -235,6 +236,16 @@ export async function UnlockReportAccessPage({
 }: UnlockReportAccessPageProps) {
   const authSession = await requireSession();
 
+  const [ normativeProfileStatus] = await Promise.all([
+
+
+    resolveMyNormativeProfile({
+      tenantSlug,
+      assessmentSessionId: sessionId,
+    }),
+  ]);
+
+
   const offer =
     mode === "comparison" && reportTemplateVersionId
       ? await getReportAccessOfferForCompletedSessionAndReportVersion({
@@ -413,7 +424,17 @@ export async function UnlockReportAccessPage({
             />
           </div>
         </section>
-
+                  <NormativeProfileCard
+                    tenantSlug={
+                      tenantSlug
+                    }
+                    assessmentSessionId={
+                      sessionId
+                    }
+                    initialStatus={
+                         normativeProfileStatus
+                    }
+                  />
         {!product ? (
           <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-sm leading-6 text-amber-900 shadow-sm">
             <div className="flex gap-3">

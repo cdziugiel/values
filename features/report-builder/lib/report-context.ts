@@ -51,7 +51,7 @@ type SnapshotResponse = {
   dimensions?: SnapshotResponseDimension[] | null;
 };
 
-type SnapshotPayload = {
+export type SnapshotPayload = {
   version?: number | null;
   reportKind?: string | null;
   tenantSlug?: string | null;

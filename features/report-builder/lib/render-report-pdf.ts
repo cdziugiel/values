@@ -34,7 +34,30 @@ export async function renderReportPdfFromUrl(input: RenderReportPdfFromUrlInput)
       waitUntil: "networkidle",
       timeout: 30_000,
     });
+await page.waitForFunction(
+  () => {
+    const reportWindow = window as typeof window & {
+      __REPORT_RENDER_MODE__?: string;
+    };
 
+    if (
+      reportWindow.__REPORT_RENDER_MODE__ !==
+      "sample_redacted"
+    ) {
+      return true;
+    }
+
+    return (
+      document.documentElement.getAttribute(
+        "data-report-auto-masking-ready",
+      ) === "true"
+    );
+  },
+  undefined,
+  {
+    timeout: 10_000,
+  },
+);
     await page.emulateMedia({ media: "print" });
 
     await page.evaluate(async () => {

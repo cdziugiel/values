@@ -8,6 +8,7 @@ import { requireSession } from "@/server/auth/require-session";
 import {
   normativeProfileFormSchema,
 } from "../forms/normative-profile.schema";
+import { redirect } from "next/navigation";
 
 import type {
   ClaimNormativeRewardActionState,
@@ -193,7 +194,40 @@ const EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB = new Set([
 ]);
 
 
+function resolveSafeCompletedRedirect({
+  redirectTo,
+  assessmentSessionId,
+}: {
+  redirectTo: string;
+  assessmentSessionId: string;
+}) {
+  if (!redirectTo) {
+    return null;
+  }
 
+  const expectedPath =
+    `/my/assessment/sessions/${assessmentSessionId}/completed`;
+
+  try {
+    const url =
+      new URL(
+        redirectTo,
+        "http://humanet.local",
+      );
+
+    if (url.origin !== "http://humanet.local") {
+      return null;
+    }
+
+    if (url.pathname !== expectedPath) {
+      return null;
+    }
+
+    return `${url.pathname}${url.search}#basic-feedback`;
+  } catch {
+    return null;
+  }
+}
 
 export async function completeNormativeProfileAction(
   previousState:
@@ -202,6 +236,13 @@ export async function completeNormativeProfileAction(
 ): Promise<CompleteNormativeProfileActionState> {
   const values =
     readFormValues(formData);
+
+
+    const redirectTo =
+  readText(
+    formData,
+    "redirectTo",
+  );
 const normalizedValues =
   EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB.has(
     values.employmentStatus,
@@ -264,42 +305,71 @@ if (!parsedInput.success) {
   };
 }
 
-  try {
-    const {
-      authSession,
+let result: Awaited<
+  ReturnType<
+    typeof completeNormativeProfile
+  >
+>;
+
+try {
+  const {
+    authSession,
+    db,
+    tenantId,
+    ipAddress,
+    userAgent,
+  } =
+    await resolveRequestContext(
+      tenantSlug,
+    );
+
+  result =
+    await completeNormativeProfile({
       db,
       tenantId,
+      userId:
+        authSession.user.id,
+      userEmail:
+        authSession.user.email!,
+      mode,
       ipAddress,
       userAgent,
-    } =
-      await resolveRequestContext(
-        tenantSlug,
-      );
+      input: parsedInput.data,
+    });
+} catch (error) {
+  console.error(
+    "completeNormativeProfileAction failed:",
+    error,
+  );
 
-    const result =
-      await completeNormativeProfile({
-        db,
-        tenantId,
-        userId:
-          authSession.user.id,
-        userEmail:
-          authSession.user.email!,
-        mode,
-        ipAddress,
-        userAgent,
-        input: parsedInput.data,
-      });
+  return buildErrorState({
+    previousState,
+    values: normalizedValues,
+    message:
+      "Nie udało się zapisać danych. Spróbuj ponownie.",
+  });
+}
 
-    revalidatePath(
-      `/my/assessment/sessions/${assessmentSessionId}/completed`,
-    );
+revalidatePath(
+  `/my/assessment/sessions/${assessmentSessionId}/completed`,
+);
+
+const safeRedirect =
+  resolveSafeCompletedRedirect({
+    redirectTo,
+    assessmentSessionId,
+  });
+
+if (safeRedirect) {
+  redirect(safeRedirect);
+}
 
 return {
   status: "success",
   message:
     mode === "update"
-      ? "Dane zostały zaktualizowane. Nie utworzono nowego kodu rabatowego."
-      : "Dziękujemy. Dane zostały zapisane, a rabat przyznany.",
+      ? "Dane zostały zaktualizowane."
+      : "Dane zostały zapisane.",
 
   formVersion:
     previousState.formVersion,
@@ -315,17 +385,6 @@ return {
   reward:
     result.reward,
 };
-  } catch (error) {
-    return buildErrorState({
-      previousState,
-      values: normalizedValues,
-      message:
-        error instanceof Error &&
-        error.message
-          ? error.message
-          : "Nie udało się zapisać danych. Spróbuj ponownie.",
-    });
-  }
 }
 
 export async function claimNormativeRewardAction(

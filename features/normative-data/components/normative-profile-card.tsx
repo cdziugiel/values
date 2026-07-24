@@ -18,6 +18,7 @@ import {
   Pencil,
 } from "lucide-react";
 
+
 import {
   Alert,
   AlertDescription,
@@ -69,6 +70,8 @@ const EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB = new Set([
   "retired",
 ]);
 
+const EMPTY_STRING_ARRAY: string[] = [];
+
 function getLabel(
   options: readonly {
     value: string;
@@ -102,9 +105,9 @@ function SelectField({
   }[];
   defaultValue?: string;
   required?: boolean;
-onChange?: (
-  event: ChangeEvent<HTMLSelectElement>,
-) => void;
+  onChange?: (
+    event: ChangeEvent<HTMLSelectElement>,
+  ) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -208,12 +211,16 @@ export function NormativeProfileCard({
   tenantSlug,
   assessmentSessionId,
   initialStatus,
+  minimal = false,
+  redirectTo,
 }: {
   tenantSlug: string;
   assessmentSessionId: string;
-  initialStatus:
-    NormativeProfileStatusDto;
+  initialStatus: NormativeProfileStatusDto;
+  minimal?: boolean;
+  redirectTo?: string;
 }) {
+
   const [
     state,
     formAction,
@@ -233,177 +240,117 @@ export function NormativeProfileCard({
   );
 
 
-const [isEditing, setIsEditing] =
-  useState(!initialStatus.completed);
+  const [isEditing, setIsEditing] =
+    useState(!initialStatus.completed);
 
-const [copied, setCopied] =
-  useState(false);
+  const [copied, setCopied] =
+    useState(false);
 
-/**
- * Pełny kod jest dostępny wyłącznie bezpośrednio po wydaniu.
- * Zachowujemy go lokalnie, żeby późniejsza aktualizacja profilu
- * nie zastąpiła go DTO zawierającym tylko podgląd kodu.
- */
-const [revealedDiscountCode, setRevealedDiscountCode] =
-  useState<string | null>(null);
+  /**
+   * Pełny kod jest dostępny wyłącznie bezpośrednio po wydaniu.
+   * Zachowujemy go lokalnie, żeby późniejsza aktualizacja profilu
+   * nie zastąpiła go DTO zawierającym tylko podgląd kodu.
+   */
+  const [revealedDiscountCode, setRevealedDiscountCode] =
+    useState<string | null>(null);
 
-/**
- * Pozwala wykryć każde zakończenie Server Action,
- * również wtedy, gdy status przed i po zapisie jest taki sam.
- */
-const wasSubmittingRef =
-  useRef(false);
+  /**
+   * Pozwala wykryć każde zakończenie Server Action,
+   * również wtedy, gdy status przed i po zapisie jest taki sam.
+   */
 
-/**
- * Po zamknięciu formularza przewiniemy widok
- * do karty podsumowania.
- */
-const shouldScrollToSummaryRef =
-  useRef(false);
-
-const summaryRef =
-  useRef<HTMLDivElement>(null);
-
-const profile =
-  state.profile ??
-  initialStatus.profile;
-
-const actionReward =
-  claimState.reward ??
-  state.reward ??
-  null;
-
-const reward =
-  actionReward ??
-  initialStatus.reward;
-
-const latestActionCode =
-  claimState.reward?.discountCode ??
-  state.reward?.discountCode ??
-  null;
-
-const visibleCode =
-  latestActionCode ??
-  revealedDiscountCode;
-
-const preview =
-  reward?.discountCodePreview ??
-  null;
-
-const expiresAt =
-  reward?.expiresAt ??
-  null;
-
-const eligibleAgainAt =
-  reward?.eligibleAgainAt ??
-  initialStatus.eligibleAgainAt;
-
-const completed =
-  initialStatus.completed ||
-  state.status === "success" ||
-  Boolean(state.profile);
-
-const showEditor =
-  !completed || isEditing;
-
-/**
- * Nie usuwamy wcześniej ujawnionego kodu,
- * jeżeli kolejna akcja zwróci reward bez discountCode.
- */
-useEffect(() => {
-  if (latestActionCode) {
-    setRevealedDiscountCode(
-      latestActionCode,
-    );
-  }
-}, [latestActionCode]);
-
-/**
- * Rejestrujemy rozpoczęcie każdej operacji zapisu.
- */
-useEffect(() => {
-  if (pending) {
-    wasSubmittingRef.current = true;
-    return;
-  }
-
-  if (!wasSubmittingRef.current) {
-    return;
-  }
-
-  wasSubmittingRef.current = false;
-
-  if (state.status !== "success") {
-    return;
-  }
-
-  shouldScrollToSummaryRef.current =
-    true;
-
-  setIsEditing(false);
-}, [
-  pending,
-  state.status,
-]);
-
-/**
- * Ten efekt uruchamia się dopiero po ponownym renderze,
- * gdy formularz został już zastąpiony podsumowaniem.
- */
-useEffect(() => {
-  if (
-    showEditor ||
-    !shouldScrollToSummaryRef.current
-  ) {
-    return;
-  }
-
-  shouldScrollToSummaryRef.current =
-    false;
-
-  const frameId =
-    window.requestAnimationFrame(() => {
-      summaryRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-
-  return () => {
-    window.cancelAnimationFrame(
-      frameId,
-    );
-  };
-}, [showEditor]);
+  /**
+   * Po zamknięciu formularza przewiniemy widok
+   * do karty podsumowania.
+   */
 
 
-const [employmentStatus, setEmploymentStatus] =
-  useState(
-    initialStatus.profile?.employmentStatus ??
+  const summaryRef =
+    useRef<HTMLDivElement>(null);
+
+  const profile =
+    state.profile ??
+    initialStatus.profile;
+
+  const actionReward =
+    claimState.reward ??
+    state.reward ??
+    null;
+
+  const reward =
+    actionReward ??
+    initialStatus.reward;
+
+  const latestActionCode =
+    claimState.reward?.discountCode ??
+    state.reward?.discountCode ??
+    null;
+
+  const visibleCode =
+    latestActionCode ??
+    revealedDiscountCode;
+
+  const preview =
+    reward?.discountCodePreview ??
+    null;
+
+  const expiresAt =
+    reward?.expiresAt ??
+    null;
+
+  const eligibleAgainAt =
+    reward?.eligibleAgainAt ??
+    initialStatus.eligibleAgainAt;
+
+  const completed =
+    initialStatus.completed ||
+    state.status === "success" ||
+    Boolean(state.profile);
+
+  const showEditor =
+    !completed || isEditing;
+
+  /**
+   * Nie usuwamy wcześniej ujawnionego kodu,
+   * jeżeli kolejna akcja zwróci reward bez discountCode.
+   */
+  useEffect(() => {
+    if (latestActionCode) {
+      setRevealedDiscountCode(
+        latestActionCode,
+      );
+    }
+  }, [latestActionCode]);
+
+
+
+  const [employmentStatus, setEmploymentStatus] =
+    useState(
+      initialStatus.profile?.employmentStatus ??
       "",
-  );
+    );
 
-useEffect(() => {
-  if (!isEditing) {
-    return;
-  }
+  useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
 
-  setEmploymentStatus(
-    state.values?.employmentStatus ??
+    setEmploymentStatus(
+      state.values?.employmentStatus ??
       profile?.employmentStatus ??
       "",
-  );
-}, [
-  isEditing,
-  state.formVersion,
-  state.values?.employmentStatus,
-  profile?.employmentStatus,
-]);
+    );
+  }, [
+    isEditing,
+    state.formVersion,
+    state.values?.employmentStatus,
+    profile?.employmentStatus,
+  ]);
 
   const hasNoCurrentEmployment =
-  EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB.has(
-    employmentStatus,
-  );
+    EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB.has(
+      employmentStatus,
+    );
 
   const expiryLabel =
     useMemo(
@@ -440,151 +387,177 @@ useEffect(() => {
     );
   }
 
-if (
-  completed &&
-  !showEditor &&
-  profile
-) {
-  return (
-    <div
-      ref={summaryRef}
-      className="scroll-mt-4"
-    >
-      <Card className="border-emerald-200 bg-emerald-50/40">
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
-              <Check className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-xl">
-                Dziękujemy za Twoje wsparcie.
-              </CardTitle>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {visibleCode ? (
-            <div className="rounded-xl border bg-background p-4">
-              <p className="text-sm font-medium text-muted-foreground">
-                Twój kod rabatowy na zakup raportów
-              </p>
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <code className="flex-1 rounded-md bg-muted px-4 py-3 text-center text-lg font-semibold tracking-wider">
-                  {visibleCode}
-                </code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={
-                    copyCode
-                  }
-                >
-                  {copied ? (
-                    <Check className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Clipboard className="mr-2 h-4 w-4" />
-                  )}
-                  {copied
-                    ? "Skopiowano"
-                    : "Kopiuj kod"}
-                </Button>
+  if (
+    completed &&
+    !showEditor &&
+    profile
+  ) {
+    return (
+      <div
+        ref={summaryRef}
+        className="scroll-mt-4"
+      >
+        <Card className="border-emerald-200 bg-emerald-50/40">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
+                <Check className="h-5 w-5" />
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Kod można wykorzystać maksymalnie 4 razy — po jednym zakupie dla każdego raportu.
-              </p>
+              <div className="min-w-0 flex flex-col space-y-2 md:space-y-0  md:flex-row justify-between w-full ">
+                <CardTitle className="text-xl w-full">
+                  Dziękujemy za Twoje wsparcie.
+                </CardTitle>
+                {minimal &&
+                  <div className="flex justify-end ">
 
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setIsEditing(
+                          true,
+                        )
+                      }
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Zobacz / Popraw dane
+                    </Button>
+                  </div>
+                }
+              </div>
             </div>
-          ) : reward ? (
-            <Alert>
-              <Gift className="h-4 w-4" />
-              <AlertTitle>
-                Kod rabatowy przypisany do Twojego konta
-              </AlertTitle>
-              <AlertDescription>
-                {preview
-                  ? `Kod: ${preview}. Limit użyć: ${reward.usageLimit}.`
-                  : `Limit użyć: ${reward.usageLimit}.`}
-              </AlertDescription>
-            </Alert>
-          ) : null}
+          </CardHeader>
 
-                        {expiryLabel ? (
-            <p className="text-sm text-muted-foreground w-full">
-              Kod jest ważny do {expiryLabel}.
-            </p>
-          ) : null}
+          {!minimal && <CardContent className="space-y-4">
 
-          
 
-          
-          {initialStatus.canClaimNewReward ? (
-            <form action={claimAction}>
-              <input
-                type="hidden"
-                name="tenantSlug"
-                value={tenantSlug}
-              />
-              <input
-                type="hidden"
-                name="assessmentSessionId"
-                value={assessmentSessionId}
-              />
-              <Button
-                type="submit"
-                disabled={claimPending}
-              >
-                {claimPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Gift className="mr-2 h-4 w-4" />
-                )}
-                Odbierz nowy roczny kod
-              </Button>
-            </form>
-          ) : eligibleAgainLabel ? (
-            <p className="text-sm text-muted-foreground">
-              Kolejny kod możesz otrzymać od {eligibleAgainLabel}.
-            </p>
-          ) : null}
+            {visibleCode ? (
+              <div className="rounded-xl border bg-background p-4">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Dostępny kod rabatowy na zakup raportów
+                </p>
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <code className="flex-1 rounded-md bg-muted px-4 py-3 text-center text-lg font-semibold tracking-wider">
+                    {visibleCode}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={
+                      copyCode
+                    }
+                  >
+                    {copied ? (
+                      <Check className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Clipboard className="mr-2 h-4 w-4" />
+                    )}
+                    {copied
+                      ? "Skopiowano"
+                      : "Kopiuj kod"}
+                  </Button>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Kod można wykorzystać maksymalnie 4 razy — po jednym zakupie dla każdego raportu.
+                </p>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              setIsEditing(
-                true,
-              )
-            }
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Zobacz / Popraw dane
-          </Button>
-          {claimState.status === "error" ? (
-            <Alert variant="destructive">
-              <AlertTitle>
-                Nie udało się wydać kodu
-              </AlertTitle>
-              <AlertDescription>
-                {claimState.message}
-              </AlertDescription>
-            </Alert>
-          ) : null}
+              </div>
+            ) : reward ? (
+              <Alert>
+                <Gift className="h-4 w-4" />
+                <AlertTitle>
+                  Kod rabatowy dla uczestników programu badawczego.
+                </AlertTitle>
+                <AlertDescription>
+                  {preview
+                    ? `${preview}. Limit użyć: ${reward.usageLimit}.`
+                    : `Limit użyć: ${reward.usageLimit}.`}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
-          {claimState.status === "success" ? (
-            <Alert>
-              <Check className="h-4 w-4" />
-              <AlertTitle>
-                Gotowe
-              </AlertTitle>
-              <AlertDescription>
-                {claimState.message}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-        </CardContent>
-      </Card>
+            {expiryLabel ? (
+              <div className="flex justify-between">
+                <p className="text-sm text-muted-foreground w-full">
+                  Ważny do {expiryLabel}.
+                </p>
+                {initialStatus.canClaimNewReward ? (
+                  <form action={claimAction}>
+                    <input
+                      type="hidden"
+                      name="tenantSlug"
+                      value={tenantSlug}
+                    />
+                    <input
+                      type="hidden"
+                      name="assessmentSessionId"
+                      value={assessmentSessionId}
+                    />
+                    <Button
+                      type="submit"
+                      disabled={claimPending}
+                    >
+                      {claimPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Gift className="mr-2 h-4 w-4" />
+                      )}
+                      Odbierz nowy roczny kod
+                    </Button>
+                  </form>
+                ) : eligibleAgainLabel ? (
+                  <p className="flex text-sm text-muted-foreground w-full justify-end">
+                    Kolejny kod możesz otrzymać od {eligibleAgainLabel}.
+                  </p>
+                ) : null}
+
+              </div>
+
+            ) : null}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setIsEditing(
+                  true,
+                )
+              }
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Zobacz / Popraw dane
+            </Button>
+
+
+
+
+
+
+
+            {claimState.status === "error" ? (
+              <Alert variant="destructive">
+                <AlertTitle>
+                  Nie udało się wydać kodu
+                </AlertTitle>
+                <AlertDescription>
+                  {claimState.message}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {claimState.status === "success" ? (
+              <Alert>
+                <Check className="h-4 w-4" />
+                <AlertTitle>
+                  Gotowe
+                </AlertTitle>
+                <AlertDescription>
+                  {claimState.message}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </CardContent>}
+        </Card>
       </div>
     );
   }
@@ -593,28 +566,40 @@ if (
     state.values ??
     (profile
       ? {
-          ...profile,
-          consentAccepted: true,
-        }
+        ...profile,
+        consentAccepted: true,
+      }
       : undefined);
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start gap-3">
-          <div className="rounded-full bg-primary/10 p-2 text-primary">
+        <div className="flex items-start  gap-3 space-x-2 mb-4">
+          <div className="mt-2 rounded-full bg-primary/10 p-2 text-primary">
             <Gift className="h-5 w-5" />
           </div>
           <div>
             <CardTitle className="text-xl">
-              {completed
-                ? "Popraw dane statystyczne"
-                : "Pomóż nam tworzyć lepsze normy psychometryczne"}
+              <h2 className="mt-2 text-2xl font-semibold leading-tight tracking-[-0.035em] text-[#171717] sm:text-3xl">
+                {completed
+                  ? "Popraw dane statystyczne"
+                  : "Uzupełnij kilka informacji o sobie"}
+
+              </h2>
+
             </CardTitle>
             <CardDescription className="mt-1 max-w-3xl">
+              <p className="max-w-2xl text-sm leading-6 text-[#5f6672] sm:text-base sm:leading-7">
+
+              </p>
               {completed
-                ? "Zmiana danych nie tworzy nowego kodu rabatowego."
-                : " Po zapisaniu danych otrzymasz kod rabatowy na cztery zakupy raportów HUMANET. Uzupełnienie formularza zajmuje około 2–3 minut."}
+                ? " "
+                : <div>{`
+                Pomogą nam one lepiej opracowywać normy i
+            sprawdzać, jak wyniki różnią się między
+            grupami. `}<br />{`Po zapisaniu danych przejdziesz do
+            podstawowej informacji zwrotnej z badania.
+                `}</div>}
             </CardDescription>
           </div>
         </div>
@@ -630,7 +615,7 @@ if (
           }
           className="space-y-8"
         >
-          
+
           <input
             type="hidden"
             name="tenantSlug"
@@ -649,6 +634,11 @@ if (
                 ? "update"
                 : "create"
             }
+          />
+          <input
+            type="hidden"
+            name="redirectTo"
+            value={redirectTo ?? ""}
           />
           <input
             type="hidden"
@@ -730,7 +720,7 @@ if (
           </section>
 
           <section className="space-y-4">
-            
+
             <div className="w-full border-b-1 pb-2">
               <h3 className="font-semibold">
                 Wykształcenie
@@ -750,137 +740,137 @@ if (
                 }
               />
 
-<MultiSelectField
-  id="educationFields"
-  name="educationFields"
-  label="Dziedzina wykształcenia"
-  options={EDUCATION_FIELD_OPTIONS}
-  defaultValue={
-    defaultValues?.educationFields ??
-    []
-  }
-/>
+              <MultiSelectField
+                id="educationFields"
+                name="educationFields"
+                label="Dziedzina wykształcenia"
+                options={EDUCATION_FIELD_OPTIONS}
+                defaultValue={
+                  defaultValues?.educationFields ??
+                  EMPTY_STRING_ARRAY
+                }
+              />
             </div>
           </section>
 
-<section className="space-y-4">
-  <div>
-    <h3 className="font-semibold">
-      Sytuacja zawodowa
-    </h3>
+          <section className="space-y-4">
+            <div>
+              <h3 className="font-semibold">
+                Sytuacja zawodowa
+              </h3>
 
-    <p className="text-sm text-muted-foreground">
-      Dodatkowe pytania zawodowe pojawią się tylko wtedy, gdy dotyczą Twojej aktualnej sytuacji.
-    </p>
-  </div>
+              <p className="text-sm text-muted-foreground">
+                Dodatkowe pytania zawodowe pojawią się tylko wtedy, gdy dotyczą Twojej aktualnej sytuacji.
+              </p>
+            </div>
 
-  <div className="grid gap-4 md:grid-cols-2">
-    <SelectField
-      id="employmentStatus"
-      name="employmentStatus"
-      label="Aktualna sytuacja zawodowa"
-      options={EMPLOYMENT_STATUS_OPTIONS}
-      defaultValue={
-        defaultValues?.employmentStatus
-      }
-      onChange={(event) => {
-        setEmploymentStatus(
-          event.target.value,
-        );
-      }}
-    />
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField
+                id="employmentStatus"
+                name="employmentStatus"
+                label="Aktualna sytuacja zawodowa"
+                options={EMPLOYMENT_STATUS_OPTIONS}
+                defaultValue={
+                  defaultValues?.employmentStatus
+                }
+                onChange={(event) => {
+                  setEmploymentStatus(
+                    event.target.value,
+                  );
+                }}
+              />
 
-    {!hasNoCurrentEmployment ? (
-      <>
-        <SelectField
-          id="industryCode"
-          name="industryCode"
-          label="Branża"
-          options={INDUSTRY_OPTIONS}
-          defaultValue={
-            defaultValues?.industryCode
-          }
-        />
+              {!hasNoCurrentEmployment ? (
+                <>
+                  <SelectField
+                    id="industryCode"
+                    name="industryCode"
+                    label="Branża"
+                    options={INDUSTRY_OPTIONS}
+                    defaultValue={
+                      defaultValues?.industryCode
+                    }
+                  />
 
-        <SelectField
-          id="jobLevel"
-          name="jobLevel"
-          label="Poziom stanowiska"
-          options={JOB_LEVEL_OPTIONS}
-          defaultValue={
-            defaultValues?.jobLevel
-          }
-        />
+                  <SelectField
+                    id="jobLevel"
+                    name="jobLevel"
+                    label="Poziom stanowiska"
+                    options={JOB_LEVEL_OPTIONS}
+                    defaultValue={
+                      defaultValues?.jobLevel
+                    }
+                  />
 
-        <SelectField
-          id="jobFunction"
-          name="jobFunction"
-          label="Obszar funkcjonalny"
-          options={JOB_FUNCTION_OPTIONS}
-          defaultValue={
-            defaultValues?.jobFunction
-          }
-        />
+                  <SelectField
+                    id="jobFunction"
+                    name="jobFunction"
+                    label="Obszar funkcjonalny"
+                    options={JOB_FUNCTION_OPTIONS}
+                    defaultValue={
+                      defaultValues?.jobFunction
+                    }
+                  />
 
-        <SelectField
-          id="organizationSize"
-          name="organizationSize"
-          label="Wielkość organizacji"
-          options={ORGANIZATION_SIZE_OPTIONS}
-          defaultValue={
-            defaultValues?.organizationSize
-          }
-        />
+                  <SelectField
+                    id="organizationSize"
+                    name="organizationSize"
+                    label="Wielkość organizacji"
+                    options={ORGANIZATION_SIZE_OPTIONS}
+                    defaultValue={
+                      defaultValues?.organizationSize
+                    }
+                  />
 
-        <SelectField
-          id="employmentSector"
-          name="employmentSector"
-          label="Sektor"
-          options={EMPLOYMENT_SECTOR_OPTIONS}
-          defaultValue={
-            defaultValues?.employmentSector
-          }
-        />
-      </>
-    ) : (
-      <>
-        <input
-          type="hidden"
-          name="industryCode"
-          value="not_applicable"
-        />
+                  <SelectField
+                    id="employmentSector"
+                    name="employmentSector"
+                    label="Sektor"
+                    options={EMPLOYMENT_SECTOR_OPTIONS}
+                    defaultValue={
+                      defaultValues?.employmentSector
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <input
+                    type="hidden"
+                    name="industryCode"
+                    value="not_applicable"
+                  />
 
-        <input
-          type="hidden"
-          name="jobLevel"
-          value="not_applicable"
-        />
+                  <input
+                    type="hidden"
+                    name="jobLevel"
+                    value="not_applicable"
+                  />
 
-        <input
-          type="hidden"
-          name="jobFunction"
-          value="not_applicable"
-        />
+                  <input
+                    type="hidden"
+                    name="jobFunction"
+                    value="not_applicable"
+                  />
 
-        <input
-          type="hidden"
-          name="organizationSize"
-          value="not_applicable"
-        />
+                  <input
+                    type="hidden"
+                    name="organizationSize"
+                    value="not_applicable"
+                  />
 
-        <input
-          type="hidden"
-          name="employmentSector"
-          value="not_applicable"
-        />
+                  <input
+                    type="hidden"
+                    name="employmentSector"
+                    value="not_applicable"
+                  />
 
-        <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground md:col-span-2">
-          Pozostałe pytania zawodowe zostały pominięte i zapisane jako „Nie dotyczy”.
-        </div>
-      </>
-    )}
-  </div>
-</section>
+                  <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground md:col-span-2">
+                    Pozostałe pytania zawodowe zostały pominięte i zapisane jako „Nie dotyczy”.
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
 
           <section className="rounded-xl border bg-muted/30 p-4">
             <div className="flex gap-3">
@@ -902,9 +892,7 @@ if (
                 >
                   Wyrażam dobrowolną zgodę na wykorzystanie podanych danych statystycznych oraz wyników powiązanych sesji do analiz naukowych, walidacji narzędzi i tworzenia norm psychometrycznych HUMANET.
                 </Label>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Dane źródłowe pozostaną powiązane z Twoim profilem i sesjami w celu kontroli poprawności, audytowalności oraz obsługi ewentualnego wycofania zgody.
-                </p>
+
               </div>
             </div>
           </section>
@@ -923,7 +911,7 @@ if (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <LockKeyhole className="h-4 w-4" />
-              Dane są zapisywane w kontrolowanym powiązaniu z Twoim profilem i sesjami.
+              Dane są zapisywane w kontrolowanym powiązaniu z Twoim profilem i sesjami. <br />Możesz w każdej chwili odwołać zgodę na ich przetwarzanie.
             </div>
 
             <div className="flex gap-2">
@@ -948,16 +936,14 @@ if (
               >
                 {pending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : completed ? (
-                  <Check className="mr-2 h-4 w-4" />
                 ) : (
-                  <Gift className="mr-2 h-4 w-4" />
+                  <Check className="mr-2 h-4 w-4" />
                 )}
                 {pending
                   ? "Zapisywanie…"
                   : completed
                     ? "Zapisz poprawione dane"
-                    : "Zapisz i odbierz rabat"}
+                    : "Zapisz dane i kontynuuj"}
               </Button>
             </div>
           </div>
@@ -989,14 +975,13 @@ function MultiSelectField({
     useState(false);
 
   const [selectedValues, setSelectedValues] =
-    useState<string[]>(defaultValue);
+    useState<string[]>(
+      () => [...defaultValue],
+    );
 
   const rootRef =
     useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setSelectedValues(defaultValue);
-  }, [defaultValue]);
 
   useEffect(() => {
     function handlePointerDown(
@@ -1029,8 +1014,8 @@ function MultiSelectField({
     setSelectedValues((current) =>
       current.includes(value)
         ? current.filter(
-            (item) => item !== value,
-          )
+          (item) => item !== value,
+        )
         : [...current, value],
     );
   }

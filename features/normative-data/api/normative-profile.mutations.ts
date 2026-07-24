@@ -259,11 +259,34 @@ export async function completeNormativeProfile({
   const ageAtAssessment = calculateAgeAtAssessment(parsed.dateOfBirth, session.completedAt);
   const now = new Date();
 
-  const [existing] = await controlDb
-    .select()
-    .from(normativeProfiles)
-    .where(and(eq(normativeProfiles.ownerUserId, userId), isNull(normativeProfiles.deletedAt)))
-    .limit(1);
+/**
+ * Profil jest unikalny dla użytkownika.
+ *
+ * W środowisku developerskim uwzględniamy także profil
+ * tymczasowo oznaczony jako usunięty przez przycisk resetu.
+ * Dzięki temu zostanie przywrócony zamiast tworzenia
+ * drugiego rekordu z tym samym ownerUserId.
+ */
+const [existing] = await controlDb
+  .select()
+  .from(normativeProfiles)
+  .where(
+    process.env.NODE_ENV === "production"
+      ? and(
+          eq(
+            normativeProfiles.ownerUserId,
+            userId,
+          ),
+          isNull(
+            normativeProfiles.deletedAt,
+          ),
+        )
+      : eq(
+          normativeProfiles.ownerUserId,
+          userId,
+        ),
+  )
+  .limit(1);
 
   const profileValues = {
     ownerUserId: userId,
@@ -289,14 +312,37 @@ export async function completeNormativeProfile({
 
   let profile: typeof normativeProfiles.$inferSelect;
 
-  if (existing) {
-    const [updated] = await controlDb
-      .update(normativeProfiles)
-      .set({ ...profileValues, revision: existing.revision + 1 })
-      .where(eq(normativeProfiles.id, existing.id))
-      .returning();
-    profile = updated;
-  } else {
+if (existing) {
+  const [updated] = await controlDb
+    .update(normativeProfiles)
+    .set({
+      ...profileValues,
+
+      revision:
+        existing.revision + 1,
+
+      /**
+       * Przywrócenie profilu po tymczasowym resecie.
+       */
+      deletedAt: null,
+      completedAt: now,
+    })
+    .where(
+      eq(
+        normativeProfiles.id,
+        existing.id,
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new Error(
+      "Nie udało się przywrócić profilu normalizacyjnego.",
+    );
+  }
+
+  profile = updated;
+} else {
     if (mode === "update") throw new Error("Nie znaleziono profilu do aktualizacji.");
     const [created] = await controlDb
       .insert(normativeProfiles)

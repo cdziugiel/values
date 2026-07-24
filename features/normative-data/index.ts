@@ -13,3 +13,6 @@ export { NormativeProfileCard } from "./components/normative-profile-card";
 export * from "./api/normative-admin.queries";
 export * from "./components/normative-profile-admin-detail";
 export * from "./components/normative-profiles-admin-page";
+export {
+  resetNormativeProfileDevelopmentAction,
+} from "./api/reset-normative-profile-development.action";

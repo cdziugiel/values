@@ -209,7 +209,8 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
       <Button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:w-auto"
+        size="lg"
+        className="w-full rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] "
       >
         <CreditCard size={16} />
         {isPending
