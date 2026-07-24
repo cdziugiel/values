@@ -9,6 +9,7 @@ import {
   type ChangeEvent,
 } from "react";
 import {
+  ArrowRight,
   Check,
   ChevronDown,
   Clipboard,
@@ -213,12 +214,14 @@ export function NormativeProfileCard({
   initialStatus,
   minimal = false,
   redirectTo,
+  skipHref,
 }: {
   tenantSlug: string;
   assessmentSessionId: string;
   initialStatus: NormativeProfileStatusDto;
   minimal?: boolean;
   redirectTo?: string;
+  skipHref?: string;
 }) {
 
   const [
@@ -908,45 +911,80 @@ export function NormativeProfileCard({
             </Alert>
           ) : null}
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <LockKeyhole className="h-4 w-4" />
-              Dane są zapisywane w kontrolowanym powiązaniu z Twoim profilem i sesjami. <br />Możesz w każdej chwili odwołać zgodę na ich przetwarzanie.
-            </div>
+<div className="flex flex-col gap-5 border-t border-black/8 pt-6">
+  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+      <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
 
-            <div className="flex gap-2">
-              {completed ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    setIsEditing(
-                      false,
-                    )
-                  }
-                >
-                  Anuluj
-                </Button>
-              ) : null}
+      <span>
+        Dane są zapisywane w kontrolowanym powiązaniu
+        z Twoim profilem i sesjami. Możesz w każdej
+        chwili odwołać zgodę na ich przetwarzanie.
+      </span>
+    </div>
 
-              <Button
-                type="submit"
-                disabled={pending}
-                className="sm:min-w-48"
-              >
-                {pending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="mr-2 h-4 w-4" />
-                )}
-                {pending
-                  ? "Zapisywanie…"
-                  : completed
-                    ? "Zapisz poprawione dane"
-                    : "Zapisz dane i kontynuuj"}
-              </Button>
-            </div>
-          </div>
+    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+      {completed ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setIsEditing(false);
+          }}
+        >
+          Anuluj
+        </Button>
+      ) : null}
+
+      <Button
+        type="submit"
+        disabled={pending}
+        className="sm:min-w-48"
+      >
+        {pending ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Check className="mr-2 h-4 w-4" />
+        )}
+
+        {pending
+          ? "Zapisywanie…"
+          : completed
+            ? "Zapisz poprawione dane"
+            : "Zapisz dane i kontynuuj"}
+      </Button>
+    </div>
+  </div>
+
+  {!completed && skipHref ? (
+    <div className="rounded-xl border border-dashed border-black/10 bg-muted/20 px-4 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs leading-5 text-muted-foreground">
+          Uzupełnienie tych informacji jest dobrowolne.
+          Możesz pominąć ten krok i przejść bezpośrednio
+          do informacji o pełnym raporcie. Bez uzupełnienia
+          danych podstawowa informacja zwrotna nie będzie
+          dostępna.
+        </p>
+
+        <a
+          href={skipHref}
+          className={[
+            "inline-flex shrink-0 items-center justify-center gap-2",
+            "rounded-full border border-black/10 bg-white px-4 py-2.5",
+            "text-sm font-semibold text-[#171717]",
+            "transition hover:bg-[#f7f7f7]",
+            "focus-visible:outline-none focus-visible:ring-2",
+            "focus-visible:ring-[#2dd4bf]/50",
+          ].join(" ")}
+        >
+          Pomiń ten krok
+          <ArrowRight className="h-4 w-4" />
+        </a>
+      </div>
+    </div>
+  ) : null}
+</div>
         </form>
       </CardContent>
     </Card>

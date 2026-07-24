@@ -23,6 +23,21 @@ import { RedeemReportAccessCodeForm } from "@/features/report-access/components/
 
 import { getMyAssessmentReportAccessState } from "../api/my-assessment-report-link.queries";
 
+import {
+  canViewBasicFeedback,
+} from "../config/basic-feedback-access";
+
+import {
+  OptionalNormativeStep,
+} from "./optional-normative-step";
+
+import {
+  REQUIRE_NORMATIVE_PROFILE_FOR_BASIC_FEEDBACK,
+} from "../config/basic-feedback-access";
+
+import {
+  BasicFeedbackAnchor,
+} from "./basic-feedback-anchor";
 
 
 type CompletedAssessmentScore = {
@@ -179,11 +194,13 @@ function BasicFeedbackSection({
   }
 
   return (
-    <section
+<section
   id="basic-feedback"
   className="scroll-mt-28 overflow-hidden rounded-[2rem] border border-[rgba(15,118,110,0.18)] bg-[linear-gradient(145deg,rgba(240,253,250,0.96),rgba(255,255,255,0.98))] shadow-sm"
 >
-      <div className="p-6 sm:p-8">
+  <BasicFeedbackAnchor />
+
+  <div className="p-6 sm:p-8">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.16)] text-[#0f766e]">
             <Sparkles size={24} />
@@ -235,7 +252,10 @@ function FullReportPurchaseSection({
   }
 
   return (
-    <section className="overflow-hidden rounded-[2rem] bg-[#171717] text-white shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
+    <section
+  id="full-report-offer"
+  className="scroll-mt-28 overflow-hidden rounded-[2rem] bg-[#171717] text-white shadow-[0_20px_60px_rgba(15,23,42,0.15)]"
+>
       <div className="p-6 sm:p-8 md:p-10">
         <div className="mx-auto max-w-2xl text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-[#5eead4]">
@@ -378,9 +398,13 @@ export async function MyAssessmentCompletedResultView({
    * Użytkownik posiadający pełny raport nie powinien
    * być blokowany przez stan metryczki normalizacyjnej.
    */
-  const canShowResultArea =
-    normativeProfileCompleted ||
-    reportAccess.isUnlocked;
+const canShowBasicFeedback =
+  canViewBasicFeedback({
+    normativeProfileCompleted,
+    fullReportUnlocked:
+      reportAccess.isUnlocked,
+  });
+
 
 const completedPageParams =
   new URLSearchParams({
@@ -404,6 +428,12 @@ if (result.questionnaireVersionId) {
 const completedPageHref =
   `/my/assessment/sessions/${result.sessionId}/completed` +
   `?${completedPageParams.toString()}`;
+
+  const basicFeedbackAvailableWithoutNormativeProfile =
+  !REQUIRE_NORMATIVE_PROFILE_FOR_BASIC_FEEDBACK;
+
+  const fullReportOfferHref =
+  `${completedPageHref}#full-report-offer`;
 
   return (
     <main className="min-h-screen hv-brand-surface px-4 py-8 sm:px-6 lg:px-8">
@@ -438,35 +468,61 @@ const completedPageHref =
 
 
 
-        {!normativeProfileCompleted &&
-          normativeProfile &&
-          !reportAccess.isUnlocked ? (
-          <>
-
-
-            <section
-              id="normative-profile"
-              className="scroll-mt-24"
-            >
-              <NormativeProfileCard
-                tenantSlug={
-                  normativeProfile.tenantSlug
-                }
-                assessmentSessionId={
-                  normativeProfile.assessmentSessionId
-                }
-                initialStatus={
-                  normativeProfile.status
-                }
-                redirectTo={completedPageHref}
-              />
-            </section>
-          </>
+{!normativeProfileCompleted &&
+normativeProfile &&
+!reportAccess.isUnlocked ? (
+  <OptionalNormativeStep
+    formSlot={
+      <section
+        id="normative-profile"
+        className="scroll-mt-24"
+      >
+        <NormativeProfileCard
+          tenantSlug={
+            normativeProfile.tenantSlug
+          }
+          assessmentSessionId={
+            normativeProfile.assessmentSessionId
+          }
+          initialStatus={
+            normativeProfile.status
+          }
+          redirectTo={completedPageHref}
+        />
+      </section>
+    }
+    revealedContentSlot={
+      <>
+        {basicFeedbackAvailableWithoutNormativeProfile ? (
+          <BasicFeedbackSection
+            teaserHref={
+              reportAccess.teaserHref
+            }
+          />
         ) : null}
 
+        <FullReportPurchaseSection
+          unlockHref={
+            reportAccess.unlockHref
+          }
+          sampleHref={
+            reportAccess.sampleHref
+          }
+          tenantSlug={
+            result.tenantSlug
+          }
+          sessionId={
+            result.sessionId
+          }
+        />
+      </>
+    }
+  />
+) : null}
 
-{canShowResultArea &&
-                normativeProfile ? (
+
+{normativeProfileCompleted &&
+  normativeProfile ? (
                 <section
                   id="normative-profile"
                   className="scroll-mt-24"
@@ -488,56 +544,61 @@ const completedPageHref =
                 </section>
               ) : null}
 
-        {reportAccess.reportHref ? (
-          <section className="rounded-[2rem] hv-brand-card p-6 sm:p-8">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
-                  <FileText size={21} />
-                </div>
+{reportAccess.reportHref ? (
+  <section className="rounded-[2rem] hv-brand-card p-6 sm:p-8">
+    <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+          <FileText size={21} />
+        </div>
 
-                <div>
-                  <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
-                    Twój pełny raport jest gotowy
-                  </h2>
+        <div>
+          <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
+            Twój pełny raport jest gotowy
+          </h2>
 
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">
-                    Możesz przejść do pełnych wyników,
-                    wykresów oraz indywidualnej
-                    interpretacji.
-                  </p>
-                </div>
-              </div>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">
+            Możesz przejść do pełnych wyników,
+            wykresów oraz indywidualnej
+            interpretacji.
+          </p>
+        </div>
+      </div>
 
-              <BrandLinkButton
-                href={reportAccess.reportHref}
-              >
-                <FileText size={16} />
-                Pokaż pełny raport
-              </BrandLinkButton>
-            </div>
-          </section>
-        ) : canShowResultArea ? (
-          <>
-            <BasicFeedbackSection
-              teaserHref={
-                reportAccess.teaserHref
-              }
-            />
+      <BrandLinkButton
+        href={reportAccess.reportHref}
+      >
+        <FileText size={16} />
+        Pokaż pełny raport
+      </BrandLinkButton>
+    </div>
+  </section>
+) : normativeProfileCompleted ? (
+  <>
+    {canShowBasicFeedback ? (
+      <BasicFeedbackSection
+        teaserHref={
+          reportAccess.teaserHref
+        }
+      />
+    ) : null}
 
-
-            <FullReportPurchaseSection
-              unlockHref={
-                reportAccess.unlockHref
-              }
-              sampleHref={
-                reportAccess.sampleHref
-              }
-              tenantSlug={result.tenantSlug}
-              sessionId={result.sessionId}
-            />
-          </>
-        ) : null}
+    <FullReportPurchaseSection
+      unlockHref={
+        reportAccess.unlockHref
+      }
+      sampleHref={
+        reportAccess.sampleHref
+      }
+      tenantSlug={
+        result.tenantSlug
+      }
+      sessionId={
+        result.sessionId
+      }
+    />
+  </>
+) : null}
 
         {!normativeProfile &&
           !reportAccess.reportHref ? (
