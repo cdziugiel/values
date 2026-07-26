@@ -877,83 +877,89 @@ export function NormativeProfileCard({
             </div>
           </section>
 
-          <section
-            className={[
-              "rounded-xl border bg-muted/30 p-4",
-              consentError
-                ? "border-destructive bg-destructive/5"
-                : "",
-            ].join(" ")}
-          >
-            <label
-              htmlFor="consentAccepted"
-              className="flex cursor-pointer items-start gap-3"
-            >
-              <input
-                id="consentAccepted"
-                name="consentAccepted"
-                type="checkbox"
-                required
-                defaultChecked={
-                  defaultValues?.consentAccepted ??
-                  false
-                }
-                aria-invalid={consentError}
-                aria-describedby={
-                  consentError
-                    ? "consentAccepted-error"
-                    : undefined
-                }
-                onInvalid={(event) => {
-                  event.preventDefault();
-                  setConsentError(true);
-                }}
-                onChange={(event) => {
-                  if (event.currentTarget.checked) {
-                    setConsentError(false);
-                  }
-                }}
-                className="peer sr-only"
-              />
+<section
+  className={[
+    "rounded-xl border bg-muted/30 p-4",
+    consentError
+      ? "border-destructive bg-destructive/5"
+      : "",
+  ].join(" ")}
+>
+  <label
+    htmlFor="consentAccepted"
+    className="flex cursor-pointer items-start gap-3"
+  >
+    <span className="relative mt-1 h-5 w-5 shrink-0">
+      <input
+        id="consentAccepted"
+        name="consentAccepted"
+        type="checkbox"
+        required
+        defaultChecked={
+          defaultValues?.consentAccepted ??
+          false
+        }
+        aria-invalid={consentError}
+        aria-describedby={
+          consentError
+            ? "consentAccepted-error"
+            : undefined
+        }
+        onInvalid={(event) => {
+          event.preventDefault();
+          setConsentError(true);
+        }}
+        onChange={(event) => {
+          if (event.currentTarget.checked) {
+            setConsentError(false);
+          }
+        }}
+        className={[
+          "peer absolute inset-0 z-10 h-5 w-5",
+          "cursor-pointer opacity-0",
+        ].join(" ")}
+      />
 
-              <span
-                aria-hidden="true"
-                className={[
-                  "mt-1 flex h-5 w-5 shrink-0 items-center justify-center",
-                  "rounded border-2 bg-white",
-                  "text-[13px] font-bold leading-none text-white",
-                  "transition-colors",
-                  "after:content-['✓'] after:opacity-0",
-                  consentError
-                    ? "border-destructive"
-                    : "border-[#737373]",
-                  "peer-checked:border-[#171717]",
-                  "peer-checked:bg-[#171717]",
-                  "peer-checked:after:opacity-100",
-                  "peer-focus-visible:ring-2",
-                  "peer-focus-visible:ring-[#2dd4bf]/60",
-                  "peer-focus-visible:ring-offset-2",
-                ].join(" ")}
-              />
+      <span
+        aria-hidden="true"
+        className={[
+          "pointer-events-none absolute inset-0",
+          "flex items-center justify-center",
+          "rounded border-2 bg-white",
+          "text-[13px] font-bold leading-none text-white",
+          "transition-colors",
+          "after:content-['✓'] after:opacity-0",
+          consentError
+            ? "border-destructive"
+            : "border-[#737373]",
+          "peer-checked:border-[#171717]",
+          "peer-checked:bg-[#171717]",
+          "peer-checked:after:opacity-100",
+          "peer-focus-visible:ring-2",
+          "peer-focus-visible:ring-[#2dd4bf]/60",
+          "peer-focus-visible:ring-offset-2",
+        ].join(" ")}
+      />
+    </span>
 
-              <span className="text-sm font-medium leading-6 text-foreground">
-                Wyrażam dobrowolną zgodę na wykorzystanie podanych
-                danych statystycznych oraz wyników powiązanych sesji
-                do analiz naukowych, walidacji narzędzi i tworzenia
-                norm psychometrycznych HUMANET.
-              </span>
-            </label>
+    <span className="text-sm font-medium leading-6 text-foreground">
+      Wyrażam dobrowolną zgodę na wykorzystanie podanych
+      danych statystycznych oraz wyników powiązanych sesji
+      do analiz naukowych, walidacji narzędzi i tworzenia
+      norm psychometrycznych HUMANET.
+    </span>
+  </label>
 
-            {consentError ? (
-              <p
-                id="consentAccepted-error"
-                role="alert"
-                className="mt-3 pl-8 text-sm font-medium text-destructive"
-              >
-                Aby zapisać dane i przejść dalej, zaznacz zgodę.
-              </p>
-            ) : null}
-          </section>
+  {consentError ? (
+    <p
+      id="consentAccepted-error"
+      role="alert"
+      className="mt-3 pl-8 text-sm font-medium text-destructive"
+    >
+      Aby zapisać dane i przejść dalej, zaznacz zgodę.
+    </p>
+  ) : null}
+</section>
 
           {state.status === "error" ? (
             <Alert variant="destructive">
