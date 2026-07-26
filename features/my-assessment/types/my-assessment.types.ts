@@ -22,7 +22,7 @@ export type MyAssessmentQuestionnaire = {
   description: string | null;
   status: MyAssessmentQuestionnaireStatus;
   estimatedMinutes?: number | null;
-
+  hasPreviousCompletion?: boolean;
   source: MyAssessmentQuestionnaireSource;
   actionHref: string | null;
 

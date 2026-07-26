@@ -464,13 +464,79 @@ export async function getMyAssessments(): Promise<MyAssessment> {
     });
   }
 
+const allQuestionnaires = [
+  ...publicQuestionnaires,
+  ...invitedQuestionnaires,
+];
+
+const completedQuestionnaireIds = new Set(
+  allQuestionnaires
+    .filter(
+      (questionnaire) =>
+        questionnaire.status === "completed" &&
+        questionnaire.questionnaireId,
+    )
+    .map(
+      (questionnaire) =>
+        questionnaire.questionnaireId as string,
+    ),
+);
+
+const completedQuestionnaireVersionIds = new Set(
+  allQuestionnaires
+    .filter(
+      (questionnaire) =>
+        questionnaire.status === "completed" &&
+        questionnaire.questionnaireVersionId,
+    )
+    .map(
+      (questionnaire) =>
+        questionnaire.questionnaireVersionId as string,
+    ),
+);
+
+function addPreviousCompletionState(
+  questionnaire: MyAssessmentQuestionnaire,
+): MyAssessmentQuestionnaire {
+  if (questionnaire.status !== "available") {
+    return questionnaire;
+  }
+
+  const hasPreviousCompletion =
+    Boolean(
+      questionnaire.questionnaireId &&
+        completedQuestionnaireIds.has(
+          questionnaire.questionnaireId,
+        ),
+    ) ||
+    Boolean(
+      questionnaire.questionnaireVersionId &&
+        completedQuestionnaireVersionIds.has(
+          questionnaire.questionnaireVersionId,
+        ),
+    );
+
+  return {
+    ...questionnaire,
+    hasPreviousCompletion,
+  };
+}
+  
   return {
     id: "my-assessments",
     code: "MY_ASSESSMENTS",
     name: "Moje badania",
     description:
       "W tym miejscu widzisz publiczne kwestionariusze oraz badania, do których jesteś zaproszony/a jako respondent.",
-    publicQuestionnaires,
-    invitedQuestionnaires,
+
+    publicQuestionnaires:
+      publicQuestionnaires.map(
+        addPreviousCompletionState,
+      ),
+
+    invitedQuestionnaires:
+      invitedQuestionnaires.map(
+        addPreviousCompletionState,
+      ),
   };
 }

@@ -126,31 +126,47 @@ function getStatusClassName(status: MyAssessmentQuestionnaireStatus) {
   }
 }
 
-function getActionLabel(status: MyAssessmentQuestionnaireStatus) {
-  switch (status) {
+function getActionLabel(
+  questionnaire: MyAssessmentQuestionnaire,
+) {
+  switch (questionnaire.status) {
     case "available":
-      return "Rozpocznij";
+      return questionnaire.hasPreviousCompletion
+        ? "Wykonaj ponownie"
+        : "Rozpocznij";
+
     case "in_progress":
       return "Kontynuuj";
+
     case "completed":
       return "Zobacz";
+
     case "locked":
       return "Zablokowane";
+
     case "coming_soon":
       return "Wkrótce";
+
     case "disabled":
       return "Niedostępne";
   }
 }
 
-function getActionIcon(status: MyAssessmentQuestionnaireStatus) {
-  switch (status) {
+function getActionIcon(
+  questionnaire: MyAssessmentQuestionnaire,
+) {
+  switch (questionnaire.status) {
     case "available":
-      return <PlayCircle size={16} />;
+      return questionnaire.hasPreviousCompletion
+        ? <RotateCcw size={16} />
+        : <PlayCircle size={16} />;
+
     case "in_progress":
       return <RotateCcw size={16} />;
+
     case "completed":
       return <FileText size={16} />;
+
     case "locked":
     case "coming_soon":
     case "disabled":
@@ -247,14 +263,14 @@ const metaLine = getMetaLine(questionnaire);
         <div className="flex items-center gap-2 md:justify-end">
           {disabled ? (
             <Button disabled className="min-w-32 gap-2">
-              {getActionIcon(questionnaire.status)}
-              {getActionLabel(questionnaire.status)}
+              {getActionIcon(questionnaire)}
+              {getActionLabel(questionnaire)}
             </Button>
           ) : (
             <Button asChild className="min-w-32 gap-2">
               <Link href={actionHref!}>
-                {getActionIcon(questionnaire.status)}
-                {getActionLabel(questionnaire.status)}
+                {getActionIcon(questionnaire)}
+                {getActionLabel(questionnaire)}
               </Link>
             </Button>
           )}
