@@ -7,6 +7,7 @@ import { controlDb } from "@/server/db/control-db";
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
 import type { FrozenCompositeSelection } from "@/features/assessment-results/types/personal-composite-selection.types";
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
+import { resolveReportRenderOrigin } from "@/features/report-builder/lib/resolve-report-render-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,7 +135,7 @@ export async function GET(
       `/assessment-projects/${projectId}` +
       `/respondents/${respondentId}` +
       `/composite-report/${grantId}/print`,
-    request.nextUrl.origin,
+    resolveReportRenderOrigin(request),
   );
 
   const pdf = await renderReportPdfFromUrl({

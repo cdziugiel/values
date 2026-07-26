@@ -5,6 +5,10 @@ import { NextRequest } from "next/server";
 import { assertCanViewMyAssessmentReport } from "@/features/report-access/api/report-access-guard.queries";
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
 
+import {
+  resolveReportRenderOrigin,
+} from "@/features/report-builder/lib/resolve-report-render-origin";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,6 +19,7 @@ type RouteParams = {
     reportTemplateVersionId: string;
   }>;
 };
+
 
 function normalizeOptionalString(value: string | null) {
   const normalized = value?.trim();
@@ -75,7 +80,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const printUrl = new URL(
     `/my/assessment/sessions/${sessionId}/report/${reportTemplateVersionId}/print`,
-    request.nextUrl.origin,
+    resolveReportRenderOrigin(request),
   );
 
   printUrl.searchParams.set("tenant", tenantSlug);

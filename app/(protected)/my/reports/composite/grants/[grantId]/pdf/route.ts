@@ -11,6 +11,7 @@ import { getPersonalCompositeReport } from "@/features/assessment-results/api/pe
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
 
 import type { FrozenCompositeSelection } from "@/features/assessment-results/types/personal-composite-selection.types";
+import { resolveReportRenderOrigin } from "@/features/report-builder/lib/resolve-report-render-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,7 +131,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const printUrl = new URL(
     `/my/reports/composite/grants/${grant.id}/print`,
-    request.nextUrl.origin,
+    resolveReportRenderOrigin(request),
   );
 
   printUrl.searchParams.set("tenant", tenantSlug);

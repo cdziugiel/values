@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { assertCanViewMyAssessmentReportPreview } from "@/features/report-access/api/report-preview-guard.queries";
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
+import { resolveReportRenderOrigin } from "@/features/report-builder/lib/resolve-report-render-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,7 +80,7 @@ const printUrl = new URL(
   `/my/assessment/sessions/${sessionId}` +
     `/report/${reportTemplateVersionId}` +
     `/print/sample`,
-  request.nextUrl.origin,
+  resolveReportRenderOrigin(request),
 );
 
   printUrl.searchParams.set("tenant", tenantSlug);

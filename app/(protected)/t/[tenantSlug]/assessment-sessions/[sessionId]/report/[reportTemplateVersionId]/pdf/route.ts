@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { getTenantAssessmentSessionReport } from "@/features/assessment-results/api/assessment-session-report.queries";
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
+import { resolveReportRenderOrigin } from "@/features/report-builder/lib/resolve-report-render-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export async function GET(
 
   const printUrl = new URL(
     `/t/${tenantSlug}/assessment-sessions/${sessionId}/report/${reportTemplateVersionId}/print`,
-    request.nextUrl.origin,
+    resolveReportRenderOrigin(request),
   );
 
   if (projectQuestionnaireId) {

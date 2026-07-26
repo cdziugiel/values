@@ -14,6 +14,7 @@ import {
   readComparisonDefinition,
 } from "@/features/comparison-reports/api/comparison-report-render.queries";
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
+import { resolveReportRenderOrigin } from "@/features/report-builder/lib/resolve-report-render-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -172,7 +173,7 @@ export async function GET(
     `/t/${tenantSlug}` +
       `/assessment-projects/${projectId}` +
       `/partner-reports/${grantId}/print`,
-    request.nextUrl.origin,
+    resolveReportRenderOrigin(request),
   );
 
   const pdf = await renderReportPdfFromUrl({
