@@ -242,6 +242,8 @@ export function NormativeProfileCard({
     initialClaimNormativeRewardActionState,
   );
 
+  const [consentError, setConsentError] =
+    useState(false);
 
   const [isEditing, setIsEditing] =
     useState(!initialStatus.completed);
@@ -875,48 +877,83 @@ export function NormativeProfileCard({
             </div>
           </section>
 
- <section className="rounded-xl border bg-muted/30 p-4">
-  <label
-    htmlFor="consentAccepted"
-    className="flex cursor-pointer items-start gap-3"
-  >
-    <input
-      id="consentAccepted"
-      name="consentAccepted"
-      type="checkbox"
-      required
-      defaultChecked={
-        defaultValues?.consentAccepted ??
-        false
-      }
-      className="peer sr-only"
-    />
+          <section
+            className={[
+              "rounded-xl border bg-muted/30 p-4",
+              consentError
+                ? "border-destructive bg-destructive/5"
+                : "",
+            ].join(" ")}
+          >
+            <label
+              htmlFor="consentAccepted"
+              className="flex cursor-pointer items-start gap-3"
+            >
+              <input
+                id="consentAccepted"
+                name="consentAccepted"
+                type="checkbox"
+                required
+                defaultChecked={
+                  defaultValues?.consentAccepted ??
+                  false
+                }
+                aria-invalid={consentError}
+                aria-describedby={
+                  consentError
+                    ? "consentAccepted-error"
+                    : undefined
+                }
+                onInvalid={(event) => {
+                  event.preventDefault();
+                  setConsentError(true);
+                }}
+                onChange={(event) => {
+                  if (event.currentTarget.checked) {
+                    setConsentError(false);
+                  }
+                }}
+                className="peer sr-only"
+              />
 
-    <span
-      aria-hidden="true"
-      className={[
-        "mt-1 flex h-5 w-5 shrink-0 items-center justify-center",
-        "rounded border-2 border-[#737373] bg-white",
-        "text-[13px] font-bold leading-none text-white",
-        "transition-colors",
-        "after:content-['✓'] after:opacity-0",
-        "peer-checked:border-[#171717]",
-        "peer-checked:bg-[#171717]",
-        "peer-checked:after:opacity-100",
-        "peer-focus-visible:ring-2",
-        "peer-focus-visible:ring-[#2dd4bf]/60",
-        "peer-focus-visible:ring-offset-2",
-      ].join(" ")}
-    />
+              <span
+                aria-hidden="true"
+                className={[
+                  "mt-1 flex h-5 w-5 shrink-0 items-center justify-center",
+                  "rounded border-2 bg-white",
+                  "text-[13px] font-bold leading-none text-white",
+                  "transition-colors",
+                  "after:content-['✓'] after:opacity-0",
+                  consentError
+                    ? "border-destructive"
+                    : "border-[#737373]",
+                  "peer-checked:border-[#171717]",
+                  "peer-checked:bg-[#171717]",
+                  "peer-checked:after:opacity-100",
+                  "peer-focus-visible:ring-2",
+                  "peer-focus-visible:ring-[#2dd4bf]/60",
+                  "peer-focus-visible:ring-offset-2",
+                ].join(" ")}
+              />
 
-    <span className="text-sm font-medium leading-6 text-foreground">
-      Wyrażam dobrowolną zgodę na wykorzystanie podanych
-      danych statystycznych oraz wyników powiązanych sesji
-      do analiz naukowych, walidacji narzędzi i tworzenia
-      norm psychometrycznych HUMANET.
-    </span>
-  </label>
-</section>
+              <span className="text-sm font-medium leading-6 text-foreground">
+                Wyrażam dobrowolną zgodę na wykorzystanie podanych
+                danych statystycznych oraz wyników powiązanych sesji
+                do analiz naukowych, walidacji narzędzi i tworzenia
+                norm psychometrycznych HUMANET.
+              </span>
+            </label>
+
+            {consentError ? (
+              <p
+                id="consentAccepted-error"
+                role="alert"
+                className="mt-3 pl-8 text-sm font-medium text-destructive"
+              >
+                Aby zapisać dane i przejść dalej, zaznacz zgodę.
+              </p>
+            ) : null}
+          </section>
 
           {state.status === "error" ? (
             <Alert variant="destructive">
@@ -929,80 +966,80 @@ export function NormativeProfileCard({
             </Alert>
           ) : null}
 
-<div className="flex flex-col gap-5 border-t border-black/8 pt-6">
-  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
-      <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex flex-col gap-5 border-t border-black/8 pt-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+                <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
 
-      <span>
-        Dane są zapisywane w kontrolowanym powiązaniu
-        z Twoim profilem i sesjami. Możesz w każdej
-        chwili odwołać zgodę na ich przetwarzanie.
-      </span>
-    </div>
+                <span>
+                  Dane są zapisywane w kontrolowanym powiązaniu
+                  z Twoim profilem i sesjami. Możesz w każdej
+                  chwili odwołać zgodę na ich przetwarzanie.
+                </span>
+              </div>
 
-    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-      {completed ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setIsEditing(false);
-          }}
-        >
-          Anuluj
-        </Button>
-      ) : null}
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                {completed ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditing(false);
+                    }}
+                  >
+                    Anuluj
+                  </Button>
+                ) : null}
 
-      <Button
-        type="submit"
-        disabled={pending}
-        className="sm:min-w-48"
-      >
-        {pending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Check className="mr-2 h-4 w-4" />
-        )}
+                <Button
+                  type="submit"
+                  disabled={pending}
+                  className="sm:min-w-48"
+                >
+                  {pending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="mr-2 h-4 w-4" />
+                  )}
 
-        {pending
-          ? "Zapisywanie…"
-          : completed
-            ? "Zapisz poprawione dane"
-            : "Zapisz dane i kontynuuj"}
-      </Button>
-    </div>
-  </div>
+                  {pending
+                    ? "Zapisywanie…"
+                    : completed
+                      ? "Zapisz poprawione dane"
+                      : "Zapisz dane i kontynuuj"}
+                </Button>
+              </div>
+            </div>
 
-  {!completed && skipHref ? (
-    <div className="rounded-xl border border-dashed border-black/10 bg-muted/20 px-4 py-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-5 text-muted-foreground">
-          Uzupełnienie tych informacji jest dobrowolne.
-          Możesz pominąć ten krok i przejść bezpośrednio
-          do informacji o pełnym raporcie. Bez uzupełnienia
-          danych podstawowa informacja zwrotna nie będzie
-          dostępna.
-        </p>
+            {!completed && skipHref ? (
+              <div className="rounded-xl border border-dashed border-black/10 bg-muted/20 px-4 py-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Uzupełnienie tych informacji jest dobrowolne.
+                    Możesz pominąć ten krok i przejść bezpośrednio
+                    do informacji o pełnym raporcie. Bez uzupełnienia
+                    danych podstawowa informacja zwrotna nie będzie
+                    dostępna.
+                  </p>
 
-        <a
-          href={skipHref}
-          className={[
-            "inline-flex shrink-0 items-center justify-center gap-2",
-            "rounded-full border border-black/10 bg-white px-4 py-2.5",
-            "text-sm font-semibold text-[#171717]",
-            "transition hover:bg-[#f7f7f7]",
-            "focus-visible:outline-none focus-visible:ring-2",
-            "focus-visible:ring-[#2dd4bf]/50",
-          ].join(" ")}
-        >
-          Pomiń ten krok
-          <ArrowRight className="h-4 w-4" />
-        </a>
-      </div>
-    </div>
-  ) : null}
-</div>
+                  <a
+                    href={skipHref}
+                    className={[
+                      "inline-flex shrink-0 items-center justify-center gap-2",
+                      "rounded-full border border-black/10 bg-white px-4 py-2.5",
+                      "text-sm font-semibold text-[#171717]",
+                      "transition hover:bg-[#f7f7f7]",
+                      "focus-visible:outline-none focus-visible:ring-2",
+                      "focus-visible:ring-[#2dd4bf]/50",
+                    ].join(" ")}
+                  >
+                    Pomiń ten krok
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </form>
       </CardContent>
     </Card>
