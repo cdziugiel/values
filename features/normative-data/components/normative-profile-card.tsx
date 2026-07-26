@@ -877,17 +877,29 @@ export function NormativeProfileCard({
 
           <section className="rounded-xl border bg-muted/30 p-4">
             <div className="flex gap-3">
-              <input
-                id="consentAccepted"
-                name="consentAccepted"
-                type="checkbox"
-                required
-                defaultChecked={
-                  defaultValues?.consentAccepted ??
-                  false
-                }
-                className="mt-1 h-4 w-4 rounded border-input"
-              />
+<input
+  id="consentAccepted"
+  name="consentAccepted"
+  type="checkbox"
+  required
+  defaultChecked={
+    defaultValues?.consentAccepted ??
+    false
+  }
+  className={[
+    "mt-1 h-5 w-5 shrink-0 cursor-pointer",
+    "focus-visible:outline-none",
+    "focus-visible:ring-2",
+    "focus-visible:ring-[#2dd4bf]/60",
+    "focus-visible:ring-offset-2",
+  ].join(" ")}
+  style={{
+    appearance: "auto",
+    WebkitAppearance: "checkbox",
+    accentColor: "#171717",
+    colorScheme: "light",
+  }}
+/>
               <div className="space-y-2">
                 <Label
                   htmlFor="consentAccepted"
