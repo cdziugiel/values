@@ -54,6 +54,7 @@ type RenderReportInput = {
   mode?: ReportRenderMode;
   pageCodes?: string[];
   watermark?: string | null;
+  showUnlockAction?: boolean;
 };
 
 function escapeClosingScript(value: string) {
@@ -205,24 +206,64 @@ function buildPreviewCss({
   bottom: 8mm;
   left: 12mm;
   z-index: 90;
+
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 4mm;
+
   min-height: 10mm;
-  padding: 2.5mm 5mm;
+  padding: 2.5mm 4mm;
+
   border: 0.25mm solid rgba(15, 118, 110, 0.22);
   border-radius: 3mm;
+
   background: rgba(240, 253, 250, 0.96);
   color: #115e59;
+
   font-size: 2.9mm;
   font-weight: 650;
   line-height: 1.35;
-  text-align: center;
 }
 
-${
-  mode === "sample_redacted"
-    ? `
+.report-preview-footer > span {
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.report-preview-footer-action {
+  flex: 0 0 auto;
+
+  min-height: 7mm;
+  padding: 1.7mm 3.5mm;
+
+  border: 0;
+  border-radius: 999px;
+
+  background: #171717;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 2.7mm;
+  font-weight: 700;
+  line-height: 1;
+
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.report-preview-footer-action:hover {
+  background: #0f766e;
+}
+
+.report-preview-footer-action:focus-visible {
+  outline: 0.7mm solid rgba(45, 212, 191, 0.55);
+  outline-offset: 0.5mm;
+}
+
+${mode === "sample_redacted"
+      ? `
 .report-document[data-report-render-mode="sample_redacted"]
   [data-report-slot] {
   position: relative !important;
@@ -413,8 +454,8 @@ ${
   display: none !important;
 }
 `
-    : ""
-}
+      : ""
+    }
 `.trim();
 }
 
@@ -685,19 +726,45 @@ function buildPreviewWatermark(watermark: string | null) {
 `.trim();
 }
 
-function buildPreviewFooter(mode: ReportRenderMode) {
+function buildPreviewFooter({
+  mode,
+  showUnlockAction,
+}: {
+  mode: ReportRenderMode;
+  showUnlockAction: boolean;
+}) {
   if (mode === "full") {
     return "";
   }
 
-  const text =
-    mode === "personal_teaser"
-      ? "To jest bezpłatny skrót wyniku. Pełna interpretacja i rekomendacje znajdują się w pełnym raporcie."
-      : "To jest przykładowa wersja raportu. Wyniki, wykresy i interpretacje indywidualne zostały ukryte.";
+  if (mode === "personal_teaser") {
+    return `
+<div class="report-preview-footer">
+  <span>
+    To jest bezpłatny skrót wyniku. Pełna interpretacja i rekomendacje
+    znajdują się w pełnym raporcie.
+  </span>
+
+  ${showUnlockAction
+        ? `
+        <button
+          type="button"
+          class="report-preview-footer-action"
+          data-report-unlock-action="true"
+        >
+          Odblokuj pełny raport
+        </button>
+      `
+        : ""
+      }
+</div>
+`.trim();
+  }
 
   return `
 <div class="report-preview-footer">
-  ${escapeHtml(text)}
+  To jest przykładowa wersja raportu. Wyniki, wykresy i interpretacje
+  indywidualne zostały ukryte.
 </div>
 `.trim();
 }
@@ -989,6 +1056,7 @@ export function renderReportDocument({
   mode = "full",
   pageCodes,
   watermark = null,
+  showUnlockAction = false,
 }: RenderReportInput) {
   const context = buildReportContext(payload);
   const pageClass = getPageClass(reportTemplateVersion);
@@ -1031,7 +1099,10 @@ export function renderReportDocument({
 >
   ${buildPreviewWatermark(watermark)}
   ${html}
-  ${isLastPage ? buildPreviewFooter(mode) : ""}
+  ${isLastPage ? buildPreviewFooter({
+      mode,
+      showUnlockAction,
+    }) : ""}
 </section>
 
 <style>
@@ -1041,14 +1112,14 @@ ${page.css ?? ""}
 <script>
 try {
   window.__REPORT_CURRENT_PAGE__ = ${escapeClosingScript(
-    JSON.stringify({
-      id: page.id,
-      code: page.code,
-      title: page.title,
-      config: page.config ?? {},
-      componentBindings: page.componentBindings ?? [],
-    }),
-  )};
+        JSON.stringify({
+          id: page.id,
+          code: page.code,
+          title: page.title,
+          config: page.config ?? {},
+          componentBindings: page.componentBindings ?? [],
+        }),
+      )};
 
   ${escapeClosingScript(page.js ?? "")}
 } catch (error) {
@@ -1076,17 +1147,17 @@ try {
 
   <style>
     ${buildBaseCss({
-      reportTemplateVersion,
-      mode,
-    })}
+    reportTemplateVersion,
+    mode,
+  })}
   </style>
 </head>
 
 <body>
   <script>
 window.__REPORT__ = ${escapeClosingScript(
-  JSON.stringify(context),
-)};
+    JSON.stringify(context),
+  )};
 
     window.__REPORT_RENDER_MODE__ = ${JSON.stringify(mode)};
   </script>

@@ -98,6 +98,7 @@ export default async function MyReportTeaserPage({
     mode: "personal_teaser",
     pageCodes: config.pageCodes,
     watermark: config.watermark,
+    showUnlockAction: true,
   });
 
   const scopedParams = buildScopedParams({
@@ -160,7 +161,10 @@ export default async function MyReportTeaserPage({
         </div>
       </div>
 
-      <ReportDocumentPreviewFrame html={rendered.html} />
+      <ReportDocumentPreviewFrame
+        html={rendered.html}
+        unlockHref={unlockHref}
+      />
     </main>
   );
 }

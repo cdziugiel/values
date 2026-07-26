@@ -27,6 +27,8 @@ type ReportDocumentPreviewFrameProps = {
   onSidebarOpenChange?: (
     open: boolean,
   ) => void;
+
+  unlockHref?: string;
 };
 
 type ReportFrameMessage =
@@ -42,7 +44,12 @@ type ReportFrameMessage =
       type: "HUMANET_REPORT_SCROLL_RESTORED";
       x: number;
       y: number;
+    }
+  | {
+      type: "HUMANET_REPORT_UNLOCK_REQUEST";
     };
+
+
 
 function injectReportBridge(
   sourceHtml: string,
@@ -79,6 +86,31 @@ function injectReportBridge(
     sendScrollPosition,
     { passive: true }
   );
+
+document.addEventListener(
+  "click",
+  function (event) {
+    var target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    var unlockButton = target.closest(
+      "[data-report-unlock-action='true']"
+    );
+
+    if (!unlockButton) {
+      return;
+    }
+
+    event.preventDefault();
+
+    sendMessage({
+      type: "HUMANET_REPORT_UNLOCK_REQUEST"
+    });
+  }
+);
 
   window.addEventListener(
     "message",
@@ -191,6 +223,7 @@ export function ReportDocumentPreviewFrame({
   sidebar,
   sidebarOpen = false,
   onSidebarOpenChange,
+  unlockHref,
 }: ReportDocumentPreviewFrameProps) {
   const [isFullscreen, setIsFullscreen] =
     useState(false);
@@ -291,7 +324,16 @@ export function ReportDocumentPreviewFrame({
       if (!data) {
         return;
       }
+if (
+  data.type ===
+  "HUMANET_REPORT_UNLOCK_REQUEST"
+) {
+  if (unlockHref) {
+    window.location.assign(unlockHref);
+  }
 
+  return;
+}
       if (
         data.type ===
         "HUMANET_REPORT_READY"
@@ -366,7 +408,7 @@ export function ReportDocumentPreviewFrame({
         handleMessage,
       );
     };
-  }, []);
+  }, [unlockHref]);
 
   async function enterFullscreen() {
     const element = fullscreenRef.current;
