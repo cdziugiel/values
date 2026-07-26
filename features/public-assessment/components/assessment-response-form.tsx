@@ -1,7 +1,7 @@
 // features/public-assessment/components/assessment-response-form.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -1228,60 +1228,35 @@ export function AssessmentResponseForm({
     shouldScrollToTopRef.current = true;
   }
 
-  function findScrollParent(element: HTMLElement | null): HTMLElement | null {
-    let current = element?.parentElement ?? null;
-
-    while (current) {
-      const style = window.getComputedStyle(current);
-      const overflowY = style.overflowY;
-
-      const canScroll =
-        overflowY === "auto" ||
-        overflowY === "scroll" ||
-        overflowY === "overlay";
-
-      if (canScroll && current.scrollHeight > current.clientHeight) {
-        return current;
-      }
-
-      current = current.parentElement;
-    }
-
-    return null;
-  }
-
   function scrollAssessmentViewToTop() {
-    const scrollParent = findScrollParent(rootRef.current);
+    const form = formRef.current;
 
-    if (scrollParent) {
-      scrollParent.scrollTo({
-        top: 0,
-        left: 0,
-        behavior: "smooth",
-      });
-
+    if (!form) {
       return;
     }
 
-    window.scrollTo({
+    form.scrollTo({
       top: 0,
       left: 0,
-      behavior: "smooth",
+      behavior: "auto",
     });
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldScrollToTopRef.current) {
       return;
     }
 
     shouldScrollToTopRef.current = false;
 
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        scrollAssessmentViewToTop();
-      });
-    });
+    const form = formRef.current;
+
+    if (!form) {
+      return;
+    }
+
+    form.scrollTop = 0;
+    form.scrollLeft = 0;
   }, [currentPageIndex]);
 
 
@@ -1551,135 +1526,135 @@ export function AssessmentResponseForm({
   }
 
 
-useEffect(() => {
-  const currentFormElement = formRef.current;
-  const currentStickyHeaderElement = stickyHeaderRef.current;
+  useEffect(() => {
+    const currentFormElement = formRef.current;
+    const currentStickyHeaderElement = stickyHeaderRef.current;
 
-  if (!currentFormElement || !currentStickyHeaderElement) {
-    return;
-  }
-
-  /*
-   * Po sprawdzeniu zapisujemy elementy do stałych o jawnych,
-   * nie-nullowalnych typach. Funkcje callback nie korzystają już
-   * bezpośrednio ze zmiennych typu HTMLElement | null.
-   */
-  const formElement: HTMLFormElement = currentFormElement;
-  const stickyHeaderElement: HTMLElement = currentStickyHeaderElement;
-
-  let animationFrameId: number | null = null;
-
-  function getItemElements() {
-    return formElement.querySelectorAll<HTMLElement>(
-      "[data-assessment-item]",
-    );
-  }
-
-  function resetItemClipping() {
-    const itemElements = getItemElements();
-
-    itemElements.forEach((itemElement) => {
-      itemElement.style.clipPath = "";
-      itemElement.style.pointerEvents = "";
-    });
-  }
-
-  function updateItemClipping() {
-    animationFrameId = null;
-
-    /*
-     * Ref może wskazywać później inny element, ale w tym efekcie
-     * korzystamy z elementu, dla którego zostały podpięte listenery.
-     */
-    const headerRect = stickyHeaderElement.getBoundingClientRect();
-
-    const isMobile = window.matchMedia("(max-width: 639px)").matches;
-
-    /*
-     * Na mobile nie przycinamy kart pytań.
-     */
-    if (isMobile) {
-      resetItemClipping();
+    if (!currentFormElement || !currentStickyHeaderElement) {
       return;
     }
 
-    const itemElements = getItemElements();
+    /*
+     * Po sprawdzeniu zapisujemy elementy do stałych o jawnych,
+     * nie-nullowalnych typach. Funkcje callback nie korzystają już
+     * bezpośrednio ze zmiennych typu HTMLElement | null.
+     */
+    const formElement: HTMLFormElement = currentFormElement;
+    const stickyHeaderElement: HTMLElement = currentStickyHeaderElement;
 
-    itemElements.forEach((itemElement) => {
-      const itemRect = itemElement.getBoundingClientRect();
+    let animationFrameId: number | null = null;
 
-      const overlap = Math.max(
-        0,
-        Math.min(
-          itemRect.height,
-          headerRect.bottom + 8 - itemRect.top,
-        ),
+    function getItemElements() {
+      return formElement.querySelectorAll<HTMLElement>(
+        "[data-assessment-item]",
       );
+    }
 
-      if (overlap <= 0) {
+    function resetItemClipping() {
+      const itemElements = getItemElements();
+
+      itemElements.forEach((itemElement) => {
         itemElement.style.clipPath = "";
         itemElement.style.pointerEvents = "";
+      });
+    }
+
+    function updateItemClipping() {
+      animationFrameId = null;
+
+      /*
+       * Ref może wskazywać później inny element, ale w tym efekcie
+       * korzystamy z elementu, dla którego zostały podpięte listenery.
+       */
+      const headerRect = stickyHeaderElement.getBoundingClientRect();
+
+      const isMobile = window.matchMedia("(max-width: 639px)").matches;
+
+      /*
+       * Na mobile nie przycinamy kart pytań.
+       */
+      if (isMobile) {
+        resetItemClipping();
         return;
       }
 
-      itemElement.style.clipPath = `inset(${overlap}px 0 0 0)`;
+      const itemElements = getItemElements();
 
-      const isFullyCovered = overlap >= itemRect.height - 1;
+      itemElements.forEach((itemElement) => {
+        const itemRect = itemElement.getBoundingClientRect();
 
-      itemElement.style.pointerEvents = isFullyCovered ? "none" : "";
-    });
-  }
+        const overlap = Math.max(
+          0,
+          Math.min(
+            itemRect.height,
+            headerRect.bottom + 8 - itemRect.top,
+          ),
+        );
 
-  function scheduleItemClippingUpdate() {
-    if (animationFrameId !== null) {
-      return;
+        if (overlap <= 0) {
+          itemElement.style.clipPath = "";
+          itemElement.style.pointerEvents = "";
+          return;
+        }
+
+        itemElement.style.clipPath = `inset(${overlap}px 0 0 0)`;
+
+        const isFullyCovered = overlap >= itemRect.height - 1;
+
+        itemElement.style.pointerEvents = isFullyCovered ? "none" : "";
+      });
     }
 
-    animationFrameId = window.requestAnimationFrame(
-      updateItemClipping,
-    );
-  }
+    function scheduleItemClippingUpdate() {
+      if (animationFrameId !== null) {
+        return;
+      }
 
-  updateItemClipping();
+      animationFrameId = window.requestAnimationFrame(
+        updateItemClipping,
+      );
+    }
 
-  formElement.addEventListener(
-    "scroll",
-    scheduleItemClippingUpdate,
-    {
-      passive: true,
-    },
-  );
+    updateItemClipping();
 
-  window.addEventListener(
-    "resize",
-    scheduleItemClippingUpdate,
-  );
-
-  const resizeObserver = new ResizeObserver(
-    scheduleItemClippingUpdate,
-  );
-
-  resizeObserver.observe(stickyHeaderElement);
-
-  return () => {
-    formElement.removeEventListener(
+    formElement.addEventListener(
       "scroll",
       scheduleItemClippingUpdate,
+      {
+        passive: true,
+      },
     );
 
-    window.removeEventListener(
+    window.addEventListener(
       "resize",
       scheduleItemClippingUpdate,
     );
 
-    resizeObserver.disconnect();
-    resetItemClipping();
+    const resizeObserver = new ResizeObserver(
+      scheduleItemClippingUpdate,
+    );
 
-    if (animationFrameId !== null) {
-      window.cancelAnimationFrame(animationFrameId);
-    }
-  };
-}, [currentPageIndex]);
+    resizeObserver.observe(stickyHeaderElement);
+
+    return () => {
+      formElement.removeEventListener(
+        "scroll",
+        scheduleItemClippingUpdate,
+      );
+
+      window.removeEventListener(
+        "resize",
+        scheduleItemClippingUpdate,
+      );
+
+      resizeObserver.disconnect();
+      resetItemClipping();
+
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [currentPageIndex]);
 
   if (pageGroups.length === 0 || !currentPage) {
     return (
@@ -1707,245 +1682,245 @@ useEffect(() => {
 
 
 
-return (
-  <div
-    ref={rootRef}
-    className="-mx-4 -mt-6 h-[calc(100dvh-4rem)] overflow-hidden bg-[#f7f8f8] sm:-mx-6 sm:hv-brand-surface lg:-mx-8"
-  >
-    <form
-      ref={formRef}
-      onChangeCapture={refreshAnsweredPageIndexes}
-      className="h-full scroll-pt-20 overflow-y-auto overscroll-contain px-3 pb-0 pt-0 sm:px-6 sm:py-8 lg:px-8"
+  return (
+    <div
+      ref={rootRef}
+      className="-mx-4 -mt-6 h-[calc(100dvh-4rem)] overflow-hidden bg-[#f7f8f8] sm:-mx-6 sm:hv-brand-surface lg:-mx-8"
     >
-      <div className="mx-auto w-full max-w-5xl space-y-4 pb-24 sm:space-y-8 sm:pb-0">
-        <input type="hidden" name="token" value={token} />
-        <input type="hidden" name="sessionId" value={sessionId} />
-        <input type="hidden" name="mode" value={mode} />
-        <input type="hidden" name="tenantSlug" value={tenantSlug} />
+      <form
+        ref={formRef}
+        onChangeCapture={refreshAnsweredPageIndexes}
+        className="h-full scroll-pt-20 overflow-y-auto overscroll-contain px-3 pb-0 pt-0 sm:px-6 sm:py-8 lg:px-8"
+      >
+        <div className="mx-auto w-full max-w-5xl space-y-4 pb-24 sm:space-y-8 sm:pb-0">
+          <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="sessionId" value={sessionId} />
+          <input type="hidden" name="mode" value={mode} />
+          <input type="hidden" name="tenantSlug" value={tenantSlug} />
 
-        <input
-          type="hidden"
-          name="projectQuestionnaireId"
-          value={projectQuestionnaireId}
-        />
-
-<section
-  ref={stickyHeaderRef}
-  className="sticky top-0 z-30 overflow-hidden border-b border-black/10 bg-white/95 shadow-[0_4px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:rounded-[2rem] sm:border sm:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
->
-  <div className="px-3 pb-2.5 pt-2.5 sm:px-5 sm:pb-4 sm:pt-4">
-    <div className="flex min-w-0 items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileText
-            size={14}
-            className="shrink-0 text-[#0f766e]"
+          <input
+            type="hidden"
+            name="projectQuestionnaireId"
+            value={projectQuestionnaireId}
           />
 
-          <span className="truncate text-[0.66rem] font-semibold uppercase tracking-[0.15em] text-[#6b7280] sm:text-[0.72rem]">
-            {currentPage.questionnaireName}
-          </span>
-        </div>
+          <section
+            ref={stickyHeaderRef}
+            className="sticky top-0 z-30 overflow-hidden border-b border-black/10 bg-white/95 shadow-[0_4px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:rounded-[2rem] sm:border sm:shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
+          >
+            <div className="px-3 pb-2.5 pt-2.5 sm:px-5 sm:pb-4 sm:pt-4">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FileText
+                      size={14}
+                      className="shrink-0 text-[#0f766e]"
+                    />
 
-        <div className="mt-1.5 flex items-center gap-2 text-[0.7rem] text-[#6b7280] sm:text-xs">
-          <span className="font-semibold text-[#0f766e]">
-            {answeredProgress}% ukończone
-          </span>
+                    <span className="truncate text-[0.66rem] font-semibold uppercase tracking-[0.15em] text-[#6b7280] sm:text-[0.72rem]">
+                      {currentPage.questionnaireName}
+                    </span>
+                  </div>
 
-          <span aria-hidden="true">•</span>
+                  <div className="mt-1.5 flex items-center gap-2 text-[0.7rem] text-[#6b7280] sm:text-xs">
+                    <span className="font-semibold text-[#0f766e]">
+                      {answeredProgress}% ukończone
+                    </span>
 
-          <span>
-            {currentPage.items.length}{" "}
-            {currentPage.items.length === 1 ? "pytanie" : "pytań"}
-          </span>
+                    <span aria-hidden="true">•</span>
 
-          <span aria-hidden="true">•</span>
+                    <span>
+                      {currentPage.items.length}{" "}
+                      {currentPage.items.length === 1 ? "pytanie" : "pytań"}
+                    </span>
 
-          <span>
-            {currentPageIndex + 1}/{pageGroups.length}
-          </span>
-        </div>
-      </div>
+                    <span aria-hidden="true">•</span>
 
-      <div className="shrink-0 text-xs font-semibold text-[#0f766e]">
-        {progress}%
-      </div>
-    </div>
+                    <span>
+                      {currentPageIndex + 1}/{pageGroups.length}
+                    </span>
+                  </div>
+                </div>
 
-    <button
-      type="button"
-      onClick={handleAnsweredProgressClick}
-      className="group relative mt-2 h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-[#e5e7eb] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50 sm:h-2.5"
-      aria-label="Przejdź do strony badania według postępu odpowiedzi"
-    >
-      <span
-        className="absolute inset-y-0 left-0 z-10 rounded-full bg-[#9ca3af] transition-all"
-        style={{ width: `${answeredProgress}%` }}
-      />
+                <div className="shrink-0 text-xs font-semibold text-[#0f766e]">
+                  {progress}%
+                </div>
+              </div>
 
-      <span
-        className="absolute inset-y-0 left-0 z-20 rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf] transition-all"
-        style={{ width: `${progress}%` }}
-      />
-    </button>
-  </div>
+              <button
+                type="button"
+                onClick={handleAnsweredProgressClick}
+                className="group relative mt-2 h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-[#e5e7eb] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/50 sm:h-2.5"
+                aria-label="Przejdź do strony badania według postępu odpowiedzi"
+              >
+                <span
+                  className="absolute inset-y-0 left-0 z-10 rounded-full bg-[#9ca3af] transition-all"
+                  style={{ width: `${answeredProgress}%` }}
+                />
 
-  <div className="border-t border-black/10 bg-white/80 px-3 py-3 sm:px-5 sm:py-4">
-    <h1 className="line-clamp-2 text-lg font-semibold leading-[1.18] tracking-[-0.025em] text-[#171717] sm:text-2xl md:text-3xl">
-      {currentPage.pageTitle}
-    </h1>
+                <span
+                  className="absolute inset-y-0 left-0 z-20 rounded-full bg-gradient-to-r from-[#171717] to-[#2dd4bf] transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </button>
+            </div>
 
-    {currentPage.pageDescription ? (
-      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#6b7280] sm:mt-2 sm:line-clamp-none sm:text-sm sm:leading-6">
-        {currentPage.pageDescription}
-      </p>
-    ) : null}
-  </div>
-</section>
+            <div className="border-t border-black/10 bg-white/80 px-3 py-3 sm:px-5 sm:py-4">
+              <h1 className="line-clamp-2 text-lg font-semibold leading-[1.18] tracking-[-0.025em] text-[#171717] sm:text-2xl md:text-3xl">
+                {currentPage.pageTitle}
+              </h1>
+
+              {currentPage.pageDescription ? (
+                <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#6b7280] sm:mt-2 sm:line-clamp-none sm:text-sm sm:leading-6">
+                  {currentPage.pageDescription}
+                </p>
+              ) : null}
+            </div>
+          </section>
 
 
-        {pageGroups.map((pageGroup, pageIndex) => {
-          const isCurrentPage = pageIndex === currentPageIndex;
+          {pageGroups.map((pageGroup, pageIndex) => {
+            const isCurrentPage = pageIndex === currentPageIndex;
 
-          return (
-            <section
-              key={`${pageGroup.versionId}:${pageGroup.pageId}`}
-              className={isCurrentPage ? "space-y-3 sm:space-y-5" : "hidden"}
-              aria-hidden={!isCurrentPage}
-            >
-              <div className="space-y-3 sm:space-y-6">
-                {pageGroup.items.map((item, index) => (
-                  <div
-                    key={item.id}
-                    data-assessment-item
-                    className="group relative scroll-mt-24 overflow-hidden rounded-[1.25rem] border border-black/10 bg-white/90 px-4 py-4 shadow-[0_4px_18px_rgba(15,23,42,0.06)] transition has-[input:checked]:border-[rgba(45,212,191,0.42)] has-[input:checked]:bg-[rgba(45,212,191,0.06)] sm:rounded-[1.75rem] sm:p-6"
-                  >
-                    <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-4 md:grid-cols-[2rem_minmax(0,1fr)_auto] md:gap-5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
-                        {index + 1}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="text-base font-medium leading-snug tracking-[-0.01em] text-[#171717] sm:text-lg">
-                          {item.text}
+            return (
+              <section
+                key={`${pageGroup.versionId}:${pageGroup.pageId}`}
+                className={isCurrentPage ? "space-y-3 sm:space-y-5" : "hidden"}
+                aria-hidden={!isCurrentPage}
+              >
+                <div className="space-y-3 sm:space-y-6">
+                  {pageGroup.items.map((item, index) => (
+                    <div
+                      key={item.id}
+                      data-assessment-item
+                      className="group relative scroll-mt-24 overflow-hidden rounded-[1.25rem] border border-black/10 bg-white/90 px-4 py-4 shadow-[0_4px_18px_rgba(15,23,42,0.06)] transition has-[input:checked]:border-[rgba(45,212,191,0.42)] has-[input:checked]:bg-[rgba(45,212,191,0.06)] sm:rounded-[1.75rem] sm:p-6"
+                    >
+                      <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-4 md:grid-cols-[2rem_minmax(0,1fr)_auto] md:gap-5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-[#171717]">
+                          {index + 1}
                         </div>
 
-                        {item.helpText ? (
-                          <p className="mt-2 text-sm leading-5 text-[#6b7280] sm:leading-6">
-                            {item.helpText}
-                          </p>
-                        ) : null}
-                      </div>
+                        <div className="min-w-0">
+                          <div className="text-base font-medium leading-snug tracking-[-0.01em] text-[#171717] sm:text-lg">
+                            {item.text}
+                          </div>
 
-                      <div className="col-span-2 w-full md:col-span-1 md:flex md:justify-end">
-                        <AssessmentItemInput
-                          item={item}
-                          isCurrentPage={isCurrentPage}
-                        />
+                          {item.helpText ? (
+                            <p className="mt-2 text-sm leading-5 text-[#6b7280] sm:leading-6">
+                              {item.helpText}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="col-span-2 w-full md:col-span-1 md:flex md:justify-end">
+                          <AssessmentItemInput
+                            item={item}
+                            isCurrentPage={isCurrentPage}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+
+          {state.status !== "idle" ? (
+            <div
+              className={[
+                "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
+                state.status === "success"
+                  ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+                  : "border-red-200 bg-red-50 text-red-700",
+              ].join(" ")}
+            >
+              <div className="flex gap-2">
+                {state.status === "success" ? (
+                  <CheckCircle2
+                    size={16}
+                    className="mt-0.5 shrink-0"
+                  />
+                ) : (
+                  <TriangleAlert
+                    size={16}
+                    className="mt-0.5 shrink-0"
+                  />
+                )}
+
+                <span>{state.message}</span>
               </div>
-            </section>
-          );
-        })}
+            </div>
+          ) : null}
 
-        {state.status !== "idle" ? (
-          <div
-            className={[
-              "rounded-[1.25rem] border px-4 py-3 text-sm leading-6",
-              state.status === "success"
-                ? "border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
-                : "border-red-200 bg-red-50 text-red-700",
-            ].join(" ")}
-          >
-            <div className="flex gap-2">
-              {state.status === "success" ? (
-                <CheckCircle2
-                  size={16}
-                  className="mt-0.5 shrink-0"
-                />
+          <div className="sticky bottom-0 z-20 -mx-3 flex items-center border-t border-black/10 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl sm:bottom-4 sm:mx-0 sm:justify-between sm:rounded-[2rem] sm:border sm:p-4">
+            <button
+              type="button"
+              disabled={isFirstPage || isPending || isAutoFilling}
+              onClick={goToPreviousPage}
+              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-[#171717] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 sm:w-auto sm:gap-2 sm:px-5"
+              aria-label="Poprzednia strona"
+            >
+              <ArrowLeft size={19} />
+
+              <span className="hidden sm:inline">
+                Wstecz
+              </span>
+            </button>
+
+            <div className="ml-3 flex min-w-0 flex-1 items-center gap-3 sm:ml-0 sm:flex-none">
+              {isSuperAdmin ? (
+                <button
+                  type="button"
+                  disabled={isPending || isAutoFilling}
+                  onClick={fillAllPagesRandomlyForSuperAdmin}
+                  className="hidden h-11 items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60 sm:inline-flex"
+                >
+                  <Sparkles size={16} />
+
+                  {isAutoFilling
+                    ? "Losowe uzupełnianie..."
+                    : "Losowo uzupełnij wszystkie strony"}
+                </button>
+              ) : null}
+
+              {!isLastPage ? (
+                <button
+                  type="button"
+                  disabled={isPending || isAutoFilling}
+                  onClick={goToNextPage}
+                  className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none sm:text-sm"
+                >
+                  <span className="truncate">
+                    {isPending ? "Zapisywanie..." : "Dalej"}
+                  </span>
+
+                  <ArrowRight
+                    size={18}
+                    className="shrink-0"
+                  />
+                </button>
               ) : (
-                <TriangleAlert
-                  size={16}
-                  className="mt-0.5 shrink-0"
-                />
-              )}
+                <button
+                  type="button"
+                  disabled={isPending || isAutoFilling}
+                  onClick={finishAssessment}
+                  className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
+                >
+                  <ClipboardCheck
+                    size={17}
+                    className="shrink-0"
+                  />
 
-              <span>{state.message}</span>
+                  <span className="truncate">
+                    {isPending ? "Zapisywanie..." : "Zakończ"}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
-        ) : null}
-
-        <div className="sticky bottom-0 z-20 -mx-3 flex items-center border-t border-black/10 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl sm:bottom-4 sm:mx-0 sm:justify-between sm:rounded-[2rem] sm:border sm:p-4">
-          <button
-            type="button"
-            disabled={isFirstPage || isPending || isAutoFilling}
-            onClick={goToPreviousPage}
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-[#171717] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 sm:w-auto sm:gap-2 sm:px-5"
-            aria-label="Poprzednia strona"
-          >
-            <ArrowLeft size={19} />
-
-            <span className="hidden sm:inline">
-              Wstecz
-            </span>
-          </button>
-
-          <div className="ml-3 flex min-w-0 flex-1 items-center gap-3 sm:ml-0 sm:flex-none">
-            {isSuperAdmin ? (
-              <button
-                type="button"
-                disabled={isPending || isAutoFilling}
-                onClick={fillAllPagesRandomlyForSuperAdmin}
-                className="hidden h-11 items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60 sm:inline-flex"
-              >
-                <Sparkles size={16} />
-
-                {isAutoFilling
-                  ? "Losowe uzupełnianie..."
-                  : "Losowo uzupełnij wszystkie strony"}
-              </button>
-            ) : null}
-
-            {!isLastPage ? (
-              <button
-                type="button"
-                disabled={isPending || isAutoFilling}
-                onClick={goToNextPage}
-                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none sm:text-sm"
-              >
-                <span className="truncate">
-                  {isPending ? "Zapisywanie..." : "Dalej"}
-                </span>
-
-                <ArrowRight
-                  size={18}
-                  className="shrink-0"
-                />
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={isPending || isAutoFilling}
-                onClick={finishAssessment}
-                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#171717] px-5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
-              >
-                <ClipboardCheck
-                  size={17}
-                  className="shrink-0"
-                />
-
-                <span className="truncate">
-                  {isPending ? "Zapisywanie..." : "Zakończ"}
-                </span>
-              </button>
-            )}
-          </div>
         </div>
-      </div>
-    </form>
-  </div>
-);
+      </form>
+    </div>
+  );
 }
