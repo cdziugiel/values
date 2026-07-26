@@ -206,19 +206,33 @@ function ProtectedAppShellInner({
               ))}
             </div>
           </nav>
-          <div className="mt-auto border-t p-3">
-            <Link
-              href="/my/support"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-xs"
-            >
-              <LifeBuoy
-                size={18}
-                className="shrink-0"
-              />
+<div className="mt-auto border-t p-3">
+  <Link
+    href="/my/support"
+    title="Zgłoś problem"
+    aria-label="Zgłoś problem"
+    className={[
+      "flex w-full items-center rounded-xl",
+      "text-sm font-medium text-muted-foreground",
+      "transition-colors hover:bg-muted hover:text-foreground",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      isSidebarCollapsed
+        ? "h-10 justify-center px-0"
+        : "gap-3 px-3 py-2.5",
+    ].join(" ")}
+  >
+    <LifeBuoy
+      size={18}
+      className="shrink-0"
+    />
 
-              <span>Zgłoś problem</span>
-            </Link>
-          </div>
+    {!isSidebarCollapsed ? (
+      <span className="min-w-0 truncate">
+        Zgłoś problem
+      </span>
+    ) : null}
+  </Link>
+</div>
           <Separator />
 
           {isSidebarCollapsed ? (
@@ -370,19 +384,19 @@ function ProtectedAppShellInner({
                     </DropdownMenuItem>
                   ))}
                   <Separator className="my-1" />
-                  <DropdownMenuItem key={'support'} asChild>
-                    <Link
-                      href="/my/support"
-                      className="flex w-full items-center gap-2 text-xs"
-                    >
-                      <LifeBuoy
-                        size={18}
-                        className="shrink-0"
-                      />
 
-                      <span>Zgłoś problem</span>
-                    </Link>
-                  </DropdownMenuItem>
+<DropdownMenuItem key="support" asChild>
+  <Link
+    href="/my/support"
+    className="flex w-full items-center gap-2 text-xs"
+  >
+    <LifeBuoy className="h-5 w-5 shrink-0" />
+
+    <span className="truncate">
+      Zgłoś problem
+    </span>
+  </Link>
+</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
