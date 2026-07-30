@@ -32,7 +32,7 @@ const VALUE_SYSTEM_DEFINITIONS: ValueSystemDefinition[] = [
     aliases: ["SYSTEMIC"],
   },
   {
-    code: "MEDIATION",
+    code: "MEDIATIONS",
     label: "MEDIACJE",
     shortLabel: "Mediacje",
     aliases: ["COMMUNITY"],
