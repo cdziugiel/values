@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import {
     reportAccessCodes,
     reportAccessProducts,
+    tenants,
 } from "@/drizzle/schema";
 
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
@@ -17,7 +18,7 @@ export type ReportAccessAdminActionState = {
     message: string;
     generatedCodes?: string[];
 };
-
+const GLOBAL_TENANT_SELECTION = "__GLOBAL__";
 const REPORT_ACCESS_ADMIN_PATH = "/dashboard/report-access";
 
 function ok(
@@ -263,33 +264,75 @@ export async function generateReportAccessCodesAction(
     const actor = await requireSuperAdmin();
 
     const productId = stringValue(formData, "productId");
-    const tenantSlug = nullableStringValue(formData, "tenantSlug");
+    const tenantSelection = stringValue(formData, "tenantSlug");
 
     const assignedToEmail = nullableStringValue(formData, "assignedToEmail");
     const assignedToUserId = nullableStringValue(formData, "assignedToUserId");
 
-    const assessmentProjectId = nullableStringValue(formData, "assessmentProjectId");
-    const assessmentSessionId = nullableStringValue(formData, "assessmentSessionId");
+    const assessmentProjectId = nullableStringValue(
+        formData,
+        "assessmentProjectId",
+    );
+    const assessmentSessionId = nullableStringValue(
+        formData,
+        "assessmentSessionId",
+    );
     const assessmentAccessLinkId = nullableStringValue(
-    formData,
-    "assessmentAccessLinkId",
+        formData,
+        "assessmentAccessLinkId",
     );
 
-    const quantity = Math.min(Math.max(numberValue(formData, "quantity", 1), 1), 100);
+    const quantity = Math.min(
+        Math.max(numberValue(formData, "quantity", 1), 1),
+        100,
+    );
 
     if (!productId) {
         return fail("Wybierz produkt.");
     }
 
+    if (!tenantSelection) {
+        return fail(
+            "Wybierz tenanta albo jawnie wybierz opcję kodu globalnego.",
+        );
+    }
+
+    const tenantSlug =
+        tenantSelection === GLOBAL_TENANT_SELECTION
+            ? null
+            : tenantSelection;
+
+    if (tenantSlug) {
+            const selectedTenant = await controlDb.query.tenants.findFirst({
+            where: and(
+                eq(tenants.slug, tenantSlug),
+                isNull(tenants.deletedAt),
+            ),
+            columns: {
+                id: true,
+                slug: true,
+            },
+            });
+
+        if (!selectedTenant) {
+            return fail(
+                "Wybrany tenant nie istnieje albo nie jest aktywny.",
+            );
+        }
+    }
+
     const product = await controlDb.query.reportAccessProducts.findFirst({
         where: and(
             eq(reportAccessProducts.id, productId),
+            eq(reportAccessProducts.status, "active"),
             isNull(reportAccessProducts.deletedAt),
         ),
     });
 
     if (!product) {
-        return fail("Nie znaleziono produktu.");
+        return fail(
+            "Nie znaleziono aktywnego produktu raportowego.",
+        );
     }
 
     const now = new Date();
@@ -317,60 +360,74 @@ export async function generateReportAccessCodesAction(
                 ),
             });
         }
+
         const validUntil =
-            typeof product.validityDays === "number" && product.validityDays > 0
-                ? new Date(now.getTime() + product.validityDays * 24 * 60 * 60 * 1000)
+            typeof product.validityDays === "number" &&
+                product.validityDays > 0
+                ? new Date(
+                    now.getTime() +
+                    product.validityDays * 24 * 60 * 60 * 1000,
+                )
                 : null;
-await controlDb.insert(reportAccessCodes).values({
-  tenantSlug,
-  productId,
 
-  codeHash,
-  codePreview: previewAccessCode(code),
+        await controlDb.insert(reportAccessCodes).values({
+            tenantSlug,
+            productId,
 
-  status:
-    assignedToEmail ||
-    assignedToUserId ||
-    assessmentProjectId ||
-    assessmentSessionId ||
-    assessmentAccessLinkId
-      ? "assigned"
-      : "available",
+            codeHash,
+            codePreview: previewAccessCode(code),
 
-  assignedToEmail,
-  assignedToUserId,
+            status:
+                assignedToEmail ||
+                    assignedToUserId ||
+                    assessmentProjectId ||
+                    assessmentSessionId ||
+                    assessmentAccessLinkId
+                    ? "assigned"
+                    : "available",
 
-  assessmentProjectId,
-  assessmentSessionId,
-  assessmentAccessLinkId,
+            assignedToEmail,
+            assignedToUserId,
 
-  validFrom: now,
-  validUntil,
+            assessmentProjectId,
+            assessmentSessionId,
+            assessmentAccessLinkId,
 
-  metadata: {
-    generatedFrom: "admin_panel",
-    assignment: {
-      tenantSlug,
-      assignedToEmail,
-      assignedToUserId,
-      assessmentProjectId,
-      assessmentSessionId,
-      assessmentAccessLinkId,
-    },
-  },
+            validFrom: now,
+            validUntil,
 
-  createdAt: now,
-  updatedAt: now,
-  createdBy: actor.id,
-  updatedBy: actor.id,
-});
+            metadata: {
+                generatedFrom: "admin_panel",
+                tenantScope: tenantSlug ? "tenant" : "global",
+                assignment: {
+                    tenantSlug,
+                    assignedToEmail,
+                    assignedToUserId,
+                    assessmentProjectId,
+                    assessmentSessionId,
+                    assessmentAccessLinkId,
+                },
+            },
+
+            createdAt: now,
+            updatedAt: now,
+            createdBy: actor.id,
+            updatedBy: actor.id,
+        });
 
         generatedCodes.push(code);
     }
 
     revalidatePath(REPORT_ACCESS_ADMIN_PATH);
 
-    return ok(`Wygenerowano kodów: ${generatedCodes.length}.`, generatedCodes);
+    const scopeMessage = tenantSlug
+        ? `Tenant: ${tenantSlug}.`
+        : "Kod globalny — możliwy do wykorzystania w dowolnym tenancie.";
+
+    return ok(
+        `Wygenerowano kodów: ${generatedCodes.length}. ${scopeMessage}`,
+        generatedCodes,
+    );
 }
 
 export async function revokeReportAccessCodeAction(

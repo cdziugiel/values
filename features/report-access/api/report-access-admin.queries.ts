@@ -1,99 +1,112 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import {
-    reportAccessCodes,
-    reportAccessProducts,
-    reportTemplates,
+  reportAccessCodes,
+  reportAccessProducts,
+  reportTemplates,
+  tenants,
 } from "@/drizzle/schema";
 
 import { controlDb } from "@/server/db/control-db";
 
 export async function getReportAccessAdminData() {
-    const templates = await controlDb
-        .select({
-            id: reportTemplates.id,
-            code: reportTemplates.code,
-            name: reportTemplates.name,
-            description: reportTemplates.description,
-            status: reportTemplates.status,
-        })
-        .from(reportTemplates)
-        .where(isNull(reportTemplates.deletedAt))
-        .orderBy(reportTemplates.name);
+  const templates = await controlDb
+    .select({
+      id: reportTemplates.id,
+      code: reportTemplates.code,
+      name: reportTemplates.name,
+      description: reportTemplates.description,
+      status: reportTemplates.status,
+    })
+    .from(reportTemplates)
+    .where(isNull(reportTemplates.deletedAt))
+    .orderBy(reportTemplates.name);
 
-    const products = await controlDb
-        .select({
-            id: reportAccessProducts.id,
-            reportTemplateId: reportAccessProducts.reportTemplateId,
+  const products = await controlDb
+    .select({
+      id: reportAccessProducts.id,
+      reportTemplateId: reportAccessProducts.reportTemplateId,
 
-            code: reportAccessProducts.code,
-            name: reportAccessProducts.name,
-            description: reportAccessProducts.description,
-            status: reportAccessProducts.status,
+      code: reportAccessProducts.code,
+      name: reportAccessProducts.name,
+      description: reportAccessProducts.description,
+      status: reportAccessProducts.status,
 
-            accessCount: reportAccessProducts.accessCount,
-            currency: reportAccessProducts.currency,
-            priceNet: reportAccessProducts.priceNet,
-            vatRate: reportAccessProducts.vatRate,
-            priceGross: reportAccessProducts.priceGross,
+      accessCount: reportAccessProducts.accessCount,
+      currency: reportAccessProducts.currency,
+      priceNet: reportAccessProducts.priceNet,
+      vatRate: reportAccessProducts.vatRate,
+      priceGross: reportAccessProducts.priceGross,
 
-            createdAt: reportAccessProducts.createdAt,
-            updatedAt: reportAccessProducts.updatedAt,
+      createdAt: reportAccessProducts.createdAt,
+      updatedAt: reportAccessProducts.updatedAt,
 
-            reportTemplateCode: reportTemplates.code,
-            reportTemplateName: reportTemplates.name,
-        })
-        .from(reportAccessProducts)
-        .innerJoin(
-            reportTemplates,
-            eq(reportTemplates.id, reportAccessProducts.reportTemplateId),
-        )
-        .where(
-            and(
-                isNull(reportAccessProducts.deletedAt),
-                isNull(reportTemplates.deletedAt),
-            ),
-        )
-        .orderBy(desc(reportAccessProducts.updatedAt));
+      reportTemplateCode: reportTemplates.code,
+      reportTemplateName: reportTemplates.name,
+    })
+    .from(reportAccessProducts)
+    .innerJoin(
+      reportTemplates,
+      eq(reportTemplates.id, reportAccessProducts.reportTemplateId),
+    )
+    .where(
+      and(
+        isNull(reportAccessProducts.deletedAt),
+        isNull(reportTemplates.deletedAt),
+      ),
+    )
+    .orderBy(desc(reportAccessProducts.updatedAt));
 
-    const recentCodes = await controlDb
-        .select({
-            id: reportAccessCodes.id,
-            tenantSlug: reportAccessCodes.tenantSlug,
-            codePreview: reportAccessCodes.codePreview,
-            status: reportAccessCodes.status,
-            assignedEmail: reportAccessCodes.assignedToEmail,
-            redeemedAt: reportAccessCodes.redeemedAt,
-            expiresAt: reportAccessCodes.validUntil,
-            createdAt: reportAccessCodes.createdAt,
+    const availableTenants = await controlDb
+    .select({
+        id: tenants.id,
+        slug: tenants.slug,
+        name: tenants.name,
+        status: tenants.status,
+    })
+    .from(tenants)
+    .where(isNull(tenants.deletedAt))
+    .orderBy(asc(tenants.name), asc(tenants.slug));
 
-            productId: reportAccessProducts.id,
-            productCode: reportAccessProducts.code,
-            productName: reportAccessProducts.name,
-            assignedToEmail: reportAccessCodes.assignedToEmail,
-            assignedToUserId: reportAccessCodes.assignedToUserId,
+  const recentCodes = await controlDb
+    .select({
+      id: reportAccessCodes.id,
+      tenantSlug: reportAccessCodes.tenantSlug,
+      codePreview: reportAccessCodes.codePreview,
+      status: reportAccessCodes.status,
+      assignedEmail: reportAccessCodes.assignedToEmail,
+      redeemedAt: reportAccessCodes.redeemedAt,
+      expiresAt: reportAccessCodes.validUntil,
+      createdAt: reportAccessCodes.createdAt,
 
-            assessmentProjectId: reportAccessCodes.assessmentProjectId,
-            assessmentSessionId: reportAccessCodes.assessmentSessionId,
-            assessmentAccessLinkId: reportAccessCodes.assessmentAccessLinkId,
-        })
-        .from(reportAccessCodes)
-        .innerJoin(
-            reportAccessProducts,
-            eq(reportAccessProducts.id, reportAccessCodes.productId),
-        )
-        .where(
-            and(
-                isNull(reportAccessCodes.deletedAt),
-                isNull(reportAccessProducts.deletedAt),
-            ),
-        )
-        .orderBy(desc(reportAccessCodes.createdAt))
-        .limit(50);
+      productId: reportAccessProducts.id,
+      productCode: reportAccessProducts.code,
+      productName: reportAccessProducts.name,
+      assignedToEmail: reportAccessCodes.assignedToEmail,
+      assignedToUserId: reportAccessCodes.assignedToUserId,
 
-    return {
-        templates,
-        products,
-        recentCodes,
-    };
+      assessmentProjectId: reportAccessCodes.assessmentProjectId,
+      assessmentSessionId: reportAccessCodes.assessmentSessionId,
+      assessmentAccessLinkId: reportAccessCodes.assessmentAccessLinkId,
+    })
+    .from(reportAccessCodes)
+    .innerJoin(
+      reportAccessProducts,
+      eq(reportAccessProducts.id, reportAccessCodes.productId),
+    )
+    .where(
+      and(
+        isNull(reportAccessCodes.deletedAt),
+        isNull(reportAccessProducts.deletedAt),
+      ),
+    )
+    .orderBy(desc(reportAccessCodes.createdAt))
+    .limit(50);
+
+  return {
+    templates,
+    products,
+    availableTenants,
+    recentCodes,
+  };
 }

@@ -2,7 +2,13 @@
 
 "use client";
 
-import { useActionState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Archive,
   CheckCircle2,
@@ -35,13 +41,250 @@ const initialState: ReportAccessAdminActionState = {
   message: "",
 };
 
+type ReportAccessTenantOption = {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+};
+
 type ReportAccessAdminPageProps = {
   data: {
     templates: any[];
     products: any[];
+    availableTenants: ReportAccessTenantOption[];
     recentCodes: any[];
   };
 };
+
+type TenantAutocompleteProps = {
+  tenants: ReportAccessTenantOption[];
+  disabled?: boolean;
+};
+
+type TenantAutocompleteOption = {
+  id: string;
+  slug: string;
+  name: string;
+  isGlobal?: boolean;
+};
+
+function TenantAutocomplete({
+  tenants,
+  disabled = false,
+}: TenantAutocompleteProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selectedValue, setSelectedValue] = useState("");
+
+  const options = useMemo<TenantAutocompleteOption[]>(
+    () => [
+      ...tenants.map((tenant) => ({
+        id: tenant.id,
+        slug: tenant.slug,
+        name: tenant.name,
+      })),
+      {
+        id: "__GLOBAL__",
+        slug: "__GLOBAL__",
+        name: "Wszystkie tenanty — kod globalny",
+        isGlobal: true,
+      },
+    ],
+    [tenants],
+  );
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase("pl-PL");
+
+    if (!normalizedQuery) {
+      return options;
+    }
+
+    return options.filter((option) => {
+      const searchableValue = [
+        option.name,
+        option.slug,
+        option.isGlobal ? "globalny wszystkie tenanty" : "",
+      ]
+        .join(" ")
+        .toLocaleLowerCase("pl-PL");
+
+      return searchableValue.includes(normalizedQuery);
+    });
+  }, [options, query]);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, []);
+
+  function selectOption(option: TenantAutocompleteOption) {
+    setSelectedValue(option.slug);
+
+    setQuery(
+      option.isGlobal
+        ? option.name
+        : `${option.name} (${option.slug})`,
+    );
+
+    setIsOpen(false);
+  }
+
+  function clearSelection() {
+    setSelectedValue("");
+    setQuery("");
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="hidden"
+        name="tenantSlug"
+        value={selectedValue}
+      />
+
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          disabled={disabled}
+          placeholder="Wyszukaj tenanta..."
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls="tenant-autocomplete-options"
+          aria-autocomplete="list"
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setSelectedValue("");
+            setIsOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setIsOpen(false);
+            }
+
+            if (
+              event.key === "Enter" &&
+              isOpen &&
+              filteredOptions.length === 1
+            ) {
+              event.preventDefault();
+              selectOption(filteredOptions[0]);
+            }
+          }}
+          className={[
+            "h-11 w-full rounded-2xl border bg-white px-3 pr-10 text-sm outline-none",
+            "focus-visible:ring-2 focus-visible:ring-[#2dd4bf]/40",
+            selectedValue
+              ? "border-black/10"
+              : "border-black/10",
+            disabled
+              ? "cursor-not-allowed opacity-50"
+              : "",
+          ].join(" ")}
+        />
+
+        {query ? (
+          <button
+            type="button"
+            onClick={clearSelection}
+            disabled={disabled}
+            aria-label="Wyczyść wybór tenanta"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 text-sm text-[#6b7280] transition hover:bg-black/5 hover:text-[#171717]"
+          >
+            ×
+          </button>
+        ) : null}
+      </div>
+
+      {isOpen && !disabled ? (
+        <div
+          id="tenant-autocomplete-options"
+          role="listbox"
+          className="absolute z-50 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-black/10 bg-white p-1.5 shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
+        >
+          {filteredOptions.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-[#6b7280]">
+              Nie znaleziono tenanta.
+            </div>
+          ) : (
+            filteredOptions.map((option) => {
+              const isSelected = selectedValue === option.slug;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => selectOption(option)}
+                  className={[
+                    "flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition",
+                    isSelected
+                      ? "bg-[rgba(45,212,191,0.14)] text-[#0f766e]"
+                      : "text-[#171717] hover:bg-black/[0.04]",
+                    option.isGlobal
+                      ? "mt-1 border-t border-black/10"
+                      : "",
+                  ].join(" ")}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {option.name}
+                    </span>
+
+                    {!option.isGlobal ? (
+                      <span className="mt-0.5 block truncate font-mono text-xs text-[#6b7280]">
+                        {option.slug}
+                      </span>
+                    ) : (
+                      <span className="mt-0.5 block text-xs text-amber-700">
+                        Kod będzie działał niezależnie od tenanta.
+                      </span>
+                    )}
+                  </span>
+
+                  {isSelected ? (
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 text-sm font-semibold"
+                    >
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })
+          )}
+        </div>
+      ) : null}
+
+      {!selectedValue && query ? (
+        <p className="mt-1.5 text-xs text-amber-700">
+          Wybierz pozycję z listy. Samo wpisanie nazwy nie
+          przypisuje tenanta.
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function formatDate(value: unknown) {
   if (!value) return "—";
@@ -204,15 +447,16 @@ function CreateProductForm({ templates }: { templates: any[] }) {
               </SelectField>
             </div>
 
-            <div className="space-y-1.5">
-              <FieldLabel>Kod</FieldLabel>
-              <Input
-                name="code"
-                placeholder="INDIVIDUAL_REPORT_ACCESS"
-                required
-                className="h-11 rounded-2xl border-black/10 bg-white font-mono text-sm"
-              />
-            </div>
+<div className="space-y-1.5">
+  <FieldLabel>Kod</FieldLabel>
+
+  <Input
+    name="code"
+    placeholder="INDIVIDUAL_REPORT_ACCESS"
+    required
+    className="h-11 rounded-2xl border-black/10 bg-white font-mono text-sm"
+  />
+</div>
 
             <div className="space-y-1.5 md:col-span-2">
               <FieldLabel>Nazwa</FieldLabel>
@@ -474,17 +718,28 @@ function ProductEditCard({ product }: { product: any }) {
   );
 }
 
-function GenerateCodesForm({ products }: { products: any[] }) {
+function GenerateCodesForm({
+  products,
+  availableTenants,
+}: {
+  products: any[];
+  availableTenants: ReportAccessTenantOption[];
+}) {
   const [state, formAction, isPending] = useActionState(
     generateReportAccessCodesAction,
     initialState,
   );
 
-  const activeProducts = products.filter((product) => product.status === "active");
+  const activeProducts = products.filter(
+    (product) => product.status === "active",
+  );
 
   return (
     <section className="rounded-[2rem] hv-brand-card">
-      <form action={formAction} className="grid gap-6 p-5 md:p-6 lg:grid-cols-[0.8fr_1.2fr]">
+      <form
+        action={formAction}
+        className="grid gap-6 p-5 md:p-6 lg:grid-cols-[0.8fr_1.2fr]"
+      >
         <div className="space-y-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
             <KeyRound size={20} />
@@ -494,77 +749,128 @@ function GenerateCodesForm({ products }: { products: any[] }) {
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
               Kody dostępu
             </p>
+
             <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
               Wygeneruj kody do raportów.
             </h2>
+
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6b7280]">
-              Pełne kody pojawią się tylko po wygenerowaniu. Skopiuj je od razu
-              i przekaż respondentowi lub użyj w procesie zaproszenia.
+              Pełne kody pojawią się tylko po wygenerowaniu.
+              Skopiuj je od razu i przekaż respondentowi albo
+              wykorzystaj w procesie zaproszenia.
             </p>
           </div>
         </div>
 
         <div className="rounded-[1.5rem] border border-black/10 bg-white/70 p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-4">
-            <SelectField name="productId" required>
-              <option value="">Wybierz produkt</option>
-              {activeProducts.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name} ({product.code})
+            <div className="space-y-1.5">
+              <FieldLabel>Produkt</FieldLabel>
+
+              <SelectField
+                name="productId"
+                required
+                defaultValue=""
+                className="w-full"
+              >
+                <option value="" disabled>
+                  Wybierz produkt
                 </option>
-              ))}
-            </SelectField>
 
-            <Input
-              name="tenantSlug"
-              placeholder="tenant, np. humanet"
-              className="h-11 rounded-2xl border-black/10 bg-white"
-            />
+                {activeProducts.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} ({product.code})
+                  </option>
+                ))}
+              </SelectField>
+            </div>
 
-            <Input
-              name="quantity"
-              type="number"
-              min={1}
-              max={100}
-              defaultValue="1"
-              className="h-11 rounded-2xl border-black/10 bg-white"
-            />
+            <div className="space-y-1.5">
+  <FieldLabel>Zakres tenanta</FieldLabel>
 
-            <Input
-              name="assignedToEmail"
-              placeholder="e-mail respondenta"
-              className="h-11 rounded-2xl border-black/10 bg-white"
-            />
+  <TenantAutocomplete tenants={availableTenants} />
+</div>
+
+            <div className="space-y-1.5">
+              <FieldLabel>Liczba kodów</FieldLabel>
+
+              <Input
+                name="quantity"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue="1"
+                required
+                className="h-11 rounded-2xl border-black/10 bg-white"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <FieldLabel>E-mail respondenta</FieldLabel>
+
+              <Input
+                name="assignedToEmail"
+                type="email"
+                placeholder="opcjonalnie"
+                className="h-11 rounded-2xl border-black/10 bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+            Wybranie opcji „Wszystkie tenanty — kod globalny”
+            oznacza, że kod będzie mógł zostać wykorzystany
+            w dowolnym tenancie. Po wykorzystaniu grant zostanie
+            przypisany do konkretnego tenanta i sesji.
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <Input
-              name="assessmentProjectId"
-              placeholder="assessmentProjectId"
-              className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
-            />
-            <Input
-              name="assessmentAccessLinkId"
-              placeholder="assessmentAccessLinkId"
-              className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
-            />
-            <Input
-              name="assessmentSessionId"
-              placeholder="assessmentSessionId"
-              className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
-            />
+            <div className="space-y-1.5">
+              <FieldLabel>ID projektu</FieldLabel>
+
+              <Input
+                name="assessmentProjectId"
+                placeholder="opcjonalnie"
+                className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <FieldLabel>ID linku zaproszenia</FieldLabel>
+
+              <Input
+                name="assessmentAccessLinkId"
+                placeholder="opcjonalnie"
+                className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <FieldLabel>ID sesji</FieldLabel>
+
+              <Input
+                name="assessmentSessionId"
+                placeholder="opcjonalnie"
+                className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
+              />
+            </div>
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1.2fr]">
-            <Input
-              name="assignedToUserId"
-              placeholder="assignedToUserId"
-              className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
-            />
+            <div className="space-y-1.5">
+              <FieldLabel>ID użytkownika</FieldLabel>
+
+              <Input
+                name="assignedToUserId"
+                placeholder="opcjonalnie"
+                className="h-11 rounded-2xl border-black/10 bg-white font-mono text-xs"
+              />
+            </div>
 
             <div className="rounded-[1.25rem] border border-black/10 bg-white/60 px-4 py-3 text-xs leading-5 text-[#6b7280]">
-              Kod może być przypisany do projektu, linku zaproszenia, konkretnej
-              sesji, e-maila albo usera. Przy zakończeniu badania system spróbuje
+              Kod może być przypisany do projektu, linku
+              zaproszenia, konkretnej sesji, adresu e-mail albo
+              użytkownika. Przy zakończeniu badania system spróbuje
               automatycznie utworzyć grant.
             </div>
           </div>
@@ -572,7 +878,8 @@ function GenerateCodesForm({ products }: { products: any[] }) {
           <div className="mt-5 space-y-3">
             <ActionMessage state={state} />
 
-            {state.generatedCodes && state.generatedCodes.length > 0 ? (
+            {state.generatedCodes &&
+            state.generatedCodes.length > 0 ? (
               <div className="rounded-[1.5rem] border border-[rgba(45,212,191,0.32)] bg-[rgba(45,212,191,0.14)] p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#171717]">
                   <Copy size={15} />
@@ -594,16 +901,29 @@ function GenerateCodesForm({ products }: { products: any[] }) {
 
             <Button
               type="submit"
-              disabled={isPending || activeProducts.length === 0}
+        disabled={
+          isPending ||
+          activeProducts.length === 0
+        }
               className="rounded-full bg-[#171717] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a]"
             >
               <KeyRound size={16} />
-              {isPending ? "Generowanie..." : "Wygeneruj kody"}
+
+              {isPending
+                ? "Generowanie..."
+                : "Wygeneruj kody"}
             </Button>
 
             {activeProducts.length === 0 ? (
               <p className="text-sm text-[#6b7280]">
-                Nie masz jeszcze aktywnego produktu. Utwórz produkt i ustaw status aktywny.
+                Nie masz jeszcze aktywnego produktu. Utwórz
+                produkt i ustaw jego status jako aktywny.
+              </p>
+            ) : null}
+
+            {availableTenants.length === 0 ? (
+              <p className="text-sm text-red-700">
+                Nie znaleziono żadnych aktywnych tenantów.
               </p>
             ) : null}
           </div>
@@ -672,7 +992,17 @@ function RecentCodesTable({ codes }: { codes: any[] }) {
                         <div className="font-mono text-xs text-[#6b7280]">{code.productCode}</div>
                       </td>
 
-                      <td className="px-4 py-4 text-[#171717]">{code.tenantSlug ?? "—"}</td>
+                      <td className="px-4 py-4 text-[#171717]">
+                        {code.tenantSlug ? (
+                          <span className="font-mono text-xs">
+                            {code.tenantSlug}
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                            Globalny
+                          </span>
+                        )}
+                      </td>
 
                       <td className="px-4 py-4">
                         <div className="space-y-1 text-xs text-[#6b7280]">
@@ -831,7 +1161,10 @@ export function ReportAccessAdminPage({ data }: ReportAccessAdminPageProps) {
         </section>
 
         <CreateProductForm templates={data.templates} />
-        <GenerateCodesForm products={data.products} />
+        <GenerateCodesForm
+          products={data.products}
+          availableTenants={data.availableTenants}
+        />
 
         <section className="rounded-[2rem] hv-brand-card">
           <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:p-6">
