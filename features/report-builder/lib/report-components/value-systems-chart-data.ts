@@ -35,7 +35,7 @@ const VALUE_SYSTEM_DEFINITIONS: ValueSystemDefinition[] = [
     code: "MEDIATIONS",
     label: "MEDIACJE",
     shortLabel: "Mediacje",
-    aliases: ["COMMUNITY"],
+    aliases: ["MEDIATION", "COMMUNITY"],
   },
   {
     code: "ASPIRATIONS",
@@ -59,6 +59,80 @@ const VALUE_SYSTEM_DEFINITIONS: ValueSystemDefinition[] = [
     shortLabel: "Tradycja",
   },
 ];
+
+/**
+ * MEDIATIONS jest kanonicznym kodem wymiaru w aktualnej definicji.
+ *
+ * MEDIATION może jednak występować w historycznych snapshotach,
+ * wynikach scoringu oraz strukturach crossScores.
+ *
+ * Odczyt musi obsługiwać oba warianty bez modyfikowania snapshotów.
+ */
+const DIMENSION_CODE_ALIASES: Record<string, string[]> = {
+  MEDIATIONS: ["MEDIATION"],
+  MEDIATION: ["MEDIATIONS"],
+};
+
+function normalizeCode(code: unknown) {
+  return String(code ?? "")
+    .trim()
+    .toUpperCase();
+}
+
+function getCompatibleCodes(code: string) {
+  const normalizedCode = normalizeCode(code);
+
+  if (!normalizedCode) {
+    return [];
+  }
+
+  return Array.from(
+    new Set([
+      normalizedCode,
+      ...(DIMENSION_CODE_ALIASES[normalizedCode] ?? []),
+    ]),
+  );
+}
+
+function getDefinitionCodes(definition: ValueSystemDefinition) {
+  return Array.from(
+    new Set(
+      [definition.code, ...(definition.aliases ?? [])].flatMap(
+        getCompatibleCodes,
+      ),
+    ),
+  );
+}
+
+function resolveRecordByCodes<T>(
+  records: Record<string, T> | undefined,
+  codes: string[],
+): T | undefined {
+  if (!records) {
+    return undefined;
+  }
+
+  for (const code of codes) {
+    const compatibleCodes = getCompatibleCodes(code);
+
+    for (const compatibleCode of compatibleCodes) {
+      const value = records[compatibleCode];
+
+      if (value !== undefined) {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function resolveRecordByCode<T>(
+  records: Record<string, T> | undefined,
+  code: string,
+): T | undefined {
+  return resolveRecordByCodes(records, [code]);
+}
 
 function numberOrZero(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -86,11 +160,9 @@ function resolveCrossScoreNode({
     return undefined;
   }
 
-  return (
-    targetGroup[definition.code] ??
-    (definition.aliases ?? [])
-      .map((alias) => targetGroup[alias])
-      .find(Boolean)
+  return resolveRecordByCodes(
+    targetGroup,
+    getDefinitionCodes(definition),
   );
 }
 
@@ -114,7 +186,12 @@ function mapCrossScoresSource({
       definition,
     });
 
-    const metricRecord = node?.by?.[filterCategory]?.[filterCode];
+    const filterGroup = node?.by?.[filterCategory];
+
+    const metricRecord = resolveRecordByCode(
+      filterGroup,
+      filterCode,
+    );
 
     return {
       code: definition.code,
@@ -137,11 +214,12 @@ function mapScoresSource({
   const scoresByCode = context.scores.byCategory[targetCategory] ?? [];
 
   return VALUE_SYSTEM_DEFINITIONS.map((definition) => {
+    const definitionCodes = getDefinitionCodes(definition);
+
     const score = scoresByCode.find((item) => {
-      return (
-        item.dimensionCode === definition.code ||
-        (definition.aliases ?? []).includes(item.dimensionCode)
-      );
+      const itemCode = normalizeCode(item.dimensionCode);
+
+      return definitionCodes.includes(itemCode);
     });
 
     return {
@@ -204,10 +282,16 @@ function getMetricValue(value: unknown, metric: ChartMetric) {
   return numberOrZero(record[metric]);
 }
 
-function codeMatchesDefinition(code: string | null | undefined, definition: ValueSystemDefinition) {
+function codeMatchesDefinition(
+  code: string | null | undefined,
+  definition: ValueSystemDefinition,
+) {
   if (!code) {
     return false;
   }
 
-  return code === definition.code || (definition.aliases ?? []).includes(code);
+  const normalizedCode = normalizeCode(code);
+  const definitionCodes = getDefinitionCodes(definition);
+
+  return definitionCodes.includes(normalizedCode);
 }
