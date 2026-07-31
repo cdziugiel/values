@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   questionnaireReportTemplateBindings,
   reportAccessGrants,
+  respondentIdentityIndex,
   reportAccessProducts,
   reportTemplates,
   reportTemplateVersions,
@@ -441,107 +442,191 @@ export async function getActiveReportAccessGrantForSession({
     .from(reportAccessGrants)
     .where(
       and(
-        eq(reportAccessGrants.tenantSlug, tenantSlug),
-        eq(reportAccessGrants.assessmentSessionId, sessionId),
-        eq(reportAccessGrants.reportTemplateVersionId, reportTemplateVersionId),
-        eq(reportAccessGrants.status, "active"),
+        eq(
+          reportAccessGrants.tenantSlug,
+          tenantSlug,
+        ),
+        eq(
+          reportAccessGrants.assessmentSessionId,
+          sessionId,
+        ),
+        eq(
+          reportAccessGrants.reportTemplateVersionId,
+          reportTemplateVersionId,
+        ),
+        eq(
+          reportAccessGrants.status,
+          "active",
+        ),
         isNull(reportAccessGrants.deletedAt),
       ),
     )
+    .orderBy(desc(reportAccessGrants.createdAt))
     .limit(50);
 
   const now = new Date();
 
   return (
     grants.find((grant) => {
-      if (userId && grant.userId && grant.userId !== userId) {
+      if (
+        userId &&
+        grant.userId &&
+        grant.userId !== userId
+      ) {
         return false;
       }
 
-      if (grant.validFrom && grant.validFrom > now) {
+      if (
+        grant.validFrom &&
+        grant.validFrom > now
+      ) {
         return false;
       }
 
-      if (grant.validUntil && grant.validUntil < now) {
+      if (
+        grant.validUntil &&
+        grant.validUntil < now
+      ) {
         return false;
       }
 
-      const grantProjectQuestionnaireId = readGrantProjectQuestionnaireId(
-        grant.metadata,
-      );
+      const grantProjectQuestionnaireId =
+        readGrantProjectQuestionnaireId(
+          grant.metadata,
+        );
 
-      const grantQuestionnaireVersionId = readGrantQuestionnaireVersionId(
-        grant.metadata,
-      );
+      const grantQuestionnaireVersionId =
+        readGrantQuestionnaireVersionId(
+          grant.metadata,
+        );
+
+      const grantHasExplicitScope =
+        Boolean(
+          grantProjectQuestionnaireId ||
+            grantQuestionnaireVersionId,
+        );
 
       /**
-       * Nowy model:
-       * jedna assessment_session może mieć kilka ukończonych kwestionariuszy,
-       * więc grant musi pasować do konkretnego projectQuestionnaireId
-       * albo questionnaireVersionId.
+       * Stary grant bez scope jest bezpieczny w tej funkcji,
+       * ponieważ zapytanie już wymaga:
+       *
+       * tenant + session + dokładna wersja raportu.
        */
-      if (projectQuestionnaireId) {
-        return grantProjectQuestionnaireId === projectQuestionnaireId;
-      }
-
-      if (questionnaireVersionId) {
-        return grantQuestionnaireVersionId === questionnaireVersionId;
+      if (!grantHasExplicitScope) {
+        return true;
       }
 
       /**
-       * Legacy fallback:
-       * bez scope uznajemy tylko stare granty, które same nie mają scope.
-       * Dzięki temu grant dla jednego kwestionariusza nie odblokuje drugiego.
+       * Jeżeli grant zawiera bardziej precyzyjny scope,
+       * jego niezgodność wyklucza dostęp.
        */
-      return !grantProjectQuestionnaireId && !grantQuestionnaireVersionId;
+      if (
+        projectQuestionnaireId &&
+        grantProjectQuestionnaireId &&
+        grantProjectQuestionnaireId !==
+          projectQuestionnaireId
+      ) {
+        return false;
+      }
+
+      if (
+        questionnaireVersionId &&
+        grantQuestionnaireVersionId &&
+        grantQuestionnaireVersionId !==
+          questionnaireVersionId
+      ) {
+        return false;
+      }
+
+      if (
+        projectQuestionnaireId &&
+        grantProjectQuestionnaireId ===
+          projectQuestionnaireId
+      ) {
+        return true;
+      }
+
+      if (
+        questionnaireVersionId &&
+        grantQuestionnaireVersionId ===
+          questionnaireVersionId
+      ) {
+        return true;
+      }
+
+      return false;
     }) ?? null
   );
 }
 
 /**
- * Wyszukuje aktywny grant bieżącego użytkownika dla konkretnej
- * sesji i zakresu kwestionariusza, niezależnie od tego, która
- * wersja raportu jest obecnie aktywna w konfiguracji sprzedażowej.
+ * Jedno źródło prawdy dla dostępu użytkownika do raportu
+ * przypisanego do konkretnej sesji i kwestionariusza.
  *
- * Jest to istotne, ponieważ zakupiony grant zachowuje wersję raportu
- * obowiązującą w chwili zakupu.
+ * Obsługuje:
+ * - granty przypisane do userId,
+ * - granty przypisane do e-maila,
+ * - granty przypisane do respondenta,
+ * - nowe granty ze scope w metadata,
+ * - stare granty bez scope,
+ * - nieaktywne już wersje raportu zamrożone w grancie.
  */
 export async function getActiveReportAccessGrantForCurrentUserSessionScope({
   tenantSlug,
   sessionId,
+  reportTemplateVersionId = null,
   projectQuestionnaireId = null,
   questionnaireVersionId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
+  reportTemplateVersionId?: string | null;
   projectQuestionnaireId?: string | null;
   questionnaireVersionId?: string | null;
 }) {
   const authSession = await requireSession();
+
   const normalizedUserEmail = normalizeEmail(
     authSession.user.email,
   );
 
-  const ownershipCondition = normalizedUserEmail
-    ? or(
-        eq(
-          reportAccessGrants.userId,
-          authSession.user.id,
-        ),
-        sql`
-          lower(${reportAccessGrants.email})
-          =
-          ${normalizedUserEmail}
-        `,
-      )
-    : eq(
-        reportAccessGrants.userId,
-        authSession.user.id,
-      );
-
-  const grants = await controlDb
-    .select()
+  /**
+   * Najpierw wybieramy granty należące do użytkownika.
+   *
+   * Grant może należeć:
+   * - bezpośrednio do userId,
+   * - do adresu e-mail,
+   * - do respondenta połączonego z kontem użytkownika.
+   */
+  const ownedGrantRows = await controlDb
+    .select({
+      id: reportAccessGrants.id,
+    })
     .from(reportAccessGrants)
+    .leftJoin(
+      respondentIdentityIndex,
+      and(
+        eq(
+          reportAccessGrants.subjectType,
+          "respondent",
+        ),
+        eq(
+          respondentIdentityIndex.tenantSlug,
+          reportAccessGrants.tenantSlug,
+        ),
+        eq(
+          respondentIdentityIndex.respondentId,
+          reportAccessGrants.subjectId,
+        ),
+        eq(
+          respondentIdentityIndex.status,
+          "active",
+        ),
+        isNull(
+          respondentIdentityIndex.deletedAt,
+        ),
+      ),
+    )
     .where(
       and(
         eq(
@@ -552,18 +637,168 @@ export async function getActiveReportAccessGrantForCurrentUserSessionScope({
           reportAccessGrants.assessmentSessionId,
           sessionId,
         ),
+
+        reportTemplateVersionId
+          ? eq(
+              reportAccessGrants.reportTemplateVersionId,
+              reportTemplateVersionId,
+            )
+          : undefined,
+
         eq(
           reportAccessGrants.status,
           "active",
         ),
-        ownershipCondition,
         isNull(reportAccessGrants.deletedAt),
+
+        or(
+          eq(
+            reportAccessGrants.userId,
+            authSession.user.id,
+          ),
+
+          normalizedUserEmail
+            ? sql`
+                lower(${reportAccessGrants.email})
+                =
+                ${normalizedUserEmail}
+              `
+            : undefined,
+
+          and(
+            eq(
+              reportAccessGrants.subjectType,
+              "respondent",
+            ),
+            eq(
+              respondentIdentityIndex.userId,
+              authSession.user.id,
+            ),
+          ),
+
+          normalizedUserEmail
+            ? and(
+                eq(
+                  reportAccessGrants.subjectType,
+                  "respondent",
+                ),
+                eq(
+                  respondentIdentityIndex.normalizedEmail,
+                  normalizedUserEmail,
+                ),
+              )
+            : undefined,
+        ),
       ),
     )
-    .orderBy(
-      desc(reportAccessGrants.createdAt),
+    .limit(100);
+
+  const ownedGrantIds = Array.from(
+    new Set(
+      ownedGrantRows.map((row) => row.id),
+    ),
+  );
+
+  if (ownedGrantIds.length === 0) {
+    return null;
+  }
+
+  const grants = await controlDb
+    .select()
+    .from(reportAccessGrants)
+    .where(
+      inArray(
+        reportAccessGrants.id,
+        ownedGrantIds,
+      ),
     )
-    .limit(50);
+    .orderBy(desc(reportAccessGrants.createdAt));
+
+  const reportTemplateVersionIds = Array.from(
+    new Set(
+      grants.map(
+        (grant) =>
+          grant.reportTemplateVersionId,
+      ),
+    ),
+  );
+
+  /**
+   * Potrzebne do rozpoznania starych grantów,
+   * które nie miały jeszcze scope w metadata.
+   */
+  const reportVersionRows =
+    reportTemplateVersionIds.length > 0
+      ? await controlDb
+          .select({
+            id: reportTemplateVersions.id,
+            questionnaireVersionId:
+              reportTemplateVersions.questionnaireVersionId,
+          })
+          .from(reportTemplateVersions)
+          .where(
+            and(
+              inArray(
+                reportTemplateVersions.id,
+                reportTemplateVersionIds,
+              ),
+              isNull(
+                reportTemplateVersions.deletedAt,
+              ),
+            ),
+          )
+      : [];
+
+  const questionnaireVersionByReportVersion =
+    new Map(
+      reportVersionRows.map((row) => [
+        row.id,
+        row.questionnaireVersionId,
+      ]),
+    );
+
+  /**
+   * Niektóre wersje raportów są przypisane do
+   * kwestionariusza przez binding zamiast bezpośredniego
+   * questionnaireVersionId.
+   *
+   * Nie filtrujemy po statusie bindingu, ponieważ grant
+   * mógł zostać przyznany, gdy binding był jeszcze aktywny.
+   */
+  const legacyBoundReportVersionIds =
+    questionnaireVersionId &&
+    reportTemplateVersionIds.length > 0
+      ? new Set(
+          (
+            await controlDb
+              .select({
+                reportTemplateVersionId:
+                  questionnaireReportTemplateBindings.reportTemplateVersionId,
+              })
+              .from(
+                questionnaireReportTemplateBindings,
+              )
+              .where(
+                and(
+                  eq(
+                    questionnaireReportTemplateBindings.questionnaireVersionId,
+                    questionnaireVersionId,
+                  ),
+                  inArray(
+                    questionnaireReportTemplateBindings.reportTemplateVersionId,
+                    reportTemplateVersionIds,
+                  ),
+                  isNull(
+                    questionnaireReportTemplateBindings.deletedAt,
+                  ),
+                ),
+              )
+          ).map(
+            (row) =>
+              row.reportTemplateVersionId,
+          ),
+        )
+      : new Set<string>();
 
   const now = new Date();
 
@@ -593,63 +828,101 @@ export async function getActiveReportAccessGrantForCurrentUserSessionScope({
           grant.metadata,
         );
 
-      const projectQuestionnaireMatches =
+      const grantHasExplicitScope =
         Boolean(
-          projectQuestionnaireId &&
-            grantProjectQuestionnaireId ===
-              projectQuestionnaireId,
-        );
-
-      const questionnaireVersionMatches =
-        Boolean(
-          questionnaireVersionId &&
-            grantQuestionnaireVersionId ===
-              questionnaireVersionId,
+          grantProjectQuestionnaireId ||
+            grantQuestionnaireVersionId,
         );
 
       /**
-       * Jeśli obie strony zawierają dany identyfikator,
-       * niezgodność odrzuca grant nawet wtedy, gdy drugi
-       * identyfikator przypadkowo pasuje.
+       * Nowe granty — metadata jest źródłem prawdy.
        */
-      if (
-        projectQuestionnaireId &&
-        grantProjectQuestionnaireId &&
-        !projectQuestionnaireMatches
-      ) {
+      if (grantHasExplicitScope) {
+        if (
+          projectQuestionnaireId &&
+          grantProjectQuestionnaireId &&
+          grantProjectQuestionnaireId !==
+            projectQuestionnaireId
+        ) {
+          return false;
+        }
+
+        if (
+          questionnaireVersionId &&
+          grantQuestionnaireVersionId &&
+          grantQuestionnaireVersionId !==
+            questionnaireVersionId
+        ) {
+          return false;
+        }
+
+        if (
+          projectQuestionnaireId &&
+          grantProjectQuestionnaireId ===
+            projectQuestionnaireId
+        ) {
+          return true;
+        }
+
+        if (
+          questionnaireVersionId &&
+          grantQuestionnaireVersionId ===
+            questionnaireVersionId
+        ) {
+          return true;
+        }
+
         return false;
       }
+
+      /**
+       * Jeżeli sprawdzamy dokładną wersję raportu,
+       * tenant + sesja + właściciel + report version
+       * jednoznacznie identyfikują grant legacy.
+       *
+       * Jest to między innymi przypadek wejścia
+       * z listy „Moje raporty”.
+       */
+      if (
+        reportTemplateVersionId &&
+        !projectQuestionnaireId &&
+        !questionnaireVersionId
+      ) {
+        return true;
+      }
+
+      /**
+       * Legacy fallback dla completed i teasera:
+       * porównujemy kwestionariusz przypisany do
+       * zamrożonej wersji raportu.
+       */
+      const reportQuestionnaireVersionId =
+        questionnaireVersionByReportVersion.get(
+          grant.reportTemplateVersionId,
+        ) ?? null;
 
       if (
         questionnaireVersionId &&
-        grantQuestionnaireVersionId &&
-        !questionnaireVersionMatches
+        reportQuestionnaireVersionId ===
+          questionnaireVersionId
       ) {
-        return false;
+        return true;
       }
 
       /**
-       * Dla scoped requestu wymagamy dopasowania przynajmniej
-       * jednego dostępnego identyfikatora scope.
+       * Legacy fallback dla wersji powiązanych
+       * przez questionnaireReportTemplateBindings.
        */
       if (
-        projectQuestionnaireId ||
-        questionnaireVersionId
+        questionnaireVersionId &&
+        legacyBoundReportVersionIds.has(
+          grant.reportTemplateVersionId,
+        )
       ) {
-        return (
-          projectQuestionnaireMatches ||
-          questionnaireVersionMatches
-        );
+        return true;
       }
 
-      /**
-       * Bez scope obsługujemy wyłącznie stare granty legacy,
-       * które również nie mają zapisanego scope.
-       */
-      return (
-        !grantProjectQuestionnaireId &&
-        !grantQuestionnaireVersionId
-      );
+      return false;
     }) ?? null
   );
 }
@@ -753,14 +1026,16 @@ if (!resolved.ok) {
 const resolvedQuestionnaireVersionId =
   questionnaireVersionIds[0] ?? null;
 
-const existingGrant = await getActiveReportAccessGrantForSession({
-  tenantSlug,
-  sessionId,
-  reportTemplateVersionId: reportVersion.reportTemplateVersionId,
-  userId: resolved.actorUserId,
-  projectQuestionnaireId,
-  questionnaireVersionId: resolvedQuestionnaireVersionId,
-});
+const existingGrant =
+  await getActiveReportAccessGrantForCurrentUserSessionScope({
+    tenantSlug,
+    sessionId,
+    reportTemplateVersionId:
+      reportVersion.reportTemplateVersionId,
+    projectQuestionnaireId,
+    questionnaireVersionId:
+      resolvedQuestionnaireVersionId,
+  });
 
   const product = await controlDb.query.reportAccessProducts.findFirst({
     where: and(
