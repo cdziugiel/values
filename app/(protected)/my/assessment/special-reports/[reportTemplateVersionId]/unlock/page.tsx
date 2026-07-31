@@ -187,26 +187,38 @@ export default async function Page({ params, searchParams }: PageProps) {
     </div>
 
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
-        Placeholder płatności
-      </p>
+<p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
+  Odblokowanie raportu
+</p>
 
-      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
-        Kup dostęp do raportu porównawczego
-      </h2>
+<h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
+  Wybierz sposób odblokowania
+</h2>
 
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
-        Każdy zakup odblokowuje jeden raport porównawczy. Po zakupie wybierzesz
-        swój wynik bazowy i wkleisz token osoby, z którą chcesz się porównać.
-      </p>
+<p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
+  Możesz użyć kodu dostępu albo kupić
+  pojedynczy dostęp do raportu
+  porównawczego. Kod rabatowy wpiszesz
+  przed przejściem do płatności.
+</p>
     </div>
   </div>
 
-  <UnlockSpecialReportAccessForm
-    tenantSlug={offer.tenantSlug}
-    productId={offer.product.id}
-    reportTemplateVersionId={offer.reportTemplateVersion.id}
-  />
+<UnlockSpecialReportAccessForm
+  tenantSlug={offer.tenantSlug}
+  productId={offer.product.id}
+  reportTemplateVersionId={
+    offer.reportTemplateVersion.id
+  }
+  originalAmountCents={Math.round(
+    Number(
+      offer.product.priceGross ?? 0,
+    ) * 100,
+  )}
+  currency={
+    offer.product.currency ?? "PLN"
+  }
+/>
 </section>
         ) : null}
       </div>

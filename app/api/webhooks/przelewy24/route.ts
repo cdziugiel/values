@@ -25,6 +25,7 @@ import {
   finalizePaidCompositeReportAccessOrder,
   finalizePaidReportAccessOrder,
   finalizePaidTenantReportAccessOrder,
+  finalizePaidSpecialComparisonReportAccessOrder,
 } from "@/features/report-access/api/report-access-payment.mutations";
 
 import { controlDb } from "@/server/db/control-db";
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
    */
   if (
     notification.merchantId !==
-      env.P24_MERCHANT_ID ||
+    env.P24_MERCHANT_ID ||
     notification.posId !== env.P24_POS_ID
   ) {
     console.warn(
@@ -207,7 +208,7 @@ export async function POST(request: Request) {
   if (
     notification.amount !== expectedAmount ||
     notification.originAmount !==
-      expectedAmount
+    expectedAmount
   ) {
     console.error(
       "P24_NOTIFICATION_AMOUNT_MISMATCH",
@@ -262,26 +263,24 @@ export async function POST(request: Request) {
       currency: notification.currency,
     });
 
-const orderMetadata =
-  asRecord(order.metadata);
+    const orderMetadata =
+      asRecord(order.metadata);
 
-const isCompositeReportOrder =
-  orderMetadata.reportKind ===
-  "personal_composite";
+    const purchaseFlow =
+      typeof orderMetadata.purchaseFlow ===
+        "string"
+        ? orderMetadata.purchaseFlow
+        : null;
 
-const result =
-  order.buyerType === "tenant"
-    ? await finalizePaidTenantReportAccessOrder({
-        orderId: order.id,
+    const reportKind =
+      typeof orderMetadata.reportKind ===
+        "string"
+        ? orderMetadata.reportKind
+        : null;
 
-        providerOrderId:
-          notification.orderId,
-
-        providerSessionId:
-          notification.sessionId,
-      })
-    : isCompositeReportOrder
-      ? await finalizePaidCompositeReportAccessOrder({
+    const result =
+      order.buyerType === "tenant"
+        ? await finalizePaidTenantReportAccessOrder({
           orderId: order.id,
 
           providerOrderId:
@@ -290,29 +289,54 @@ const result =
           providerSessionId:
             notification.sessionId,
         })
-      : await finalizePaidReportAccessOrder({
-          orderId: order.id,
+        : purchaseFlow ===
+          "special_comparison"
+          ? await finalizePaidSpecialComparisonReportAccessOrder({
+            orderId: order.id,
 
-          providerOrderId:
-            notification.orderId,
+            providerOrderId:
+              notification.orderId,
 
-          providerSessionId:
-            notification.sessionId,
-        });
+            providerSessionId:
+              notification.sessionId,
+          })
+          : reportKind ===
+            "personal_composite"
+            ? await finalizePaidCompositeReportAccessOrder({
+              orderId: order.id,
 
-console.info(
-  "P24_PAYMENT_FULFILLED",
-  {
-    orderId: order.id,
-    buyerType: order.buyerType,
+              providerOrderId:
+                notification.orderId,
 
-    providerOrderId:
-      notification.orderId,
+              providerSessionId:
+                notification.sessionId,
+            })
+            : await finalizePaidReportAccessOrder({
+              orderId: order.id,
 
-    fulfillmentStatus:
-      result.status,
-  },
-);
+              providerOrderId:
+                notification.orderId,
+
+              providerSessionId:
+                notification.sessionId,
+            });
+
+
+
+
+    console.info(
+      "P24_PAYMENT_FULFILLED",
+      {
+        orderId: order.id,
+        buyerType: order.buyerType,
+
+        providerOrderId:
+          notification.orderId,
+
+        fulfillmentStatus:
+          result.status,
+      },
+    );
 
     return NextResponse.json({
       ok: true,

@@ -1295,3 +1295,422 @@ export async function finalizePaidTenantReportAccessOrder({
     };
   });
 }
+
+
+const paidSpecialComparisonOrderMetadataSchema =
+  z.object({
+    purchaseFlow:
+      z.literal(
+        "special_comparison",
+      ),
+
+    reportKind:
+      z.literal("comparison"),
+
+    mode:
+      z.literal("comparison"),
+
+    tenantSlug:
+      z.string().min(1),
+
+    reportTemplateId:
+      z.string().uuid(),
+
+    reportTemplateVersionId:
+      z.string().uuid(),
+
+    productId:
+      z.string().uuid(),
+
+    productCode:
+      z.string().optional(),
+
+    productName:
+      z.string().optional(),
+
+    discount:
+      z.unknown().optional(),
+  });
+
+  export async function finalizePaidSpecialComparisonReportAccessOrder({
+  orderId,
+  providerOrderId,
+  providerSessionId,
+}: FinalizePaidReportAccessOrderInput): Promise<FinalizePaidReportAccessOrderResult> {
+  return controlDb.transaction(
+    async (tx) => {
+      await tx.execute(
+        sql`
+          select pg_advisory_xact_lock(
+            hashtext(${orderId})
+          )
+        `,
+      );
+
+      const currentOrder =
+        await tx.query
+          .reportAccessOrders
+          .findFirst({
+            where: and(
+              eq(
+                reportAccessOrders.id,
+                orderId,
+              ),
+
+              eq(
+                reportAccessOrders.paymentProvider,
+                "przelewy24",
+              ),
+
+              eq(
+                reportAccessOrders
+                  .paymentProviderSessionId,
+                providerSessionId,
+              ),
+
+              isNull(
+                reportAccessOrders.deletedAt,
+              ),
+            ),
+          });
+
+      if (!currentOrder) {
+        throw new Error(
+          "Nie znaleziono zamówienia powiązanego z płatnością.",
+        );
+      }
+
+      const currentOrderId =
+        currentOrder.id;
+
+      const buyerUserId =
+        currentOrder.buyerUserId;
+
+      if (!buyerUserId) {
+        throw new Error(
+          "Zamówienie nie zawiera identyfikatora kupującego.",
+        );
+      }
+
+      if (
+        currentOrder
+          .paymentProviderOrderId &&
+        currentOrder
+          .paymentProviderOrderId !==
+          String(providerOrderId)
+      ) {
+        throw new Error(
+          "Zamówienie jest powiązane z inną transakcją operatora.",
+        );
+      }
+
+      if (
+        currentOrder.status ===
+        "paid"
+      ) {
+        const existingGrant =
+          await tx.query
+            .reportAccessGrants
+            .findFirst({
+              where: and(
+                eq(
+                  reportAccessGrants.orderId,
+                  currentOrderId,
+                ),
+
+                eq(
+                  reportAccessGrants.status,
+                  "active",
+                ),
+
+                isNull(
+                  reportAccessGrants.deletedAt,
+                ),
+              ),
+
+              columns: {
+                id: true,
+              },
+            });
+
+        if (!existingGrant) {
+          throw new Error(
+            "Opłacone zamówienie nie ma aktywnego grantu.",
+          );
+        }
+
+        return {
+          status:
+            "already_fulfilled",
+
+          grantId:
+            existingGrant.id,
+        };
+      }
+
+      if (
+        currentOrder.status !==
+        "pending_payment"
+      ) {
+        throw new Error(
+          `Zamówienie ma nieprawidłowy status: ${currentOrder.status}.`,
+        );
+      }
+
+      const parsedMetadata =
+        paidSpecialComparisonOrderMetadataSchema
+          .safeParse(
+            currentOrder.metadata,
+          );
+
+      if (!parsedMetadata.success) {
+        throw new Error(
+          "Zamówienie nie zawiera kompletnych danych raportu porównawczego.",
+        );
+      }
+
+      const metadata =
+        parsedMetadata.data;
+
+      const orderItem =
+        await tx.query
+          .reportAccessOrderItems
+          .findFirst({
+            where: and(
+              eq(
+                reportAccessOrderItems.orderId,
+                currentOrderId,
+              ),
+
+              isNull(
+                reportAccessOrderItems.deletedAt,
+              ),
+            ),
+          });
+
+      if (!orderItem) {
+        throw new Error(
+          "Zamówienie nie zawiera pozycji zakupowej.",
+        );
+      }
+
+      const product =
+        await tx.query
+          .reportAccessProducts
+          .findFirst({
+            where: and(
+              eq(
+                reportAccessProducts.id,
+                orderItem.productId,
+              ),
+
+              isNull(
+                reportAccessProducts.deletedAt,
+              ),
+            ),
+          });
+
+      if (!product) {
+        throw new Error(
+          "Nie znaleziono produktu zamówienia.",
+        );
+      }
+
+      if (
+        product.id !==
+        metadata.productId
+      ) {
+        throw new Error(
+          "Produkt zamówienia nie odpowiada metadanym płatności.",
+        );
+      }
+
+      const now =
+        new Date();
+
+      const validUntil =
+        typeof product.validityDays ===
+          "number" &&
+        product.validityDays > 0
+          ? new Date(
+              now.getTime() +
+                product.validityDays *
+                  24 *
+                  60 *
+                  60 *
+                  1000,
+            )
+          : null;
+
+      const [grant] =
+        await tx
+          .insert(
+            reportAccessGrants,
+          )
+          .values({
+            source:
+              "purchase",
+
+            status:
+              "active",
+
+            productId:
+              product.id,
+
+            orderId:
+              currentOrderId,
+
+            reportTemplateId:
+              metadata
+                .reportTemplateId,
+
+            reportTemplateVersionId:
+              metadata
+                .reportTemplateVersionId,
+
+            tenantSlug:
+              metadata.tenantSlug,
+
+            userId:
+              buyerUserId,
+
+            validFrom:
+              now,
+
+            validUntil,
+
+            metadata: {
+              purchaseFlow:
+                "special_comparison",
+
+              reportKind:
+                "comparison",
+
+              mode:
+                "comparison",
+
+              creditStatus:
+                "available",
+
+              paymentProvider:
+                "przelewy24",
+
+              paymentProviderOrderId:
+                String(
+                  providerOrderId,
+                ),
+
+              productCode:
+                metadata.productCode ??
+                product.code,
+
+              productName:
+                metadata.productName ??
+                product.name,
+
+              discount:
+                metadata.discount ??
+                null,
+
+              orderId:
+                currentOrderId,
+
+              unlockedFrom:
+                "my_special_reports",
+
+              unlockedAt:
+                now.toISOString(),
+            },
+
+            createdAt:
+              now,
+
+            updatedAt:
+              now,
+
+            createdBy:
+              buyerUserId,
+
+            updatedBy:
+              buyerUserId,
+          })
+          .returning({
+            id:
+              reportAccessGrants.id,
+          });
+
+      if (!grant) {
+        throw new Error(
+          "Nie udało się utworzyć dostępu do raportu porównawczego.",
+        );
+      }
+
+      const [paidOrder] =
+        await tx
+          .update(
+            reportAccessOrders,
+          )
+          .set({
+            status:
+              "paid",
+
+            paymentProviderOrderId:
+              String(
+                providerOrderId,
+              ),
+
+            paidAt:
+              now,
+
+            updatedAt:
+              now,
+
+            updatedBy:
+              buyerUserId,
+          })
+          .where(
+            and(
+              eq(
+                reportAccessOrders.id,
+                currentOrderId,
+              ),
+
+              eq(
+                reportAccessOrders.status,
+                "pending_payment",
+              ),
+
+              eq(
+                reportAccessOrders.paymentProvider,
+                "przelewy24",
+              ),
+
+              eq(
+                reportAccessOrders
+                  .paymentProviderSessionId,
+                providerSessionId,
+              ),
+
+              isNull(
+                reportAccessOrders.deletedAt,
+              ),
+            ),
+          )
+          .returning({
+            id:
+              reportAccessOrders.id,
+          });
+
+      if (!paidOrder) {
+        throw new Error(
+          "Nie udało się oznaczyć zamówienia jako opłaconego.",
+        );
+      }
+
+      return {
+        status: "fulfilled",
+        grantId: grant.id,
+      };
+    },
+  );
+}
