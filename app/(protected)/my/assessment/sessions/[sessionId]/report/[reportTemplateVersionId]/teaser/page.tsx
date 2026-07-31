@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, LockKeyhole } from "lucide-react";
+import {
+  Download,
+  FileText,
+  LockKeyhole,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { getMyAssessmentReportAccessState } from "@/features/my-assessment/api/my-assessment-report-link.queries";
 import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 import { assertCanViewMyAssessmentReportPreview } from "@/features/report-access/api/report-preview-guard.queries";
@@ -57,7 +62,10 @@ export default async function MyReportTeaserPage({
   params,
   searchParams,
 }: PageProps) {
-  const { sessionId, reportTemplateVersionId } = await params;
+  const {
+    sessionId,
+    reportTemplateVersionId,
+  } = await params;
 
   const {
     tenant,
@@ -91,6 +99,25 @@ export default async function MyReportTeaserPage({
     notFound();
   }
 
+  const reportAccess =
+    await getMyAssessmentReportAccessState({
+      tenantSlug: tenant,
+      sessionId,
+      projectQuestionnaireId:
+        projectQuestionnaireId ?? null,
+      questionnaireVersionId:
+        questionnaireVersionId ?? null,
+    });
+
+  const reportActionHref =
+    reportAccess.reportHref ??
+    reportAccess.unlockHref;
+
+  const reportActionLabel =
+    reportAccess.isUnlocked
+      ? "Przejdź do pełnego raportu"
+      : "Odblokuj pełny raport";
+
   const rendered = renderReportDocument({
     reportTemplateVersion:
       access.reportTemplateVersion,
@@ -98,7 +125,10 @@ export default async function MyReportTeaserPage({
     mode: "personal_teaser",
     pageCodes: config.pageCodes,
     watermark: config.watermark,
-    showUnlockAction: true,
+    showUnlockAction:
+      Boolean(reportActionHref),
+    previewActionLabel:
+      reportActionLabel,
   });
 
   const scopedParams = buildScopedParams({
@@ -111,12 +141,8 @@ export default async function MyReportTeaserPage({
 
   const pdfHref =
     `/my/assessment/sessions/${sessionId}` +
-    `/report/${reportTemplateVersionId}/teaser/pdf` +
-    `?${scopedParams.toString()}`;
-
-  const unlockHref =
-    `/my/assessment/sessions/${sessionId}` +
-    `/unlock-report?${scopedParams.toString()}`;
+    `/report/${reportTemplateVersionId}` +
+    `/teaser/pdf?${scopedParams.toString()}`;
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6">
@@ -131,16 +157,20 @@ export default async function MyReportTeaserPage({
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
-            Skrót pokazuje wybrane elementy Twojego
-            rzeczywistego wyniku. Pełna interpretacja,
-            szczegółowe wykresy i rekomendacje znajdują
-            się w pełnym raporcie.
+            Skrót pokazuje wybrane elementy
+            Twojego rzeczywistego wyniku. Pełna
+            interpretacja, szczegółowe wykresy
+            i rekomendacje znajdują się w pełnym
+            raporcie.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {config.allowPdfDownload ? (
-            <Button asChild variant="outline">
+            <Button
+              asChild
+              variant="outline"
+            >
               <a
                 href={pdfHref}
                 target="_blank"
@@ -152,18 +182,27 @@ export default async function MyReportTeaserPage({
             </Button>
           ) : null}
 
-          <Button asChild>
-            <Link href={unlockHref}>
-              <LockKeyhole className="mr-2 h-4 w-4" />
-              Odblokuj pełny raport
-            </Link>
-          </Button>
+          {reportActionHref ? (
+            <Button asChild>
+              <Link href={reportActionHref}>
+                {reportAccess.isUnlocked ? (
+                  <FileText className="mr-2 h-4 w-4" />
+                ) : (
+                  <LockKeyhole className="mr-2 h-4 w-4" />
+                )}
+
+                {reportActionLabel}
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <ReportDocumentPreviewFrame
         html={rendered.html}
-        unlockHref={unlockHref}
+        unlockHref={
+          reportActionHref ?? undefined
+        }
       />
     </main>
   );

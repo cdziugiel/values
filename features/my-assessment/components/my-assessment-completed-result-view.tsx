@@ -237,25 +237,36 @@ function BasicFeedbackSection({
 }
 
 function FullReportPurchaseSection({
+  reportHref,
   unlockHref,
   sampleHref,
   tenantSlug,
   sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
 }: {
+  reportHref: string | null;
   unlockHref: string | null;
   sampleHref: string | null;
   tenantSlug: string;
   sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 }) {
-  if (!unlockHref) {
+  const isUnlocked = Boolean(reportHref);
+
+  const actionHref =
+    reportHref ?? unlockHref;
+
+  if (!actionHref) {
     return null;
   }
 
   return (
     <section
-  id="full-report-offer"
-  className="scroll-mt-28 overflow-hidden rounded-[2rem] bg-[#171717] text-white shadow-[0_20px_60px_rgba(15,23,42,0.15)]"
->
+      id="full-report-offer"
+      className="scroll-mt-28 overflow-hidden rounded-[2rem] bg-[#171717] text-white shadow-[0_20px_60px_rgba(15,23,42,0.15)]"
+    >
       <div className="p-6 sm:p-8 md:p-10">
         <div className="mx-auto max-w-2xl text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-[#5eead4]">
@@ -267,15 +278,31 @@ function FullReportPurchaseSection({
           </p>
 
           <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
-            Odkryj pełny obraz swojego profilu
+            {isUnlocked
+              ? "Twój pełny raport jest gotowy"
+              : "Odkryj pełny obraz swojego profilu"}
           </h2>
 
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/68">
-            Pełny raport rozwija podstawowy wynik o
-            szczegółową interpretację obszarów
-            funkcjonowania, zależności między systemami
-            wartości oraz indywidualne wnioski wynikające
-            z badania.
+            {isUnlocked
+              ? (
+                <>
+                  Masz aktywny dostęp do pełnej
+                  interpretacji wyników, wykresów,
+                  zależności między obszarami oraz
+                  indywidualnych wniosków wynikających
+                  z badania.
+                </>
+              )
+              : (
+                <>
+                  Pełny raport rozwija podstawowy wynik
+                  o szczegółową interpretację obszarów
+                  funkcjonowania, zależności między
+                  systemami wartości oraz indywidualne
+                  wnioski wynikające z badania.
+                </>
+              )}
           </p>
 
           <div className="mx-auto mt-7 grid max-w-xl gap-3 text-left sm:grid-cols-3">
@@ -318,7 +345,7 @@ function FullReportPurchaseSection({
 
           <div className="mt-7 flex justify-center">
             <Link
-              href={unlockHref}
+              href={actionHref}
               className={[
                 "inline-flex min-h-12 items-center justify-center gap-2",
                 "rounded-full bg-white px-7",
@@ -330,15 +357,20 @@ function FullReportPurchaseSection({
                 "focus-visible:ring-[#5eead4]",
               ].join(" ")}
             >
-              <KeyRound size={17} />
-              Odblokuj pełny raport
+              {isUnlocked ? (
+                <FileText size={17} />
+              ) : (
+                <KeyRound size={17} />
+              )}
+
+              {isUnlocked
+                ? "Przejdź do pełnego raportu"
+                : "Odblokuj pełny raport"}
             </Link>
           </div>
 
-          {sampleHref ? (
+          {!isUnlocked && sampleHref ? (
             <div className="mt-5">
-
-
               <Link
                 href={sampleHref}
                 className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-[#5eead4] underline-offset-4 hover:underline"
@@ -350,22 +382,32 @@ function FullReportPurchaseSection({
           ) : null}
         </div>
 
-        <div className="my-8 flex items-center gap-4">
-          <div className="h-px flex-1 bg-white/10" />
+        {!isUnlocked ? (
+          <>
+            <div className="my-8 flex items-center gap-4">
+              <div className="h-px flex-1 bg-white/10" />
 
-          <span className="shrink-0 text-[0.65rem] font-medium uppercase tracking-[0.16em] text-white/38">
-            lub użyj kodu dostępu
-          </span>
+              <span className="shrink-0 text-[0.65rem] font-medium uppercase tracking-[0.16em] text-white/38">
+                lub użyj kodu dostępu
+              </span>
 
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
 
-        <div className="rounded-2xl bg-white p-4 text-[#171717] sm:p-5">
-          <RedeemReportAccessCodeForm
-            tenantSlug={tenantSlug}
-            sessionId={sessionId}
-          />
-        </div>
+            <div className="rounded-2xl bg-white p-4 text-[#171717] sm:p-5">
+              <RedeemReportAccessCodeForm
+                tenantSlug={tenantSlug}
+                sessionId={sessionId}
+                projectQuestionnaireId={
+                  projectQuestionnaireId
+                }
+                questionnaireVersionId={
+                  questionnaireVersionId
+                }
+              />
+            </div>
+          </>
+        ) : null}
       </div>
     </section>
   );
@@ -501,20 +543,19 @@ normativeProfile &&
           />
         ) : null}
 
-        <FullReportPurchaseSection
-          unlockHref={
-            reportAccess.unlockHref
-          }
-          sampleHref={
-            reportAccess.sampleHref
-          }
-          tenantSlug={
-            result.tenantSlug
-          }
-          sessionId={
-            result.sessionId
-          }
-        />
+<FullReportPurchaseSection
+  reportHref={reportAccess.reportHref}
+  unlockHref={reportAccess.unlockHref}
+  sampleHref={reportAccess.sampleHref}
+  tenantSlug={result.tenantSlug}
+  sessionId={result.sessionId}
+  projectQuestionnaireId={
+    result.projectQuestionnaireId ?? null
+  }
+  questionnaireVersionId={
+    result.questionnaireVersionId ?? null
+  }
+/>
       </>
     }
   />
@@ -545,56 +586,38 @@ normativeProfile &&
               ) : null}
 
 {reportAccess.reportHref ? (
-  <section className="rounded-[2rem] hv-brand-card p-6 sm:p-8">
-    <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
-          <FileText size={21} />
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#171717]">
-            Twój pełny raport jest gotowy
-          </h2>
-
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">
-            Możesz przejść do pełnych wyników,
-            wykresów oraz indywidualnej
-            interpretacji.
-          </p>
-        </div>
-      </div>
-
-      <BrandLinkButton
-        href={reportAccess.reportHref}
-      >
-        <FileText size={16} />
-        Pokaż pełny raport
-      </BrandLinkButton>
-    </div>
-  </section>
+  <FullReportPurchaseSection
+    reportHref={reportAccess.reportHref}
+    unlockHref={reportAccess.unlockHref}
+    sampleHref={reportAccess.sampleHref}
+    tenantSlug={result.tenantSlug}
+    sessionId={result.sessionId}
+    projectQuestionnaireId={
+      result.projectQuestionnaireId ?? null
+    }
+    questionnaireVersionId={
+      result.questionnaireVersionId ?? null
+    }
+  />
 ) : normativeProfileCompleted ? (
   <>
     {canShowBasicFeedback ? (
       <BasicFeedbackSection
-        teaserHref={
-          reportAccess.teaserHref
-        }
+        teaserHref={reportAccess.teaserHref}
       />
     ) : null}
 
     <FullReportPurchaseSection
-      unlockHref={
-        reportAccess.unlockHref
+      reportHref={reportAccess.reportHref}
+      unlockHref={reportAccess.unlockHref}
+      sampleHref={reportAccess.sampleHref}
+      tenantSlug={result.tenantSlug}
+      sessionId={result.sessionId}
+      projectQuestionnaireId={
+        result.projectQuestionnaireId ?? null
       }
-      sampleHref={
-        reportAccess.sampleHref
-      }
-      tenantSlug={
-        result.tenantSlug
-      }
-      sessionId={
-        result.sessionId
+      questionnaireVersionId={
+        result.questionnaireVersionId ?? null
       }
     />
   </>

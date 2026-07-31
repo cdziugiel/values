@@ -498,6 +498,162 @@ export async function getActiveReportAccessGrantForSession({
   );
 }
 
+/**
+ * Wyszukuje aktywny grant bieżącego użytkownika dla konkretnej
+ * sesji i zakresu kwestionariusza, niezależnie od tego, która
+ * wersja raportu jest obecnie aktywna w konfiguracji sprzedażowej.
+ *
+ * Jest to istotne, ponieważ zakupiony grant zachowuje wersję raportu
+ * obowiązującą w chwili zakupu.
+ */
+export async function getActiveReportAccessGrantForCurrentUserSessionScope({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
+}) {
+  const authSession = await requireSession();
+  const normalizedUserEmail = normalizeEmail(
+    authSession.user.email,
+  );
+
+  const ownershipCondition = normalizedUserEmail
+    ? or(
+        eq(
+          reportAccessGrants.userId,
+          authSession.user.id,
+        ),
+        sql`
+          lower(${reportAccessGrants.email})
+          =
+          ${normalizedUserEmail}
+        `,
+      )
+    : eq(
+        reportAccessGrants.userId,
+        authSession.user.id,
+      );
+
+  const grants = await controlDb
+    .select()
+    .from(reportAccessGrants)
+    .where(
+      and(
+        eq(
+          reportAccessGrants.tenantSlug,
+          tenantSlug,
+        ),
+        eq(
+          reportAccessGrants.assessmentSessionId,
+          sessionId,
+        ),
+        eq(
+          reportAccessGrants.status,
+          "active",
+        ),
+        ownershipCondition,
+        isNull(reportAccessGrants.deletedAt),
+      ),
+    )
+    .orderBy(
+      desc(reportAccessGrants.createdAt),
+    )
+    .limit(50);
+
+  const now = new Date();
+
+  return (
+    grants.find((grant) => {
+      if (
+        grant.validFrom &&
+        grant.validFrom > now
+      ) {
+        return false;
+      }
+
+      if (
+        grant.validUntil &&
+        grant.validUntil < now
+      ) {
+        return false;
+      }
+
+      const grantProjectQuestionnaireId =
+        readGrantProjectQuestionnaireId(
+          grant.metadata,
+        );
+
+      const grantQuestionnaireVersionId =
+        readGrantQuestionnaireVersionId(
+          grant.metadata,
+        );
+
+      const projectQuestionnaireMatches =
+        Boolean(
+          projectQuestionnaireId &&
+            grantProjectQuestionnaireId ===
+              projectQuestionnaireId,
+        );
+
+      const questionnaireVersionMatches =
+        Boolean(
+          questionnaireVersionId &&
+            grantQuestionnaireVersionId ===
+              questionnaireVersionId,
+        );
+
+      /**
+       * Jeśli obie strony zawierają dany identyfikator,
+       * niezgodność odrzuca grant nawet wtedy, gdy drugi
+       * identyfikator przypadkowo pasuje.
+       */
+      if (
+        projectQuestionnaireId &&
+        grantProjectQuestionnaireId &&
+        !projectQuestionnaireMatches
+      ) {
+        return false;
+      }
+
+      if (
+        questionnaireVersionId &&
+        grantQuestionnaireVersionId &&
+        !questionnaireVersionMatches
+      ) {
+        return false;
+      }
+
+      /**
+       * Dla scoped requestu wymagamy dopasowania przynajmniej
+       * jednego dostępnego identyfikatora scope.
+       */
+      if (
+        projectQuestionnaireId ||
+        questionnaireVersionId
+      ) {
+        return (
+          projectQuestionnaireMatches ||
+          questionnaireVersionMatches
+        );
+      }
+
+      /**
+       * Bez scope obsługujemy wyłącznie stare granty legacy,
+       * które również nie mają zapisanego scope.
+       */
+      return (
+        !grantProjectQuestionnaireId &&
+        !grantQuestionnaireVersionId
+      );
+    }) ?? null
+  );
+}
+
 export async function getReportAccessOfferForCompletedSession({
   tenantSlug,
   sessionId,

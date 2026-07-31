@@ -3,7 +3,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { CheckCircle2, KeyRound, ShieldCheck, TriangleAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  KeyRound,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,21 +26,50 @@ const initialState: RedeemReportAccessCodeState = {
 type RedeemReportAccessCodeFormProps = {
   tenantSlug: string;
   sessionId: string;
+  projectQuestionnaireId?: string | null;
+  questionnaireVersionId?: string | null;
 };
 
 export function RedeemReportAccessCodeForm({
   tenantSlug,
   sessionId,
+  projectQuestionnaireId = null,
+  questionnaireVersionId = null,
 }: RedeemReportAccessCodeFormProps) {
-  const [state, formAction, isPending] = useActionState(
-    redeemReportAccessCodeAction,
-    initialState,
-  );
+  const [state, formAction, isPending] =
+    useActionState(
+      redeemReportAccessCodeAction,
+      initialState,
+    );
 
   return (
-    <form action={formAction} className="rounded-[2rem] hv-brand-card p-5 md:p-6">
-      <input type="hidden" name="tenantSlug" value={tenantSlug} />
-      <input type="hidden" name="sessionId" value={sessionId} />
+    <form
+      action={formAction}
+      className="rounded-[2rem] hv-brand-card p-5 md:p-6"
+    >
+      <input
+        type="hidden"
+        name="tenantSlug"
+        value={tenantSlug}
+      />
+
+      <input
+        type="hidden"
+        name="sessionId"
+        value={sessionId}
+      />
+
+      <input
+        type="hidden"
+        name="projectQuestionnaireId"
+        value={projectQuestionnaireId ?? ""}
+      />
+
+      <input
+        type="hidden"
+        name="questionnaireVersionId"
+        value={questionnaireVersionId ?? ""}
+      />
 
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="max-w-2xl">
@@ -49,7 +83,9 @@ export function RedeemReportAccessCodeForm({
           </h3>
 
           <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-            Jeżeli masz kod dostępu otrzymany od Partnera, wprowadź to tutaj aby odblokować dostęp do raportu dla tej sesji.
+            Jeżeli masz kod dostępu otrzymany od
+            Partnera, wprowadź go tutaj, aby
+            odblokować raport dla tej sesji.
           </p>
         </div>
 
@@ -58,7 +94,7 @@ export function RedeemReportAccessCodeForm({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto] items-center">
+      <div className="mt-5 grid items-center gap-3 md:grid-cols-[1fr_auto]">
         <Input
           name="accessCode"
           placeholder="HV-XXXX-XXXX-XXXX-XXXX"
@@ -73,7 +109,10 @@ export function RedeemReportAccessCodeForm({
           className="rounded-full bg-[#171717] px-5 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
         >
           <KeyRound size={16} />
-          {isPending ? "Sprawdzanie..." : "Odblokuj raport"}
+
+          {isPending
+            ? "Sprawdzanie..."
+            : "Odblokuj raport"}
         </Button>
       </div>
 
@@ -88,9 +127,15 @@ export function RedeemReportAccessCodeForm({
         >
           <div className="flex gap-2">
             {state.status === "success" ? (
-              <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+              <CheckCircle2
+                size={16}
+                className="mt-0.5 shrink-0"
+              />
             ) : (
-              <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+              <TriangleAlert
+                size={16}
+                className="mt-0.5 shrink-0"
+              />
             )}
 
             <span>{state.message}</span>

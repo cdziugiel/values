@@ -53,6 +53,7 @@ type RenderReportInput = {
   payload: SnapshotPayload | null | undefined;
   mode?: ReportRenderMode;
   pageCodes?: string[];
+  previewActionLabel?: string;
   watermark?: string | null;
   showUnlockAction?: boolean;
 };
@@ -729,9 +730,11 @@ function buildPreviewWatermark(watermark: string | null) {
 function buildPreviewFooter({
   mode,
   showUnlockAction,
+  previewActionLabel,
 }: {
   mode: ReportRenderMode;
   showUnlockAction: boolean;
+  previewActionLabel: string;
 }) {
   if (mode === "full") {
     return "";
@@ -752,7 +755,7 @@ function buildPreviewFooter({
           class="report-preview-footer-action"
           data-report-unlock-action="true"
         >
-          Odblokuj pełny raport
+          ${escapeHtml(previewActionLabel)}
         </button>
       `
         : ""
@@ -1057,6 +1060,8 @@ export function renderReportDocument({
   pageCodes,
   watermark = null,
   showUnlockAction = false,
+  previewActionLabel =
+    "Odblokuj pełny raport",
 }: RenderReportInput) {
   const context = buildReportContext(payload);
   const pageClass = getPageClass(reportTemplateVersion);
@@ -1099,10 +1104,13 @@ export function renderReportDocument({
 >
   ${buildPreviewWatermark(watermark)}
   ${html}
-  ${isLastPage ? buildPreviewFooter({
-      mode,
-      showUnlockAction,
-    }) : ""}
+  ${isLastPage
+    ? buildPreviewFooter({
+        mode,
+        showUnlockAction,
+        previewActionLabel,
+      })
+    : ""}
 </section>
 
 <style>
