@@ -22,6 +22,7 @@ import {
 } from "@/features/payments/lib/payment-money";
 
 import {
+  finalizePaidCompositeReportAccessOrder,
   finalizePaidReportAccessOrder,
   finalizePaidTenantReportAccessOrder,
 } from "@/features/report-access/api/report-access-payment.mutations";
@@ -46,6 +47,18 @@ function webhookError(
       status,
     },
   );
+}
+
+function asRecord(
+  value: unknown,
+): Record<string, unknown> {
+  return (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  )
+    ? value as Record<string, unknown>
+    : {};
 }
 
 export async function POST(request: Request) {
@@ -249,6 +262,13 @@ export async function POST(request: Request) {
       currency: notification.currency,
     });
 
+const orderMetadata =
+  asRecord(order.metadata);
+
+const isCompositeReportOrder =
+  orderMetadata.reportKind ===
+  "personal_composite";
+
 const result =
   order.buyerType === "tenant"
     ? await finalizePaidTenantReportAccessOrder({
@@ -260,15 +280,25 @@ const result =
         providerSessionId:
           notification.sessionId,
       })
-    : await finalizePaidReportAccessOrder({
-        orderId: order.id,
+    : isCompositeReportOrder
+      ? await finalizePaidCompositeReportAccessOrder({
+          orderId: order.id,
 
-        providerOrderId:
-          notification.orderId,
+          providerOrderId:
+            notification.orderId,
 
-        providerSessionId:
-          notification.sessionId,
-      });
+          providerSessionId:
+            notification.sessionId,
+        })
+      : await finalizePaidReportAccessOrder({
+          orderId: order.id,
+
+          providerOrderId:
+            notification.orderId,
+
+          providerSessionId:
+            notification.sessionId,
+        });
 
 console.info(
   "P24_PAYMENT_FULFILLED",

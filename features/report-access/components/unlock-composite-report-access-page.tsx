@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 
 import { getCompositeReportAccessOfferForCurrentUser } from "../api/report-access.queries";
-import { UnlockCompositeReportAccessPlaceholderForm } from "./unlock-composite-report-access-placeholder-form";
+//import { UnlockCompositeReportAccessPlaceholderForm } from "./unlock-composite-report-access-placeholder-form";
+import { UnlockCompositeReportAccessForm } from "./unlock-composite-report-access-form";
 
 import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
 import { useMemo } from "react";
@@ -165,7 +166,15 @@ export async function UnlockCompositeReportAccessPage({
         );
     }
     
-
+if (offer.existingGrant) {
+  redirect(
+    `/my/reports/composite/grants/${offer.existingGrant.id}` +
+      `?tenant=${encodeURIComponent(
+        offer.existingGrantTenantSlug ??
+          offer.tenantSlug,
+      )}`,
+  );
+}
 
 const sourceCandidates = offer.sourceCandidates ?? [];
 
@@ -274,34 +283,23 @@ const sourceCandidates = offer.sourceCandidates ?? [];
                         </div>
                     </section>
                 ) : (
-                    <section className="rounded-[2rem] hv-brand-card p-6 md:p-8">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
-                                <CreditCard size={19} />
-                            </div>
-
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7280]">
-                                    Placeholder płatności
-                                </p>
-
-                                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#171717]">
-                                    Symulacja zakupu dostępu
-                                </h2>
-
-                                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b7280]">
-                                    Na teraz przycisk poniżej tworzy opłacone zamówienie i aktywny
-                                    dostęp do raportu złożonego.
-                                </p>
-                            </div>
-                        </div>
-
-                        <UnlockCompositeReportAccessPlaceholderForm
-                            tenantSlugs={tenantSlugs}
-                            reportTemplateVersionId={reportTemplateVersionId}
-                            sourceCandidates={sourceCandidates}
-                        />
-                    </section>
+<UnlockCompositeReportAccessForm
+  tenantSlugs={tenantSlugs}
+  reportTemplateVersionId={
+    reportTemplateVersionId
+  }
+  sourceCandidates={
+    sourceCandidates
+  }
+  originalAmountCents={Math.round(
+    Number(
+      product.priceGross ?? 0,
+    ) * 100,
+  )}
+  currency={
+    product.currency ?? "PLN"
+  }
+/>
                 )}
             </div>
         </main>
