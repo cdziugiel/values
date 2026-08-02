@@ -22,27 +22,36 @@ type PageProps = {
 export default async function MyAssessmentComparePage({
   searchParams,
 }: PageProps) {
-  const { tenant, product, reportTemplateVersionId, ownSessionId,
-  showRevokedTokens,accessId } =
-    await searchParams;
+  const {
+    tenant,
+    product,
+    reportTemplateVersionId,
+    ownSessionId,
+    showRevokedTokens,
+    accessId,
+  } = await searchParams;
 
-
-const includeInactiveTokens = showRevokedTokens === "1";
-
+  const includeInactiveTokens = showRevokedTokens === "1";
   const tenantSlug = tenant ?? "humanet";
 
-const [questionnaires, centerData, comparisonShares] = await Promise.all([
-  listMyCompletedComparisonQuestionnaires({}),
-  getMyComparisonCenterData({
-    tenantSlug,
-    productId: product ?? null,
-    reportTemplateVersionId: reportTemplateVersionId ?? null,
-  }),
-  listMyComparisonShares({
-    tenantSlug,
-    includeInactive: includeInactiveTokens,
-  }),
-]);
+  const [centerData, comparisonShares] = await Promise.all([
+    getMyComparisonCenterData({
+      tenantSlug,
+      productId: product ?? null,
+      reportTemplateVersionId: reportTemplateVersionId ?? null,
+    }),
+    listMyComparisonShares({
+      tenantSlug,
+      includeInactive: includeInactiveTokens,
+    }),
+  ]);
+
+  const questionnaires = centerData.questionnaireId
+    ? await listMyCompletedComparisonQuestionnaires({
+        tenantSlug,
+        questionnaireId: centerData.questionnaireId,
+      })
+    : [];
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
@@ -52,11 +61,9 @@ const [questionnaires, centerData, comparisonShares] = await Promise.all([
         centerData={centerData}
         comparisonShares={comparisonShares}
         includeInactiveTokens={includeInactiveTokens}
-        productId={product ?? centerData.defaultProductId}
+        productId={centerData.defaultProductId}
         activeAccessId={accessId ?? null}
-        reportTemplateVersionId={
-          reportTemplateVersionId ?? centerData.defaultReportTemplateVersionId
-        }
+        reportTemplateVersionId={centerData.defaultReportTemplateVersionId}
         initialOwnSessionId={ownSessionId ?? null}
       />
     </main>

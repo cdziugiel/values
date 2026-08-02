@@ -23,6 +23,12 @@ export function normalizeReportTemplateKind(value: unknown): ReportTemplateKind 
 }
 
 export function isQuestionnaireBoundReportKind(kind: unknown) {
+  const normalized = normalizeReportTemplateKind(kind);
+
+  return normalized === "personal" || normalized === "comparison";
+}
+
+export function isQuestionnaireVersionBoundReportKind(kind: unknown) {
   return normalizeReportTemplateKind(kind) === "personal";
 }
 

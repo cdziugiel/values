@@ -92,9 +92,11 @@ function formatDate(value: string | null) {
 export async function listMyCompletedComparisonQuestionnaires({
   tenantSlug = null,
   assessmentProjectId,
+  questionnaireId,
 }: {
   tenantSlug?: string | null;
   assessmentProjectId?: string;
+  questionnaireId?: string;
 } = {}): Promise<MyComparisonQuestionnaireOption[]> {
   const session = await requireSession();
 
@@ -126,6 +128,12 @@ export async function listMyCompletedComparisonQuestionnaires({
   if (assessmentProjectId) {
     whereConditions.push(
       eq(assessmentSessions.assessmentProjectId, assessmentProjectId),
+    );
+  }
+
+  if (questionnaireId) {
+    whereConditions.push(
+      eq(assessmentDimensionScores.questionnaireId, questionnaireId),
     );
   }
 

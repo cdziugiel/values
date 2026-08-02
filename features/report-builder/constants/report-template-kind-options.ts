@@ -130,6 +130,14 @@ export function isPersonalReportTemplateKind(
   return normalizeReportTemplateKind(kind) === "personal";
 }
 
+export function isQuestionnaireBoundReportTemplateKind(
+  kind: string | null | undefined,
+) {
+  const normalized = normalizeReportTemplateKind(kind);
+
+  return normalized === "personal" || normalized === "comparison";
+}
+
 export function isAggregateReportTemplateKind(
   kind: string | null | undefined,
 ) {

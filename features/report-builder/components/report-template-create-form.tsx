@@ -15,7 +15,7 @@ import {
   AGGREGATE_SCOPE_OPTIONS,
   REPORT_TEMPLATE_FAMILY_OPTIONS,
   resolveReportTemplateKindFromUi,
-  isPersonalReportTemplateKind,
+  isQuestionnaireBoundReportTemplateKind,
   type AggregateReportScope,
   type ReportTemplateFamily,
 } from "../constants/report-template-kind-options";
@@ -97,7 +97,7 @@ const resolvedKind = useMemo(
   [family, aggregateScope],
 );
 
-const requiresQuestionnaire = isPersonalReportTemplateKind(resolvedKind);
+const requiresQuestionnaire = isQuestionnaireBoundReportTemplateKind(resolvedKind);
 
 
   return (
@@ -136,7 +136,7 @@ const requiresQuestionnaire = isPersonalReportTemplateKind(resolvedKind);
 <p className="text-sm leading-6 text-[#0f766e]">
   Typ template’u określa, czy raport dotyczy jednej osoby, kilku raportów
   personalnych, agregatu projektu, organizacji, zespołu czy porównania.
-  Kwestionariusz jest wymagany tylko dla raportów personalnych.
+  Kwestionariusz jest wymagany dla raportów personalnych i porównawczych.
 </p>
             </div>
           </div>
@@ -213,7 +213,7 @@ const requiresQuestionnaire = isPersonalReportTemplateKind(resolvedKind);
 
       {questionnaires.length === 0 ? (
         <span className="block text-xs leading-5 text-red-600">
-          Brak kwestionariuszy. Raport personalny wymaga przypisania
+          Brak kwestionariuszy. Ten rodzaj raportu wymaga przypisania
           kwestionariusza.
         </span>
       ) : null}

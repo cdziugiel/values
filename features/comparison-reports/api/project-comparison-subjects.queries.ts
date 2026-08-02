@@ -655,14 +655,16 @@ function buildQuestionnaireOptions({
 export async function listProjectComparisonSubjects({
   tenantSlug,
   assessmentProjectId,
+  questionnaireId,
 }: {
   tenantSlug: string;
   assessmentProjectId: string;
+  questionnaireId: string;
 }) {
   const ctx = await requireTenantContext({tenantSlug});
   const db = await getTenantDb(ctx);
 
-  const projectQuestionnaires = await db
+  const allProjectQuestionnaires = await db
     .select({
       questionnaireVersionId:
         assessmentProjectQuestionnaires.questionnaireVersionId,
@@ -681,6 +683,32 @@ export async function listProjectComparisonSubjects({
       ),
     )
     .orderBy(asc(assessmentProjectQuestionnaires.orderIndex));
+
+  if (!allProjectQuestionnaires.length) {
+    return {
+      questionnaires: [],
+      subjects: [],
+    };
+  }
+
+  const allowedVersionRows = await controlDb
+    .select({ id: questionnaireVersions.id })
+    .from(questionnaireVersions)
+    .where(
+      and(
+        inArray(
+          questionnaireVersions.id,
+          allProjectQuestionnaires.map((row) => row.questionnaireVersionId),
+        ),
+        eq(questionnaireVersions.questionnaireId, questionnaireId),
+        isNull(questionnaireVersions.deletedAt),
+      ),
+    );
+
+  const allowedVersionIds = new Set(allowedVersionRows.map((row) => row.id));
+  const projectQuestionnaires = allProjectQuestionnaires.filter((row) =>
+    allowedVersionIds.has(row.questionnaireVersionId),
+  );
 
   if (!projectQuestionnaires.length) {
     return {

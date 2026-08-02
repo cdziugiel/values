@@ -49,7 +49,7 @@ const optionalUuidString = z.preprocess(
 function isQuestionnaireBoundReportKind(
   kind: z.infer<typeof reportTemplateKindSchema>,
 ) {
-  return kind === "personal";
+  return kind === "personal" || kind === "comparison";
 }
 
 export const createReportTemplateSchema = z
@@ -76,7 +76,7 @@ export const createReportTemplateSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["questionnaireId"],
-        message: "Raport personalny musi być powiązany z kwestionariuszem.",
+        message: "Ten rodzaj raportu musi być powiązany z kwestionariuszem.",
       });
     }
   });
@@ -109,7 +109,7 @@ export const updateReportTemplateSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["questionnaireId"],
-        message: "Raport personalny musi być powiązany z kwestionariuszem.",
+        message: "Ten rodzaj raportu musi być powiązany z kwestionariuszem.",
       });
     }
   });

@@ -110,8 +110,8 @@ export function ReportTemplateVersionCreateForm({
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6b7280]">
               Dla raportów personalnych wersja raportu jest przypięta do konkretnej
-              wersji kwestionariusza. Raporty złożone, agregowane i porównawcze mogą
-              korzystać z konfiguracji źródeł danych w builderze.
+              wersji kwestionariusza. Raport porównawczy jest przypisany do rodzaju
+              kwestionariusza na poziomie template’u, bez wymuszania jednej jego wersji.
             </p>
           </div>
 

@@ -206,9 +206,9 @@ export function MyComparisonReportPage({
   if (!questionnaires.length) {
     return (
       <Alert>
-        <AlertTitle>Brak ukończonych badań</AlertTitle>
+        <AlertTitle>Brak wyniku wymaganego dla tego raportu</AlertTitle>
         <AlertDescription>
-          Aby skorzystać z dopasowania, najpierw ukończ przynajmniej jeden kwestionariusz.
+          Nie masz ukończonej sesji kwestionariusza przypisanego do wybranego produktu porównawczego.
         </AlertDescription>
       </Alert>
     );

@@ -14,6 +14,7 @@ import {
   buildDefaultReportTemplateConfig,
   buildDefaultReportTemplateDataBindings,
   isQuestionnaireBoundReportKind,
+  isQuestionnaireVersionBoundReportKind,
 } from "../lib/report-template-kind-defaults";
 
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
@@ -74,7 +75,7 @@ function assertQuestionnaireRequiredForTemplateKind({
   questionnaireId?: string | null;
 }) {
   if (isQuestionnaireBoundReportKind(kind) && !questionnaireId) {
-    throw new Error("Raport personalny musi być powiązany z kwestionariuszem.");
+    throw new Error("Ten rodzaj raportu musi być powiązany z kwestionariuszem.");
   }
 }
 
@@ -220,10 +221,13 @@ async function assertQuestionnaireVersionForReportTemplate({
   const template = await assertReportTemplateExists(reportTemplateId);
 
   if (isQuestionnaireBoundReportKind(template.kind) && !template.questionnaireId) {
-    throw new Error("Raport personalny musi być powiązany z kwestionariuszem.");
+    throw new Error("Ten rodzaj raportu musi być powiązany z kwestionariuszem.");
   }
 
-  if (isQuestionnaireBoundReportKind(template.kind) && !questionnaireVersionId) {
+  if (
+    isQuestionnaireVersionBoundReportKind(template.kind) &&
+    !questionnaireVersionId
+  ) {
     throw new Error(
       "Wersja raportu personalnego musi być powiązana z wersją kwestionariusza.",
     );

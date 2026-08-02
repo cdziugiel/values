@@ -6,8 +6,6 @@ import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import {
   reportAccessCodes,
   reportAccessGrants,
-  reportAccessProducts,
-  reportTemplateVersions,
 } from "@/drizzle/schema";
 import { controlDb } from "@/server/db/control-db";
 import { requireSession } from "@/server/auth/require-session";
@@ -16,6 +14,11 @@ import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import { buildComparisonDeltaRows } from "../lib/comparison-deltas";
 import { resolveComparisonToken } from "../lib/resolve-comparison-token";
 import { resolveMySessionComparisonScores } from "../lib/resolve-my-session-comparison-scores";
+import { assertComparisonQuestionnaireMatchesProduct } from "../lib/comparison-questionnaire-guards";
+import {
+  assertComparisonQuestionnaireVersionMatchesOffering,
+  resolveComparisonReportOffering,
+} from "./comparison-report-offering.queries";
 import { getPeerComparisonReportData } from "./comparison-report.queries";
 import { buildPeerComparisonReportData } from "../lib/build-comparison-report-data";
 import {
@@ -24,12 +27,6 @@ import {
   ProjectComparisonSubjectInput,
 } from "../forms/comparison-report.schema";
 import { createProjectSessionComparisonReportInputSchema } from "../forms/comparison-report.schema";
-
-
-
-import {
-  reportTemplates,
-} from "@/drizzle/schema";
 
 import {
   assessmentResponses,
@@ -289,44 +286,16 @@ export async function createProjectSubjectComparisonReportAction(
     const ctx = await requireTenantContext({tenantSlug});
     const db = await getTenantDb(ctx);
 
-    const product = await controlDb.query.reportAccessProducts.findFirst({
-      where: and(
-        eq(reportAccessProducts.id, productId),
-        eq(reportAccessProducts.status, "active"),
-        isNull(reportAccessProducts.deletedAt),
-      ),
+    const offering = await resolveComparisonReportOffering({
+      productId,
+      reportTemplateVersionId,
     });
+    const { product, reportVersion } = offering;
 
-    if (!product) {
-      throw new Error("Nie znaleziono aktywnego produktu raportowego.");
-    }
-
-    const reportTemplate = await controlDb.query.reportTemplates.findFirst({
-      where: and(
-        eq(reportTemplates.id, product.reportTemplateId),
-        eq(reportTemplates.kind, "comparison"),
-        eq(reportTemplates.status, "active"),
-        isNull(reportTemplates.deletedAt),
-      ),
+    await assertComparisonQuestionnaireVersionMatchesOffering({
+      questionnaireVersionId: left.questionnaireVersionId,
+      expectedQuestionnaireId: offering.questionnaireId,
     });
-
-    if (!reportTemplate) {
-      throw new Error("Produkt nie jest powiązany z aktywnym raportem dopasowania.");
-    }
-
-    const reportVersion =
-      await controlDb.query.reportTemplateVersions.findFirst({
-        where: and(
-          eq(reportTemplateVersions.id, reportTemplateVersionId),
-          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
-          eq(reportTemplateVersions.status, "active"),
-          isNull(reportTemplateVersions.deletedAt),
-        ),
-      });
-
-    if (!reportVersion) {
-      throw new Error("Nie znaleziono aktywnej wersji raportu porównawczego.");
-    }
 
     const [leftSessions, rightSessions] = await Promise.all([
       resolveProjectComparisonSubjectSessions({
@@ -525,31 +494,11 @@ export async function createMyComparisonReportWithTokenAction(input: unknown) {
       ctx,
     } = runtime;
 
-    const product = await controlDb.query.reportAccessProducts.findFirst({
-      where: and(
-        eq(reportAccessProducts.id, parsed.data.productId),
-        eq(reportAccessProducts.status, "active"),
-        isNull(reportAccessProducts.deletedAt),
-      ),
+    const offering = await resolveComparisonReportOffering({
+      productId: parsed.data.productId,
+      reportTemplateVersionId: parsed.data.reportTemplateVersionId,
     });
-
-    if (!product) {
-      throw new Error("Nie znaleziono aktywnego produktu raportowego.");
-    }
-
-    const reportVersion =
-      await controlDb.query.reportTemplateVersions.findFirst({
-        where: and(
-          eq(reportTemplateVersions.id, parsed.data.reportTemplateVersionId),
-          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
-          eq(reportTemplateVersions.status, "active"),
-          isNull(reportTemplateVersions.deletedAt),
-        ),
-      });
-
-    if (!reportVersion) {
-      throw new Error("Nie znaleziono aktywnej wersji raportu porównawczego.");
-    }
+    const { product } = offering;
 
     const left = await resolveMySessionComparisonScores({
       db,
@@ -561,6 +510,12 @@ export async function createMyComparisonReportWithTokenAction(input: unknown) {
     if (!left.visibility.canShow) {
       throw new Error("Nie można użyć wybranego wyniku do raportu.");
     }
+
+    assertComparisonQuestionnaireMatchesProduct({
+      actualQuestionnaireId: left.questionnaireId,
+      expectedQuestionnaireId: offering.questionnaireId,
+      subjectLabel: "Wybrany wynik",
+    });
 
     if (
       assessmentProjectIdFromInput &&
@@ -646,6 +601,12 @@ export async function createMyComparisonReportWithTokenAction(input: unknown) {
     if (!right.visibility.canShow) {
       throw new Error("Nie można użyć wyniku z tokenu do raportu.");
     }
+
+    assertComparisonQuestionnaireMatchesProduct({
+      actualQuestionnaireId: right.questionnaireId,
+      expectedQuestionnaireId: offering.questionnaireId,
+      subjectLabel: "Kod drugiej osoby",
+    });
 
     if (!right.assessmentSessionId || !right.respondentId) {
       throw new Error("Token nie zawiera pełnych danych wyniku do porównania.");
@@ -847,31 +808,11 @@ export async function createProjectSessionComparisonReportAction(input: unknown)
     const tenantSlug = runtime.tenantSlug;
     const assessmentProjectId = parsed.data.assessmentProjectId;
 
-    const product = await controlDb.query.reportAccessProducts.findFirst({
-      where: and(
-        eq(reportAccessProducts.id, parsed.data.productId),
-        eq(reportAccessProducts.status, "active"),
-        isNull(reportAccessProducts.deletedAt),
-      ),
+    const offering = await resolveComparisonReportOffering({
+      productId: parsed.data.productId,
+      reportTemplateVersionId: parsed.data.reportTemplateVersionId,
     });
-
-    if (!product) {
-      throw new Error("Nie znaleziono aktywnego produktu raportowego.");
-    }
-
-    const reportVersion =
-      await controlDb.query.reportTemplateVersions.findFirst({
-        where: and(
-          eq(reportTemplateVersions.id, parsed.data.reportTemplateVersionId),
-          eq(reportTemplateVersions.reportTemplateId, product.reportTemplateId),
-          eq(reportTemplateVersions.status, "active"),
-          isNull(reportTemplateVersions.deletedAt),
-        ),
-      });
-
-    if (!reportVersion) {
-      throw new Error("Nie znaleziono aktywnej wersji raportu porównawczego.");
-    }
+    const { product } = offering;
 
     const [left, right] = await Promise.all([
       resolveMySessionComparisonScores({
@@ -895,6 +836,17 @@ export async function createProjectSessionComparisonReportAction(input: unknown)
     if (!right.visibility.canShow) {
       throw new Error("Nie można użyć drugiego wyniku do raportu.");
     }
+
+    assertComparisonQuestionnaireMatchesProduct({
+      actualQuestionnaireId: left.questionnaireId,
+      expectedQuestionnaireId: offering.questionnaireId,
+      subjectLabel: "Pierwszy wynik",
+    });
+    assertComparisonQuestionnaireMatchesProduct({
+      actualQuestionnaireId: right.questionnaireId,
+      expectedQuestionnaireId: offering.questionnaireId,
+      subjectLabel: "Drugi wynik",
+    });
 
     if (
       left.assessmentProjectId !== assessmentProjectId ||

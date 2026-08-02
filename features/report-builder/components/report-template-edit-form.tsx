@@ -15,7 +15,7 @@ import {
   getAggregateScopeFromKind,
   getReportTemplateFamilyFromKind,
   resolveReportTemplateKindFromUi,
-  isPersonalReportTemplateKind,
+  isQuestionnaireBoundReportTemplateKind,
   type AggregateReportScope,
   type ReportTemplateFamily,
 } from "../constants/report-template-kind-options";
@@ -106,7 +106,7 @@ const resolvedKind = useMemo(
   [family, aggregateScope],
 );
 
-const requiresQuestionnaire = isPersonalReportTemplateKind(resolvedKind);
+const requiresQuestionnaire = isQuestionnaireBoundReportTemplateKind(resolvedKind);
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="reportTemplateId" value={template.id} />

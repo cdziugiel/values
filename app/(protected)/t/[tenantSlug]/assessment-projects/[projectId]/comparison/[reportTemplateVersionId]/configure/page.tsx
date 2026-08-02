@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { ProjectComparisonReportPage } from "@/features/comparison-reports/components/project-comparison-report-page";
 import { listProjectComparisonSubjects } from "@/features/comparison-reports/api/project-comparison-subjects.queries";
+import { resolveComparisonReportOffering } from "@/features/comparison-reports/api/comparison-report-offering.queries";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -30,21 +31,27 @@ export default async function ComparisonReportConfigurePage({
     notFound();
   }
 
-const comparisonData = await listProjectComparisonSubjects({
-  tenantSlug,
-  assessmentProjectId: projectId,
-});
+  const offering = await resolveComparisonReportOffering({
+    productId: product,
+    reportTemplateVersionId,
+  });
+
+  const comparisonData = await listProjectComparisonSubjects({
+    tenantSlug,
+    assessmentProjectId: projectId,
+    questionnaireId: offering.questionnaireId,
+  });
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
-<ProjectComparisonReportPage
-  subjects={comparisonData.subjects}
-  questionnaires={comparisonData.questionnaires}
-  tenantSlug={tenantSlug}
-  projectId={projectId}
-  productId={product}
-  reportTemplateVersionId={reportTemplateVersionId}
-/>
+      <ProjectComparisonReportPage
+        subjects={comparisonData.subjects}
+        questionnaires={comparisonData.questionnaires}
+        tenantSlug={tenantSlug}
+        projectId={projectId}
+        productId={product}
+        reportTemplateVersionId={reportTemplateVersionId}
+      />
     </main>
   );
 }

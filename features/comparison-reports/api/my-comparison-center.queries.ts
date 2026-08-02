@@ -1,6 +1,7 @@
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, or } from "drizzle-orm";
 
 import {
+  questionnaires,
   reportAccessGrants,
   reportAccessProducts,
   reportTemplates,
@@ -150,6 +151,9 @@ export async function getMyComparisonCenterData({
       tenantSlug,
       defaultProductId: null,
       defaultReportTemplateVersionId: null,
+      questionnaireId: null,
+      questionnaireName: null,
+      questionnaireCode: null,
       purchaseHref: null,
       unusedAccesses: [],
       generatedReports: [],
@@ -168,6 +172,9 @@ export async function getMyComparisonCenterData({
       tenantSlug,
       defaultProductId: null,
       defaultReportTemplateVersionId: null,
+      questionnaireId: null,
+      questionnaireName: null,
+      questionnaireCode: null,
       purchaseHref: null,
       unusedAccesses: [],
       generatedReports: [],
@@ -185,6 +192,9 @@ export async function getMyComparisonCenterData({
       reportTemplateId: reportTemplates.id,
       reportTemplateKind: reportTemplates.kind,
       reportTemplateName: reportTemplates.name,
+      questionnaireId: reportTemplates.questionnaireId,
+      questionnaireName: questionnaires.name,
+      questionnaireCode: questionnaires.code,
 
       reportTemplateVersionId: reportTemplateVersions.id,
       reportTemplateVersionName: reportTemplateVersions.name,
@@ -201,15 +211,21 @@ export async function getMyComparisonCenterData({
       reportTemplateVersions,
       eq(reportTemplateVersions.reportTemplateId, reportTemplates.id),
     )
+    .leftJoin(
+      questionnaires,
+      eq(questionnaires.id, reportTemplates.questionnaireId),
+    )
     .where(
       and(
         eq(reportAccessProducts.status, "active"),
         eq(reportTemplates.status, "active"),
         eq(reportTemplates.kind, "comparison"),
         eq(reportTemplateVersions.status, "active"),
+        isNotNull(reportTemplates.questionnaireId),
         isNull(reportAccessProducts.deletedAt),
         isNull(reportTemplates.deletedAt),
         isNull(reportTemplateVersions.deletedAt),
+        isNull(questionnaires.deletedAt),
       ),
     )
     .orderBy(
@@ -363,6 +379,9 @@ href:
 
     defaultProductId,
     defaultReportTemplateVersionId,
+    questionnaireId: selectedProduct?.questionnaireId ?? null,
+    questionnaireName: selectedProduct?.questionnaireName ?? null,
+    questionnaireCode: selectedProduct?.questionnaireCode ?? null,
 
     purchaseHref:
       selectedProduct && defaultProductId && defaultReportTemplateVersionId
@@ -380,6 +399,9 @@ href:
           description: selectedProduct.productDescription,
           priceGross: selectedProduct.priceGross,
           currency: selectedProduct.currency,
+          questionnaireId: selectedProduct.questionnaireId,
+          questionnaireName: selectedProduct.questionnaireName,
+          questionnaireCode: selectedProduct.questionnaireCode,
           reportTemplateVersionId: selectedProduct.reportTemplateVersionId,
           reportTemplateVersionName:
             selectedProduct.reportTemplateVersionName,
