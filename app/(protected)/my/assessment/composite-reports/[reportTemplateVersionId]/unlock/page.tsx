@@ -1,7 +1,5 @@
 // app/(protected)/my/assessment/composite-reports/[reportTemplateVersionId]/unlock/page.tsx
 
-import { notFound } from "next/navigation";
-
 import { UnlockCompositeReportAccessPage } from "@/features/report-access/components/unlock-composite-report-access-page";
 
 export const dynamic = "force-dynamic";
@@ -43,17 +41,6 @@ export default async function Page({ params, searchParams }: PageProps) {
   const tenantSlugs = normalizeTenantSlugs({
     tenant,
     tenants,
-  });
-
-  if (tenantSlugs.length === 0) {
-    notFound();
-  }
-
-  console.log("COMPOSITE_UNLOCK_ROUTE_HIT", {
-    reportTemplateVersionId,
-    tenant,
-    tenants,
-    tenantSlugs,
   });
 
   return (
