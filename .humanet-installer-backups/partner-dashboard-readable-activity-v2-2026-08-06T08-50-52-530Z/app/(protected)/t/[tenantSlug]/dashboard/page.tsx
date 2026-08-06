@@ -7,7 +7,6 @@ import {
   desc,
   eq,
   gte,
-  inArray,
   isNull,
   lt,
   sql,
@@ -45,21 +44,13 @@ import { getTenantDb } from "@/server/db/tenant-db";
 import { controlDb } from "@/server/db/control-db";
 
 import {
-  assessmentProjectQuestionnaires,
   assessmentProjects,
   assessmentResultSnapshots,
   assessmentSessions,
-  respondentIdentities,
   respondents,
 } from "@/drizzle/schema/tenant-schema";
 
-import {
-  questionnaires,
-  questionnaireVersions,
-  reportAccessCodes,
-  reportAccessOrders,
-  users,
-} from "@/drizzle/schema";
+import { reportAccessCodes, reportAccessOrders } from "@/drizzle/schema";
 
 type TenantDashboardPageProps = {
   params: Promise<{
@@ -709,18 +700,10 @@ async function getTenantDashboardData({
         id: assessmentSessions.id,
         status: assessmentSessions.status,
         assessmentProjectId: assessmentSessions.assessmentProjectId,
-        respondentEmail: respondentIdentities.email,
         completedAt: assessmentSessions.completedAt,
         updatedAt: assessmentSessions.updatedAt,
       })
       .from(assessmentSessions)
-      .leftJoin(
-        respondentIdentities,
-        and(
-          eq(respondentIdentities.respondentId, assessmentSessions.respondentId),
-          isNull(respondentIdentities.deletedAt),
-        ),
-      )
       .where(isNull(assessmentSessions.deletedAt))
       .orderBy(desc(assessmentSessions.updatedAt))
       .limit(8),
@@ -757,7 +740,6 @@ async function getTenantDashboardData({
       .select({
         id: reportAccessOrders.id,
         status: reportAccessOrders.status,
-        buyerEmail: users.email,
         currency: reportAccessOrders.currency,
         totalGross: reportAccessOrders.totalGross,
         paymentProvider: reportAccessOrders.paymentProvider,
@@ -765,13 +747,6 @@ async function getTenantDashboardData({
         createdAt: reportAccessOrders.createdAt,
       })
       .from(reportAccessOrders)
-      .leftJoin(
-        users,
-        and(
-          eq(users.id, reportAccessOrders.buyerUserId),
-          isNull(users.deletedAt),
-        ),
-      )
       .where(
         and(
           eq(reportAccessOrders.tenantSlug, tenantSlug),
@@ -835,101 +810,6 @@ async function getTenantDashboardData({
       .groupBy(sql`1`)
       .orderBy(sql`1`),
   ]);
-
-  const recentSessionProjectIds = [
-    ...new Set(
-      recentSessions.map((session) => session.assessmentProjectId),
-    ),
-  ];
-
-  const recentProjectQuestionnaires =
-    recentSessionProjectIds.length > 0
-      ? await db
-          .select({
-            assessmentProjectId:
-              assessmentProjectQuestionnaires.assessmentProjectId,
-            questionnaireVersionId:
-              assessmentProjectQuestionnaires.questionnaireVersionId,
-            orderIndex: assessmentProjectQuestionnaires.orderIndex,
-          })
-          .from(assessmentProjectQuestionnaires)
-          .where(
-            and(
-              inArray(
-                assessmentProjectQuestionnaires.assessmentProjectId,
-                recentSessionProjectIds,
-              ),
-              isNull(assessmentProjectQuestionnaires.deletedAt),
-            ),
-          )
-          .orderBy(
-            assessmentProjectQuestionnaires.assessmentProjectId,
-            assessmentProjectQuestionnaires.orderIndex,
-          )
-      : [];
-
-  const recentQuestionnaireVersionIds = [
-    ...new Set(
-      recentProjectQuestionnaires.map(
-        (row) => row.questionnaireVersionId,
-      ),
-    ),
-  ];
-
-  const recentQuestionnaireVersions =
-    recentQuestionnaireVersionIds.length > 0
-      ? await controlDb
-          .select({
-            id: questionnaireVersions.id,
-            questionnaireName: questionnaires.name,
-            versionName: questionnaireVersions.name,
-          })
-          .from(questionnaireVersions)
-          .leftJoin(
-            questionnaires,
-            eq(questionnaires.id, questionnaireVersions.questionnaireId),
-          )
-          .where(
-            inArray(
-              questionnaireVersions.id,
-              recentQuestionnaireVersionIds,
-            ),
-          )
-      : [];
-
-  const questionnaireNameByVersionId = new Map(
-    recentQuestionnaireVersions.map((row) => [
-      row.id,
-      row.questionnaireName ?? row.versionName,
-    ]),
-  );
-
-  const questionnaireNamesByProjectId = new Map<string, string[]>();
-
-  for (const row of recentProjectQuestionnaires) {
-    const questionnaireName = questionnaireNameByVersionId.get(
-      row.questionnaireVersionId,
-    );
-
-    if (!questionnaireName) {
-      continue;
-    }
-
-    const names =
-      questionnaireNamesByProjectId.get(row.assessmentProjectId) ?? [];
-
-    if (!names.includes(questionnaireName)) {
-      names.push(questionnaireName);
-    }
-
-    questionnaireNamesByProjectId.set(row.assessmentProjectId, names);
-  }
-
-  const enrichedRecentSessions = recentSessions.map((session) => ({
-    ...session,
-    questionnaireNames:
-      questionnaireNamesByProjectId.get(session.assessmentProjectId) ?? [],
-  }));
 
   const sessionStatus = {
     notStarted: 0,
@@ -1066,7 +946,7 @@ async function getTenantDashboardData({
     accessCodes,
     orders,
     recentProjects,
-    recentSessions: enrichedRecentSessions,
+    recentSessions,
     recentOrders,
   };
 }
@@ -1535,21 +1415,11 @@ const data = await getTenantDashboardData({
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-[#171717]">
-                            {session.respondentEmail ??
-                              "Brak adresu e-mail respondenta"}
+                          <p className="truncate font-mono text-xs text-[#8b9099]">
+                            {session.id}
                           </p>
 
-                          <p
-                            className="mt-1 line-clamp-2 text-sm leading-6 text-[#6b7280]"
-                            title={session.questionnaireNames.join(", ")}
-                          >
-                            {session.questionnaireNames.length > 0
-                              ? session.questionnaireNames.join(", ")
-                              : "Brak przypisanego kwestionariusza"}
-                          </p>
-
-                          <div className="mt-3">
+                          <div className="mt-2">
                             <StatusPill status={session.status}>
                               {getSessionStatusLabel(session.status)}
                             </StatusPill>
@@ -1634,12 +1504,11 @@ const data = await getTenantDashboardData({
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-[#171717]">
-                            {order.buyerEmail ??
-                              "Brak adresu e-mail kupującego"}
+                          <p className="truncate font-mono text-xs text-[#8b9099]">
+                            {order.id}
                           </p>
 
-                          <div className="mt-3">
+                          <div className="mt-2">
                             <StatusPill status={order.status}>
                               {getOrderStatusLabel(order.status)}
                             </StatusPill>
