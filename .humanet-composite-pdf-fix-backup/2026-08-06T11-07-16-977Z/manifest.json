@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-08-06T11:07:16.978Z",
+  "files": [
+    {
+      "path": "features/report-builder/lib/render-report-pdf.ts",
+      "existed": true
+    },
+    {
+      "path": "app/(protected)/my/reports/composite/grants/[grantId]/pdf/route.ts",
+      "existed": true
+    }
+  ]
+}
