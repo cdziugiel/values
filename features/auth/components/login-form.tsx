@@ -122,7 +122,7 @@ export function LoginForm() {
         <span>
           Wyrażam zgodę na przetwarzanie danych zgodnie z{" "}
           <Link
-            href="/polityka-prywatnosci"
+            href="/legal/polityka-prywatnosci"
             className="font-semibold text-[#171717] underline underline-offset-4 transition hover:text-[#0f766e]"
             target="_blank"
           >

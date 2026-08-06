@@ -16,7 +16,7 @@ Na potrzeby niniejszego Regulaminu poniższe pojęcia oznaczają:
 
 - **Pozycja** – pojedynczy element składowy Oferty zawierający wszystkie niezbędne informacje do złożenia Zamówienia.
 
-- **Polityka prywatności** – polityka prywatności dostępna pod adresem: `holisticvalues.pl`.
+- **Polityka prywatności** – polityka prywatności dostępna pod adresem: `https://values.humanet.me/legal/polityka-prywatnosci`.
 
 - **Regulamin** – niniejszy regulamin.
 
