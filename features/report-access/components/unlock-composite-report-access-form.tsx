@@ -22,10 +22,13 @@ import {
 } from "@/features/discount-codes";
 
 import {
-  redeemCompositeReportAccessCodeAction,
   type ReportAccessActionState,
-  unlockCompositeReportAccessAction,
 } from "../api/report-access.actions";
+
+import {
+  redeemCompositeReportAccessCodeAction,
+  unlockCompositeReportAccessAction,
+} from "../api/report-access-composite.actions";
 
 const initialState: ReportAccessActionState = {
   status: "idle",

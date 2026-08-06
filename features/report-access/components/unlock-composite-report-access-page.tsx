@@ -1,9 +1,8 @@
 // features/report-access/components/unlock-composite-report-access-page.tsx
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import {
   ArrowLeft,
-  CreditCard,
+  CheckCircle2,
   FileText,
   LockKeyhole,
   ReceiptText,
@@ -12,11 +11,7 @@ import {
 } from "lucide-react";
 
 import { getCompositeReportAccessOfferForCurrentUser } from "../api/report-access.queries";
-//import { UnlockCompositeReportAccessPlaceholderForm } from "./unlock-composite-report-access-placeholder-form";
 import { UnlockCompositeReportAccessForm } from "./unlock-composite-report-access-form";
-
-import { getPersonalCompositeReport } from "@/features/assessment-results/api/personal-composite-report.queries";
-import { useMemo } from "react";
 
 type UnlockCompositeReportAccessPageProps = {
   tenantSlugs: string[];
@@ -126,7 +121,7 @@ function CenteredState({
                     {title}
                 </h1>
 
-                <p className="mt-4 text-sm leading-7 text-[#6b7280]">{description}</p>
+                <div className="mt-4 text-sm leading-7 text-[#6b7280]">{description}</div>
 
                 <div className="mt-6 flex flex-wrap gap-2">{children}</div>
             </section>
@@ -138,19 +133,12 @@ export async function UnlockCompositeReportAccessPage({
   tenantSlugs,
   reportTemplateVersionId,
 }: UnlockCompositeReportAccessPageProps) {
-  console.log("COMPOSITE_UNLOCK_COMPONENT_HIT", {
-    tenantSlugs,
-    reportTemplateVersionId,
-  });
-
   const offer = await getCompositeReportAccessOfferForCurrentUser({
     tenantSlugs,
     reportTemplateVersionId,
   });
 
   if (!offer.ok) {
-
-
         return (
             <CenteredState
                 icon={<TriangleAlert size={14} />}
@@ -165,19 +153,47 @@ export async function UnlockCompositeReportAccessPage({
             </CenteredState>
         );
     }
-    
-if (offer.existingGrant) {
-  redirect(
-    `/my/reports/composite/grants/${offer.existingGrant.id}` +
-      `?tenant=${encodeURIComponent(
-        offer.existingGrantTenantSlug ??
-          offer.tenantSlug,
-      )}`,
-  );
-}
 
 const sourceCandidates = offer.sourceCandidates ?? [];
 
+if (offer.existingGrant) {
+  const requiredSourceNames = sourceCandidates
+    .filter((source) => source.required)
+    .map((source) => source.questionnaireName || source.label)
+    .filter(Boolean);
+
+  return (
+    <CenteredState
+      icon={<CheckCircle2 size={14} />}
+      eyebrow="HUMANET VALUES"
+      title="Ten raport został już odblokowany"
+      description={
+        <div className="space-y-3">
+          <p>
+            Masz już zakupiony raport złożony utworzony na podstawie obecnych
+            wyników. Ponowne odblokowanie tego samego zestawu danych nie jest
+            potrzebne i nie zostanie naliczone ponownie.
+          </p>
+
+          <p>
+            Aby wygenerować nową wersję raportu, ponownie ukończ wszystkie
+            wymagane kwestionariusze
+            {requiredSourceNames.length > 0
+              ? `: ${requiredSourceNames.join(", ")}.`
+              : " źródłowe."}{" "}
+            Po zapisaniu nowych wyników możliwość utworzenia kolejnego raportu
+            uaktywni się automatycznie.
+          </p>
+        </div>
+      }
+    >
+      <BrandLinkButton href="/my/assessment" variant="secondary">
+        <ArrowLeft size={16} />
+        Wróć do moich badań
+      </BrandLinkButton>
+    </CenteredState>
+  );
+}
 
   const product = offer.product;
 
