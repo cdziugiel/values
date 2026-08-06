@@ -2,8 +2,7 @@
 
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -109,18 +108,10 @@ export function GrantReportAccessToSessionForm({
   products,
   session,
 }: GrantReportAccessToSessionFormProps) {
-  const router = useRouter();
-
   const [state, formAction, isPending] = useActionState(
     grantReportAccessToCompletedSessionAction,
     initialState,
   );
-
-  useEffect(() => {
-    if (state.status === "success" && !isPending) {
-      router.refresh();
-    }
-  }, [isPending, router, state.status]);
 
   const availableProducts = useMemo(
     () => products.filter((product) => getAvailableCount(product) > 0),

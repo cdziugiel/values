@@ -87,4 +87,3 @@ export { getReportTemplateVersionForRender } from "./api/report-render.queries";
 export { buildReportContext } from "./lib/report-context";
 export { evaluateReportPathCondition } from "./lib/report-condition";
 export { renderReportDocument } from "./lib/report-template-renderer";
-export { resolveReportPreviewConfig } from "./lib/report-preview-config";

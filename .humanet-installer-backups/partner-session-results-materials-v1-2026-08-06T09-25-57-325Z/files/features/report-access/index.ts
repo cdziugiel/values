@@ -3,4 +3,3 @@ export { UnlockReportAccessPlaceholderForm } from "./components/unlock-report-ac
 export {
   RetryReportPaymentForm,
 } from "./components/retry-report-payment-form";
-export { TenantReportAccessPurchaseDialog } from "./components/tenant-report-access-purchase-dialog";

@@ -1,0 +1,61 @@
+{
+  "patchId": "partner-session-results-materials-v1",
+  "createdAt": "2026-08-06T09:25:57.331Z",
+  "files": [
+    {
+      "path": "features/assessment-results/components/assessment-session-results-page.tsx",
+      "existed": true,
+      "originalSha256": "8bbfaa43643847049fe8116318a89e46e169d6bb04b83c4352eb4d513422368f"
+    },
+    {
+      "path": "features/assessment-results/api/partner-assessment-session-materials.queries.ts",
+      "existed": false,
+      "originalSha256": null
+    },
+    {
+      "path": "features/assessment-results/api/partner-assessment-session-preview.queries.ts",
+      "existed": false,
+      "originalSha256": null
+    },
+    {
+      "path": "app/(protected)/t/[tenantSlug]/assessment-sessions/[sessionId]/report/[reportTemplateVersionId]/teaser/page.tsx",
+      "existed": false,
+      "originalSha256": null
+    },
+    {
+      "path": "features/assessment-projects/index.ts",
+      "existed": true,
+      "originalSha256": "273ad4baa45aa57b06eb13b13552612292b61e97547b9e0c5558fa25590a6ce5"
+    },
+    {
+      "path": "features/report-access/index.ts",
+      "existed": true,
+      "originalSha256": "2614933c26bcba3d0f625030006e52ee529023995f34ff687fcb97fc89ff0ff1"
+    },
+    {
+      "path": "features/assessment-results/index.ts",
+      "existed": true,
+      "originalSha256": "f1991fb64c14426074c07a145cafc7c4392ed888c7fdf9ad25cf1ce86dc061c7"
+    },
+    {
+      "path": "features/report-builder/index.ts",
+      "existed": true,
+      "originalSha256": "2408504d89a28a982dacc7dd9f543cb5f300bc4ddae5561535846b5b2b5943f8"
+    },
+    {
+      "path": "features/assessment-projects/components/grant-report-access-to-session-form.tsx",
+      "existed": true,
+      "originalSha256": "91becd40e6823e8f84851ba5fbea70a47118ae21990fd051a2d615fd6a4bd3dd"
+    },
+    {
+      "path": "features/report-access/components/tenant-report-access-purchase-dialog.tsx",
+      "existed": true,
+      "originalSha256": "0f01324eb4e05d0b1656a2f4077a987c16102958aa59e3d594618779a6c2524c"
+    },
+    {
+      "path": "app/(protected)/t/[tenantSlug]/assessment-sessions/[sessionId]/results/page.tsx",
+      "existed": true,
+      "originalSha256": "41e5773ffc097a43e81b59f2db88b32d3fad368d5cc45547ca36ca03ef1452d8"
+    }
+  ]
+}

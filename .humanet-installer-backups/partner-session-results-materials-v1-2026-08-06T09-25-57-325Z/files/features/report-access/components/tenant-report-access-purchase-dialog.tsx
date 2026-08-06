@@ -1,7 +1,6 @@
 // features/report-access/components/tenant-report-access-purchase-dialog.tsx
 
 "use client";
-import { useRouter } from "next/navigation";
 import { ApplyDiscountCodeForm } from "@/features/discount-codes/components/apply-discount-code-form";
 import {
   useActionState,
@@ -222,9 +221,9 @@ export function TenantReportAccessPurchaseDialog({
   products,
   billingProfile,
 }: TenantReportAccessPurchaseDialogProps) {
-  const router = useRouter();
 
-  const [state, formAction, isPending] = useActionState(
+
+    const [state, formAction, isPending] = useActionState(
     purchaseTenantReportAccessAction,
     initialState,
   );
@@ -232,9 +231,8 @@ export function TenantReportAccessPurchaseDialog({
   useEffect(() => {
     if (state.status === "success" && !isPending) {
       setOpen(false);
-      router.refresh();
     }
-  }, [state.status, isPending, router]);
+  }, [state.status, isPending]);
 
   const [open, setOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState(
@@ -450,6 +448,9 @@ export function TenantReportAccessPurchaseDialog({
                   <h3 className="font-semibold tracking-[-0.02em] text-[#171717]">
                     Kod rabatowy
                   </h3>
+                  <p className="mt-1 text-sm leading-6 text-[#6b7280]">
+                    Kod może obniżyć wartość zakupu częściowo albo pokryć całą kwotę.
+                  </p>
                 </div>
 
                 <ApplyDiscountCodeForm
@@ -504,6 +505,9 @@ export function TenantReportAccessPurchaseDialog({
                   />
                   <span>
                     Chcę podać dane do faktury
+                    <span className="mt-1 block text-xs font-normal leading-5 text-[#6b7280]">
+                      Dane mogą zostać zapisane jako profil billingowy partnera.
+                    </span>
                   </span>
                 </label>
 
