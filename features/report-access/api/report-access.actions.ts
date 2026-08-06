@@ -1138,12 +1138,8 @@ async function resolveCompositeUnlockContext(
   if (offer.existingGrant) {
     redirect(
       buildCompositeGrantHref({
-        tenantSlug:
-          offer.existingGrantTenantSlug ??
-          offer.tenantSlug,
-
-        grantId:
-          offer.existingGrant.id,
+        tenantSlug: offer.existingGrant.tenantSlug,
+        grantId: offer.existingGrant.id,
       }),
     );
   }
