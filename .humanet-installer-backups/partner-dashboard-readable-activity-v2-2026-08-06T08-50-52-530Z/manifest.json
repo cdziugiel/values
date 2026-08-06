@@ -1,6 +1,0 @@
-{
-  "patchId": "partner-dashboard-readable-activity-v2",
-  "target": "app/(protected)/t/[tenantSlug]/dashboard/page.tsx",
-  "createdAt": "2026-08-06T08:50:52.534Z",
-  "originalSha256": "903f0c084befe957142b4b0a02a6e34681cf8a65826b761eea2f54546441ceb7"
-}
