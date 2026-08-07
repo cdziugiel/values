@@ -12,6 +12,7 @@ import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantAuditActorContext } from "@/server/audit/write-tenant-audit-log";
 
 import type { ComparisonObjectResult } from "../types/comparison-report.types";
+import { respondentIdentities } from "@/drizzle/schema/tenant-schema";
 
 type ResolveComparisonTokenInput = {
   db: any;
@@ -74,6 +75,38 @@ export async function resolveComparisonToken({
     };
   }
 
+  const [identity] = await db
+  .select({
+    firstName: respondentIdentities.firstName,
+    lastName: respondentIdentities.lastName,
+    email: respondentIdentities.email,
+  })
+  .from(respondentIdentities)
+  .where(
+    and(
+      eq(
+        respondentIdentities.respondentId,
+        share.respondentId,
+      ),
+      isNull(respondentIdentities.deletedAt),
+    ),
+  )
+  .limit(1);
+
+const fullName = [
+  identity?.firstName,
+  identity?.lastName,
+]
+  .map((value) => value?.trim())
+  .filter(Boolean)
+  .join(" ");
+
+const comparisonSubjectLabel =
+  fullName ||
+  identity?.email?.trim() ||
+  share.label?.trim() ||
+  "Udostępniony wynik";
+
   const questionnaireVersionId =
     typeof share.metadata === "object" &&
       share.metadata &&
@@ -90,7 +123,7 @@ export async function resolveComparisonToken({
     return {
       type: "shared_token",
       id: share.id,
-      label: share.label || "Udostępniony wynik",
+      label: comparisonSubjectLabel,
       n: 0,
       visibility: {
         canShow: false,
@@ -156,7 +189,7 @@ export async function resolveComparisonToken({
 return {
   type: "shared_token",
   id: share.id,
-  label: share.label || "Udostępniony wynik",
+  label: comparisonSubjectLabel,
   n: 1,
 
   respondentId: share.respondentId,
