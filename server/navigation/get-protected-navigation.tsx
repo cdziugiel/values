@@ -25,8 +25,11 @@ import {
   TicketPercent,
   GitCompare,
   GitCompareArrows,
-  Database
+  Database,
+  Settings2,
+  CalendarCheck2,
 } from "lucide-react";
+// @humanet-marketing-patched:navigation
 
 export type ProtectedNavigationItem = {
   href: string;
@@ -65,9 +68,19 @@ const respondentNavigationItems: ProtectedNavigationItem[] = [
     icon: <FileText className="h-4 w-4 shrink-0" />,
   },
   {
+    label: "Konsultacje",
+    href: "/my/consultations",
+    icon: <CalendarCheck2 className="h-4 w-4 shrink-0" />,
+  },
+  {
     label: "Dopasowanie",
     href: "/my/assessment/compare",
     icon: <GitCompareArrows className="h-4 w-4 shrink-0" />,
+  },
+  {
+    label: "Prywatność",
+    href: "/my/privacy",
+    icon: <Settings2 className="h-4 w-4 shrink-0" />,
   },
 ];
 
@@ -118,6 +131,11 @@ const adminNavigationGroup: ProtectedNavigationGroup = {
       label: "Dane normatywne",
       href: "/dashboard/normative-data",
       icon: <Database className="h-4 w-4 shrink-0" />,
+    },
+    {
+      label: "Konsultacje",
+      href: "/dashboard/consultations",
+      icon: <CalendarCheck2 className="h-4 w-4 shrink-0" />,
     },
   ],
 };
@@ -225,3 +243,4 @@ export async function getProtectedNavigation(
 
   return [partnerNavigationGroup, respondentNavigationGroup];
 }
+// @humanet-marketing-patched:consultation-navigation-v2

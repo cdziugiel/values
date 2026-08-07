@@ -933,12 +933,14 @@ export async function getReportAccessOfferForCompletedSession({
   expectedKind = "personal",
   projectQuestionnaireId = null,
   questionnaireVersionId = null,
+  productCode = null,
 }: {
   tenantSlug: string;
   sessionId: string;
   expectedKind?: string;
   projectQuestionnaireId?: string | null;
   questionnaireVersionId?: string | null;
+  productCode?: string | null;
 }) {
   const resolved = await resolveCompletedSessionForCurrentUser({
     tenantSlug,
@@ -1040,6 +1042,9 @@ const existingGrant =
   const product = await controlDb.query.reportAccessProducts.findFirst({
     where: and(
       eq(reportAccessProducts.reportTemplateId, reportVersion.reportTemplateId),
+      productCode
+        ? eq(reportAccessProducts.code, productCode)
+        : undefined,
       eq(reportAccessProducts.status, "active"),
       isNull(reportAccessProducts.deletedAt),
     ),

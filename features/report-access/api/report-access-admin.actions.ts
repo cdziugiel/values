@@ -12,6 +12,13 @@ import {
 
 import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 import { controlDb } from "@/server/db/control-db";
+import {
+    isReportAccessB2cOfferCode,
+    mergeReportAccessB2cOfferConfig,
+    readReportAccessB2cOffer,
+    type ReportAccessB2cOfferCode,
+} from "../lib/report-access-product-offer";
+// @humanet-marketing-patched:report-access-admin-actions
 
 export type ReportAccessAdminActionState = {
     status: "idle" | "success" | "error";
@@ -101,6 +108,36 @@ function normalizeCode(value: string) {
         .replace(/^_+|_+$/g, "");
 }
 
+function b2cOfferCodeValue(formData: FormData): ReportAccessB2cOfferCode | null {
+    const value = stringValue(formData, "b2cOfferCode");
+    return isReportAccessB2cOfferCode(value) ? value : null;
+}
+
+async function hasActiveB2cOfferConflict({
+    reportTemplateId,
+    offerCode,
+    excludeProductId = null,
+}: {
+    reportTemplateId: string;
+    offerCode: ReportAccessB2cOfferCode | null;
+    excludeProductId?: string | null;
+}) {
+    if (!offerCode) return false;
+
+    const products = await controlDb.query.reportAccessProducts.findMany({
+        where: and(
+            eq(reportAccessProducts.reportTemplateId, reportTemplateId),
+            eq(reportAccessProducts.status, "active"),
+            isNull(reportAccessProducts.deletedAt),
+        ),
+    });
+
+    return products.some((product) =>
+        product.id !== excludeProductId &&
+        readReportAccessB2cOffer(product.config)?.offerCode === offerCode
+    );
+}
+
 function createAccessCode() {
     const raw = crypto.randomBytes(12).toString("hex").toUpperCase();
 
@@ -144,6 +181,23 @@ export async function createReportAccessProductAction(
 
     const now = new Date();
 
+    const status = stringValue(formData, "status") || "draft";
+    const b2cOfferCode = b2cOfferCodeValue(formData);
+    const config = mergeReportAccessB2cOfferConfig({
+        currentConfig: {},
+        offerCode: b2cOfferCode,
+        consultationMinutes: stringValue(formData, "b2cConsultationMinutes"),
+    });
+
+    if (
+        status === "active" &&
+        await hasActiveB2cOfferConflict({ reportTemplateId, offerCode: b2cOfferCode })
+    ) {
+        return fail(
+            "Dla tego template'u istnieje już aktywny produkt z tym samym pakietem B2C.",
+        );
+    }
+
     await controlDb.insert(reportAccessProducts).values({
         reportTemplateId,
 
@@ -151,7 +205,7 @@ export async function createReportAccessProductAction(
         name,
         description: nullableStringValue(formData, "description"),
 
-        status: stringValue(formData, "status") || "draft",
+        status,
         accessCount: numberValue(formData, "accessCount", 1),
 
         currency: stringValue(formData, "currency") || "PLN",
@@ -159,7 +213,7 @@ export async function createReportAccessProductAction(
         vatRate: vatValue(formData, "vatRate"),
         priceGross: moneyValue(formData, "priceGross"),
 
-        config: {},
+        config,
 
         createdAt: now,
         updatedAt: now,
@@ -205,6 +259,27 @@ export async function updateReportAccessProductAction(
         return fail("Nie znaleziono produktu.");
     }
 
+    const status = stringValue(formData, "status") || "draft";
+    const b2cOfferCode = b2cOfferCodeValue(formData);
+    const config = mergeReportAccessB2cOfferConfig({
+        currentConfig: existing.config,
+        offerCode: b2cOfferCode,
+        consultationMinutes: stringValue(formData, "b2cConsultationMinutes"),
+    });
+
+    if (
+        status === "active" &&
+        await hasActiveB2cOfferConflict({
+            reportTemplateId: existing.reportTemplateId,
+            offerCode: b2cOfferCode,
+            excludeProductId: existing.id,
+        })
+    ) {
+        return fail(
+            "Dla tego template'u istnieje już inny aktywny produkt z tym samym pakietem B2C.",
+        );
+    }
+
     await controlDb
         .update(reportAccessProducts)
         .set({
@@ -212,13 +287,14 @@ export async function updateReportAccessProductAction(
             name,
             description: nullableStringValue(formData, "description"),
 
-            status: stringValue(formData, "status") || "draft",
+            status,
             accessCount: numberValue(formData, "accessCount", 1),
 
             currency: stringValue(formData, "currency") || "PLN",
             priceNet: moneyValue(formData, "priceNet"),
             vatRate: vatValue(formData, "vatRate"),
             priceGross: moneyValue(formData, "priceGross"),
+            config,
 
             updatedAt: new Date(),
             updatedBy: actor.id,

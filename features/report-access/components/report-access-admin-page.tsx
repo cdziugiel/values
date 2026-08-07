@@ -2,6 +2,8 @@
 
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   useActionState,
   useEffect,
@@ -35,6 +37,14 @@ import {
   updateReportAccessProductAction,
   type ReportAccessAdminActionState,
 } from "../api/report-access-admin.actions";
+import {
+  getDefaultConsultationMinutes,
+  getReportAccessB2cOfferLabel,
+  readReportAccessB2cOffer,
+  type ReportAccessB2cOfferCode,
+} from "../lib/report-access-product-offer";
+// @humanet-marketing-patched:report-access-admin-page
+// @humanet-marketing-patched:report-access-admin-page-v2
 
 const initialState: ReportAccessAdminActionState = {
   status: "idle",
@@ -408,6 +418,13 @@ function CreateProductForm({ templates }: { templates: any[] }) {
     createReportAccessProductAction,
     initialState,
   );
+  const router = useRouter();
+  const [createB2cOfferCode, setCreateB2cOfferCode] =
+    useState<ReportAccessB2cOfferCode | "">("");
+
+  useEffect(() => {
+    if (state.status === "success") router.refresh();
+  }, [router, state.status]);
 
   return (
     <section className="rounded-[2rem] hv-brand-card">
@@ -476,6 +493,55 @@ function CreateProductForm({ templates }: { templates: any[] }) {
                 className="h-11 rounded-2xl border-black/10 bg-white"
               />
             </div>
+
+            <div
+              className={
+                createB2cOfferCode === "report_plus_consultation" ||
+                createB2cOfferCode === "decision_support"
+                  ? "space-y-1.5 md:col-span-2"
+                  : "space-y-1.5 md:col-span-3"
+              }
+            >
+              <FieldLabel>Pakiet B2C</FieldLabel>
+              <SelectField
+                name="b2cOfferCode"
+                value={createB2cOfferCode}
+                onChange={(event) =>
+                  setCreateB2cOfferCode(
+                    event.currentTarget.value as ReportAccessB2cOfferCode | "",
+                  )
+                }
+              >
+                <option value="">Poza ścieżką B2C / legacy</option>
+                <option value="report">Sam raport</option>
+                <option value="report_plus_consultation">Raport + konsultacja</option>
+                <option value="decision_support">Wsparcie decyzji</option>
+              </SelectField>
+              <p className="text-xs leading-5 text-[#6b7280]">
+                Cena poniżej dotyczy dokładnie kombinacji: wybrany template + pakiet.
+              </p>
+            </div>
+
+            {createB2cOfferCode === "report_plus_consultation" ||
+            createB2cOfferCode === "decision_support" ? (
+              <div className="space-y-1.5">
+                <FieldLabel>Czas konsultacji [min]</FieldLabel>
+                <Input
+                  name="b2cConsultationMinutes"
+                  type="number"
+                  min={15}
+                  max={240}
+                  step={5}
+                  placeholder={
+                    createB2cOfferCode === "decision_support" ? "90" : "60"
+                  }
+                  className="h-11 rounded-2xl border-black/10 bg-white"
+                />
+                <p className="text-xs leading-5 text-[#6b7280]">
+                  Jeśli zostawisz puste, użyjemy domyślnie odpowiednio 60 lub 90 minut.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-6">
@@ -562,6 +628,10 @@ function CreateProductForm({ templates }: { templates: any[] }) {
 }
 
 function ProductEditCard({ product }: { product: any }) {
+  const b2cOffer = readReportAccessB2cOffer(product.config);
+  const defaultConsultationMinutes = b2cOffer
+    ? getDefaultConsultationMinutes(b2cOffer.offerCode)
+    : null;
   const [state, formAction, isPending] = useActionState(
     updateReportAccessProductAction,
     initialState,
@@ -571,6 +641,13 @@ function ProductEditCard({ product }: { product: any }) {
     archiveReportAccessProductAction,
     initialState,
   );
+  const router = useRouter();
+  const [selectedB2cOfferCode, setSelectedB2cOfferCode] =
+    useState<ReportAccessB2cOfferCode | "">(b2cOffer?.offerCode ?? "");
+
+  useEffect(() => {
+    if (state.status === "success") router.refresh();
+  }, [router, state.status]);
 
   return (
     <article className="group relative overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
@@ -624,6 +701,65 @@ function ProductEditCard({ product }: { product: any }) {
           placeholder="Opis produktu"
           className="h-11 rounded-2xl border-black/10 bg-white"
         />
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <div
+            className={
+              selectedB2cOfferCode === "report_plus_consultation" ||
+              selectedB2cOfferCode === "decision_support"
+                ? "space-y-1.5 md:col-span-2"
+                : "space-y-1.5 md:col-span-3"
+            }
+          >
+            <FieldLabel>Pakiet B2C</FieldLabel>
+            <SelectField
+              name="b2cOfferCode"
+              value={selectedB2cOfferCode}
+              onChange={(event) =>
+                setSelectedB2cOfferCode(
+                  event.currentTarget.value as ReportAccessB2cOfferCode | "",
+                )
+              }
+            >
+              <option value="">Poza ścieżką B2C / legacy</option>
+              <option value="report">Sam raport</option>
+              <option value="report_plus_consultation">Raport + konsultacja</option>
+              <option value="decision_support">Wsparcie decyzji</option>
+            </SelectField>
+            {selectedB2cOfferCode ? (
+              <p className="text-xs text-[#0f766e]">
+                Wybrany pakiet: {getReportAccessB2cOfferLabel(selectedB2cOfferCode)}
+              </p>
+            ) : (
+              <p className="text-xs text-[#6b7280]">
+                Produkt nie jest wybierany przez nową ścieżkę /start.
+              </p>
+            )}
+          </div>
+
+          {selectedB2cOfferCode === "report_plus_consultation" ||
+          selectedB2cOfferCode === "decision_support" ? (
+            <div className="space-y-1.5">
+              <FieldLabel>Czas konsultacji [min]</FieldLabel>
+              <Input
+                name="b2cConsultationMinutes"
+                type="number"
+                min={15}
+                max={240}
+                step={5}
+                defaultValue={
+                  b2cOffer?.consultation?.durationMinutes ??
+                  defaultConsultationMinutes ??
+                  ""
+                }
+                placeholder={
+                  selectedB2cOfferCode === "decision_support" ? "90" : "60"
+                }
+                className="h-11 rounded-2xl border-black/10 bg-white"
+              />
+            </div>
+          ) : null}
+        </div>
 
         <div className="grid gap-3 md:grid-cols-5">
           <Input
@@ -1191,7 +1327,10 @@ export function ReportAccessAdminPage({ data }: ReportAccessAdminPageProps) {
             ) : (
               <div className="grid gap-4 xl:grid-cols-2">
                 {data.products.map((product) => (
-                  <ProductEditCard key={product.id} product={product} />
+                  <ProductEditCard
+                    key={`${product.id}:${String(product.updatedAt)}`}
+                    product={product}
+                  />
                 ))}
               </div>
             )}

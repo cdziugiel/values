@@ -30,6 +30,8 @@ import {
 
 import { controlDb } from "@/server/db/control-db";
 import { env } from "@/shared/config/env";
+import { finalizeMarketingPurchaseOrder } from "@/features/purchase-flow/server";
+// @humanet-marketing-patched:webhook
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -320,6 +322,10 @@ export async function POST(request: Request) {
               providerSessionId:
                 notification.sessionId,
             });
+
+    await finalizeMarketingPurchaseOrder({
+      orderId: order.id,
+    });
 
 
 

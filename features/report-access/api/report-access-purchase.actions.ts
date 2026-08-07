@@ -38,6 +38,17 @@ import {
 
 import { redeemDiscountForCheckout } from "@/features/discount-codes/api/discount-code.mutations";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
+import { recordCurrentTermsAcceptance } from "@/features/legal/server";
+import { readReportAccessB2cOffer } from "@/features/report-access/lib/report-access-product-offer";
+import {
+  finalizeMarketingPurchaseOrder,
+  getOwnedPurchaseIntentForCheckout,
+  markPurchaseIntentCheckoutStarted,
+} from "@/features/purchase-flow/server";
+// @humanet-marketing-patched:purchase-action
+// @humanet-marketing-patched:purchase-action-v2
+// @humanet-marketing-patched:purchase-action-v3
+// @humanet-marketing-patched:purchase-action-v4
 
 export type UnlockReportAccessActionState = {
   status: "idle" | "success" | "error";
@@ -212,6 +223,23 @@ export async function unlockReportAccessPlaceholderAction(
     return fail("Brakuje danych sesji lub tenanta.");
   }
 
+  const purchaseIntentId = normalizeOptionalString(
+    formData.get("purchaseIntentId"),
+  );
+
+  const purchaseIntent = purchaseIntentId
+    ? await getOwnedPurchaseIntentForCheckout({
+        purchaseIntentId,
+        userId: authSession.user.id,
+        tenantSlug,
+        sessionId,
+      })
+    : null;
+
+  if (purchaseIntentId && !purchaseIntent) {
+    return fail("Nie znaleziono aktywnego procesu zakupowego dla tej sesji.");
+  }
+
   const offer =
     mode === "comparison" && reportTemplateVersionIdFromInput
       ? await getReportAccessOfferForCompletedSessionAndReportVersion({
@@ -226,6 +254,7 @@ export async function unlockReportAccessPlaceholderAction(
         expectedKind: "personal",
         projectQuestionnaireId: projectQuestionnaireIdFromInput,
         questionnaireVersionId: questionnaireVersionIdFromInput,
+        productCode: purchaseIntent?.productCode ?? null,
       });
 
   if (!offer.ok) {
@@ -239,6 +268,21 @@ export async function unlockReportAccessPlaceholderAction(
 
     return fail("Dla tego raportu nie ma aktywnego produktu sprzedażowego.");
   }
+
+  const b2cOffer = readReportAccessB2cOffer(offer.product.config);
+
+  if (
+    purchaseIntent &&
+    (!b2cOffer || b2cOffer.offerCode !== purchaseIntent.offerCode)
+  ) {
+    return fail(
+      "Konfiguracja pakietu produktu zmieniła się. Wróć do /start i wybierz ofertę ponownie.",
+    );
+  }
+
+
+
+
 
   const existingGrant =
     offer.existingGrant ??
@@ -385,6 +429,12 @@ if (existingGrantByReportType) {
     productCode: offer.product.code,
     productName: offer.product.name,
 
+    purchaseIntentId: purchaseIntent?.id ?? null,
+    offerCode: purchaseIntent?.offerCode ?? null,
+    reportType: purchaseIntent?.reportType ?? null,
+    attribution: purchaseIntent?.attribution ?? null,
+    b2cOffer: purchaseIntent ? b2cOffer : null,
+
     discount: discountRedemptionId
       ? {
         redemptionId: discountRedemptionId,
@@ -394,6 +444,18 @@ if (existingGrantByReportType) {
       }
       : null,
   };
+
+  if (purchaseIntent) {
+    if (formData.get("acceptTerms") !== "on") {
+      return fail("Aby kontynuować zakup, zaakceptuj regulamin.");
+    }
+
+    await recordCurrentTermsAcceptance({
+      userId: authSession.user.id,
+      source: "purchase_intent_checkout",
+      metadata: { purchaseIntentId: purchaseIntent.id },
+    });
+  }
 
   const [order] = await controlDb
     .insert(reportAccessOrders)
@@ -458,6 +520,14 @@ if (existingGrantByReportType) {
     createdAt: now,
     updatedAt: now,
   });
+
+  if (purchaseIntent) {
+    await markPurchaseIntentCheckoutStarted({
+      purchaseIntentId: purchaseIntent.id,
+      userId: authSession.user.id,
+      orderId: order.id,
+    });
+  }
 
   /**
    * Zamówienie pokryte w 100% rabatem nie trafia do P24.
@@ -534,6 +604,11 @@ if (existingGrantByReportType) {
         questionnaireVersionIdFromInput,
     });
 
+    if (purchaseIntent) {
+      await finalizeMarketingPurchaseOrder({ orderId: order.id });
+      redirect(`/my/orders/${order.id}/success`);
+    }
+
     redirect(href);
   }
 
@@ -583,9 +658,13 @@ if (existingGrantByReportType) {
         country: "PL",
         language: "pl",
 
-        urlReturn: buildPaymentReturnUrl({
-          orderId: order.id,
-        }),
+        urlReturn: purchaseIntent
+          ? `${withoutTrailingSlash(env.APP_URL)}/my/orders/${encodeURIComponent(
+              order.id,
+            )}/success`
+          : buildPaymentReturnUrl({
+              orderId: order.id,
+            }),
 
         urlStatus: buildPaymentStatusUrl(),
       });

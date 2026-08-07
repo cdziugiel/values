@@ -19,3 +19,8 @@ export * from "./normative-profile-session-links"
 export * from "./normative-profiles"
 export * from "./respondent-identity-index";
 export * from "./report-preview-snapshots";
+export * from "./purchase-intents";
+export * from "./legal-documents";
+export * from "./legal-acceptances";
+export * from "./consent-records";
+export * from "./consultation-entitlements";

@@ -6,6 +6,9 @@ import { useActionState, useState } from "react";
 import { CheckCircle2, CreditCard, TriangleAlert } from "lucide-react";
 import { ApplyDiscountCodeForm } from "@/features/discount-codes";
 import { Button } from "@/components/ui/button";
+import { trackEvent } from "@/features/consent";
+// @humanet-marketing-patched:unlock-form
+// @humanet-marketing-patched:unlock-form-v2
 
 import {
   unlockReportAccessPlaceholderAction,
@@ -105,6 +108,7 @@ export function UnlockReportAccessPlaceholderForm({
   reportTemplateVersionId = null,
   projectQuestionnaireId = null,
   questionnaireVersionId = null,
+  purchaseIntentId = null,
 }: {
   tenantSlug: string;
   sessionId: string;
@@ -115,6 +119,7 @@ export function UnlockReportAccessPlaceholderForm({
   reportTemplateVersionId?: string | null;
   projectQuestionnaireId?: string | null;
   questionnaireVersionId?: string | null;
+  purchaseIntentId?: string | null;
 }) {
 
   
@@ -126,16 +131,6 @@ const actionPermalink = buildUnlockReportPermalink({
   reportTemplateVersionId,
   projectQuestionnaireId,
   questionnaireVersionId,
-});
-console.log("UNLOCK_REPORT_CLIENT_FORM_PROPS", {
-  tenantSlug,
-  sessionId,
-  mode,
-  productId,
-  reportTemplateVersionId,
-  projectQuestionnaireId,
-  questionnaireVersionId,
-  actionPermalink,
 });
 const [state, formAction, isPending] = useActionState(
   unlockReportAccessPlaceholderAction,
@@ -152,25 +147,23 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
     <form
   action={formAction}
   className="mt-5 space-y-4"
-  onSubmit={(event) => {
-    const form = event.currentTarget;
-    const data = new FormData(form);
-
-    console.log("UNLOCK_REPORT_FORM_SUBMIT_VALUES", {
-      tenantSlug: data.get("tenantSlug"),
-      sessionId: data.get("sessionId"),
-      mode: data.get("mode"),
-      productId: data.get("productId"),
-      reportTemplateVersionId: data.get("reportTemplateVersionId"),
-      projectQuestionnaireId: data.get("projectQuestionnaireId"),
-      questionnaireVersionId: data.get("questionnaireVersionId"),
-      discountCode: data.get("discountCode"),
+  onSubmit={() => {
+    trackEvent("begin_checkout", {
+      product_code: purchaseIntentId ? "marketing_offer" : "report",
+      surface: "values_checkout",
     });
   }}
 >
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="sessionId" value={sessionId} />
       <input type="hidden" name="mode" value={mode} />
+      {purchaseIntentId ? (
+        <input
+          type="hidden"
+          name="purchaseIntentId"
+          value={purchaseIntentId}
+        />
+      ) : null}
       <input
   type="hidden"
   name="projectQuestionnaireId"
@@ -206,6 +199,37 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
         assessmentSessionId={sessionId}
         onApplied={setAppliedDiscount}
       />
+      {purchaseIntentId ? (
+        <label className="flex items-start gap-3 rounded-[1.25rem] border border-black/10 bg-white/70 p-4 text-sm leading-6 text-[#4b5563]">
+          <input
+            type="checkbox"
+            name="acceptTerms"
+            required
+            className="mt-1 h-5 w-5 shrink-0 accent-teal-700"
+          />
+          <span>
+            Akceptuję{" "}
+            <a
+              href="/legal/regulamin"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-[#171717] underline underline-offset-4"
+            >
+              Regulamin HUMANET VALUES
+            </a>
+            . Informacje o przetwarzaniu danych znajdziesz w{" "}
+            <a
+              href="/legal/polityka-prywatnosci"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-[#171717] underline underline-offset-4"
+            >
+              Polityce prywatności
+            </a>
+            .
+          </span>
+        </label>
+      ) : null}
       <Button
         type="submit"
         disabled={isPending}
@@ -217,7 +241,9 @@ const [appliedDiscount, setAppliedDiscount] = useState<{
           ? "Przetwarzanie..."
           : appliedDiscount?.isFullyDiscounted
             ? "Odblokuj raport"
-            : "Przejdź do płatności"}
+            : purchaseIntentId
+              ? "Kupuję i płacę"
+              : "Przejdź do płatności"}
       </Button>
 
       <ActionMessage status={state.status} message={state.message} />

@@ -5,6 +5,8 @@ import {
   getReportAccessOfferForCompletedSession,
 } from "@/features/report-access/api/report-access.queries";
 import { requireSession } from "@/server/auth/require-session";
+import { getOwnedPurchaseIntentBySession } from "@/features/purchase-flow/server";
+// @humanet-marketing-patched:report-link
 
 export type MyAssessmentReportAccessState = {
   reportHref: string | null;
@@ -157,6 +159,11 @@ export async function getMyAssessmentReportAccessState({
     };
   }
 
+  const purchaseIntent = await getOwnedPurchaseIntentBySession({
+    tenantSlug,
+    sessionId,
+  });
+
   /**
    * Najpierw sprawdzamy faktycznie posiadany dostęp.
    *
@@ -204,6 +211,7 @@ export async function getMyAssessmentReportAccessState({
       sessionId,
       projectQuestionnaireId,
       questionnaireVersionId,
+      productCode: purchaseIntent?.productCode ?? null,
     });
 
   if (!offer.ok) {
@@ -286,13 +294,15 @@ export async function getMyAssessmentReportAccessState({
 
   return {
     reportHref: null,
-    unlockHref: buildScopedUnlockHref({
-      tenantSlug,
-      sessionId,
-      projectQuestionnaireId,
-      questionnaireVersionId:
-        scopedQuestionnaireVersionId,
-    }),
+    unlockHref: purchaseIntent
+      ? `/my/purchase/${purchaseIntent.id}`
+      : buildScopedUnlockHref({
+          tenantSlug,
+          sessionId,
+          projectQuestionnaireId,
+          questionnaireVersionId:
+            scopedQuestionnaireVersionId,
+        }),
     teaserHref,
     sampleHref,
     reportTemplateVersionId,

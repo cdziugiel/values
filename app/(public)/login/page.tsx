@@ -27,11 +27,21 @@ const loginBenefits = [
   "uzyskać dostęp do raportu, jeśli został odblokowany",
 ];
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const { callbackUrl } = await searchParams;
+  const safeCallbackUrl =
+    callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+      ? callbackUrl
+      : "/post-login";
   const session = await getServerSession(authOptions);
 
+  // @humanet-marketing-patched:login-page
   if (session?.user?.id) {
-    redirect("/my/assessment");
+    redirect(safeCallbackUrl);
   }
 
   return (

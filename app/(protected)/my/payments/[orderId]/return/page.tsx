@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+// @humanet-marketing-patched:payment-return
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
@@ -63,6 +65,15 @@ export default async function PaymentReturnPage({
   }
 
   const isPaid = order.status === "paid";
+
+  const metadata =
+    order.metadata && typeof order.metadata === "object" && !Array.isArray(order.metadata)
+      ? (order.metadata as Record<string, unknown>)
+      : {};
+
+  if (isPaid && typeof metadata.purchaseIntentId === "string") {
+    redirect(`/my/orders/${order.id}/success`);
+  }
   const isFailed =
     order.status === "failed" ||
     order.status === "cancelled";

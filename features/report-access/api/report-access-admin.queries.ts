@@ -37,6 +37,8 @@ export async function getReportAccessAdminData() {
       priceNet: reportAccessProducts.priceNet,
       vatRate: reportAccessProducts.vatRate,
       priceGross: reportAccessProducts.priceGross,
+      config: reportAccessProducts.config,
+      // @humanet-marketing-patched:report-access-admin-queries
 
       createdAt: reportAccessProducts.createdAt,
       updatedAt: reportAccessProducts.updatedAt,
