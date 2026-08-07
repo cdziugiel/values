@@ -70,9 +70,10 @@ export async function updateConsultationEntitlementAction(formData: FormData) {
   revalidatePath("/dashboard/consultations");
 }
 
-export async function syncConsultationsFromCalComAdminAction() {
+export async function syncConsultationsFromCalComAdminAction(): Promise<void> {
   await requireSuperAdmin();
-  const result = await reconcilePendingCalComBookingsAdmin();
+
+  await reconcilePendingCalComBookingsAdmin();
+
   revalidatePath("/dashboard/consultations");
-  return result;
 }
