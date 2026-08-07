@@ -1,5 +1,3 @@
-// features/report-builder/lib/render-report-pdf.ts
-
 import {
   chromium,
   type Page,
@@ -19,10 +17,13 @@ type RenderReportPdfFromHtmlInput = {
 const NAVIGATION_TIMEOUT_MS = 60_000;
 const REPORT_READY_TIMEOUT_MS = 20_000;
 const IMAGE_READY_TIMEOUT_MS = 10_000;
+
 const DOM_QUIET_TIME_MS = 220;
 const DOM_STABILITY_TIMEOUT_MS = 5_000;
 
-function normalizeBaseUrl(value: string | undefined) {
+function normalizeBaseUrl(
+  value: string | undefined,
+) {
   const normalized = value?.trim();
 
   if (!normalized) {
@@ -34,7 +35,9 @@ function normalizeBaseUrl(value: string | undefined) {
     : `${normalized}/`;
 }
 
-function escapeHtmlAttribute(value: string) {
+function escapeHtmlAttribute(
+  value: string,
+) {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")
@@ -64,55 +67,70 @@ function injectBaseHref(
   if (/<head\b[^>]*>/i.test(html)) {
     return html.replace(
       /<head\b([^>]*)>/i,
-      (match) => `${match}\n  ${baseTag}`,
+      (match) =>
+        `${match}\n  ${baseTag}`,
     );
   }
 
   return html.replace(
     /<html\b([^>]*)>/i,
-    (match) => `${match}\n<head>${baseTag}</head>`,
+    (match) =>
+      `${match}\n<head>${baseTag}</head>`,
   );
 }
 
-async function waitForImages(page: Page) {
+async function waitForFonts(
+  page: Page,
+) {
+  await page.evaluate(async () => {
+    if ("fonts" in document) {
+      await document.fonts.ready;
+    }
+  });
+}
+
+async function waitForImages(
+  page: Page,
+) {
   await page.evaluate(
     async ({ timeoutMs }) => {
-      const images = Array.from(
-        document.images,
-      );
+      const images =
+        Array.from(document.images);
 
       await Promise.all(
         images.map(async (image) => {
           if (!image.complete) {
-            await new Promise<void>((resolve) => {
-              let settled = false;
+            await new Promise<void>(
+              (resolve) => {
+                let settled = false;
 
-              const finish = () => {
-                if (settled) {
-                  return;
-                }
+                const finish = () => {
+                  if (settled) {
+                    return;
+                  }
 
-                settled = true;
-                resolve();
-              };
+                  settled = true;
+                  resolve();
+                };
 
-              image.addEventListener(
-                "load",
-                finish,
-                { once: true },
-              );
+                image.addEventListener(
+                  "load",
+                  finish,
+                  { once: true },
+                );
 
-              image.addEventListener(
-                "error",
-                finish,
-                { once: true },
-              );
+                image.addEventListener(
+                  "error",
+                  finish,
+                  { once: true },
+                );
 
-              window.setTimeout(
-                finish,
-                timeoutMs,
-              );
-            });
+                window.setTimeout(
+                  finish,
+                  timeoutMs,
+                );
+              },
+            );
           }
 
           if (
@@ -127,7 +145,34 @@ async function waitForImages(page: Page) {
       );
     },
     {
-      timeoutMs: IMAGE_READY_TIMEOUT_MS,
+      timeoutMs:
+        IMAGE_READY_TIMEOUT_MS,
+    },
+  );
+}
+
+async function waitForAnimationFrames(
+  page: Page,
+  count = 2,
+) {
+  await page.evaluate(
+    async ({ frameCount }) => {
+      for (
+        let index = 0;
+        index < frameCount;
+        index += 1
+      ) {
+        await new Promise<void>(
+          (resolve) => {
+            requestAnimationFrame(
+              () => resolve(),
+            );
+          },
+        );
+      }
+    },
+    {
+      frameCount: count,
     },
   );
 }
@@ -140,45 +185,27 @@ async function waitForDomStability(
       quietTimeMs,
       hardTimeoutMs,
     }) => {
-      await new Promise<void>((resolve) => {
-        let finished = false;
-        let quietTimer:
-          | number
-          | undefined;
+      await new Promise<void>(
+        (resolve) => {
+          let finished = false;
 
-        let hardTimer:
-          | number
-          | undefined;
+          let quietTimer:
+            | number
+            | undefined;
 
-        const finish = () => {
-          if (finished) {
-            return;
-          }
+          let hardTimer:
+            | number
+            | undefined;
 
-          finished = true;
-          observer.disconnect();
+          const finish = () => {
+            if (finished) {
+              return;
+            }
 
-          if (
-            quietTimer !== undefined
-          ) {
-            window.clearTimeout(
-              quietTimer,
-            );
-          }
+            finished = true;
 
-          if (
-            hardTimer !== undefined
-          ) {
-            window.clearTimeout(
-              hardTimer,
-            );
-          }
+            observer.disconnect();
 
-          resolve();
-        };
-
-        const scheduleQuietFinish =
-          () => {
             if (
               quietTimer !== undefined
             ) {
@@ -187,40 +214,63 @@ async function waitForDomStability(
               );
             }
 
-            quietTimer =
-              window.setTimeout(
-                finish,
-                quietTimeMs,
+            if (
+              hardTimer !== undefined
+            ) {
+              window.clearTimeout(
+                hardTimer,
               );
+            }
+
+            resolve();
           };
 
-        const observer =
-          new MutationObserver(
-            scheduleQuietFinish,
+          const scheduleQuietFinish =
+            () => {
+              if (
+                quietTimer !== undefined
+              ) {
+                window.clearTimeout(
+                  quietTimer,
+                );
+              }
+
+              quietTimer =
+                window.setTimeout(
+                  finish,
+                  quietTimeMs,
+                );
+            };
+
+          const observer =
+            new MutationObserver(
+              scheduleQuietFinish,
+            );
+
+          observer.observe(
+            document.documentElement,
+            {
+              subtree: true,
+              childList: true,
+              attributes: true,
+              characterData: true,
+            },
           );
 
-        observer.observe(
-          document.documentElement,
-          {
-            subtree: true,
-            childList: true,
-            attributes: true,
-            characterData: true,
-          },
-        );
+          scheduleQuietFinish();
 
-        scheduleQuietFinish();
-
-        hardTimer =
-          window.setTimeout(
-            finish,
-            hardTimeoutMs,
-          );
-      });
+          hardTimer =
+            window.setTimeout(
+              finish,
+              hardTimeoutMs,
+            );
+        },
+      );
     },
     {
       quietTimeMs:
         DOM_QUIET_TIME_MS,
+
       hardTimeoutMs:
         DOM_STABILITY_TIMEOUT_MS,
     },
@@ -280,28 +330,26 @@ async function waitForReportRender(
     },
   );
 
-  await page.evaluate(async () => {
-    if ("fonts" in document) {
-      await document.fonts.ready;
-    }
-  });
-
+  /*
+   * Bardzo ważne:
+   * fonty, obrazy i JS raportu kończymy
+   * jeszcze w trybie SCREEN.
+   *
+   * Dzięki temu globalJs/page.js widzą takie
+   * samo środowisko jak podgląd raportu.
+   */
+  await waitForFonts(page);
   await waitForImages(page);
-
-  await page.evaluate(async () => {
-    await new Promise<void>(
-      (resolve) => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(
-            () => resolve(),
-          );
-        });
-      },
-    );
-  });
-
+  await waitForAnimationFrames(
+    page,
+    2,
+  );
   await waitForDomStability(page);
 
+  /*
+   * Wyłączamy animacje dopiero po wykonaniu
+   * logiki generującej raport.
+   */
   await page.addStyleTag({
     content: `
       *,
@@ -314,16 +362,46 @@ async function waitForReportRender(
     `,
   });
 
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     window.scrollTo(0, 0);
+  });
 
-    await new Promise<void>(
-      (resolve) => {
-        requestAnimationFrame(
-          () => resolve(),
-        );
-      },
-    );
+  await waitForAnimationFrames(
+    page,
+    1,
+  );
+}
+
+async function preparePrintLayout(
+  page: Page,
+) {
+  /*
+   * KLUCZOWA POPRAWKA:
+   *
+   * Dopiero TERAZ przechodzimy do print media.
+   *
+   * Nie robimy tego przed setContent()/goto(),
+   * ponieważ globalJs i page.js raportu muszą
+   * zbudować dokument tak samo jak w preview.
+   */
+  await page.emulateMedia({
+    media: "print",
+  });
+
+  /*
+   * Zmiana media query powoduje reflow.
+   * Czekamy ponownie na fonty i layout,
+   * ale nie uruchamiamy ponownie JS raportu.
+   */
+  await waitForFonts(page);
+
+  await waitForAnimationFrames(
+    page,
+    2,
+  );
+
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
   });
 }
 
@@ -360,22 +438,38 @@ async function createPdf(
       });
     }
 
-    /**
-     * Skrypty raportu od początku mierzą layout
-     * odpowiadający eksportowi, a nie podglądowi ekranowemu.
+    /*
+     * Dokument ZAWSZE startuje jako screen.
+     *
+     * To odwzorowuje zachowanie iframe preview.
      */
     await page.emulateMedia({
-      media: "print",
+      media: "screen",
     });
 
     await loadDocument(page);
+
+    /*
+     * Cały HTML + page.js + globalJs
+     * kończą renderowanie w screen media.
+     */
     await waitForReportRender(page);
+
+    /*
+     * Dopiero gotowy dokument przełączamy
+     * na reguły przeznaczone dla wydruku.
+     */
+    await preparePrintLayout(page);
 
     return await page.pdf({
       format: "A4",
+
       printBackground: true,
+
       preferCSSPageSize: true,
+
       scale: 1,
+
       margin: {
         top: "0mm",
         right: "0mm",
@@ -393,15 +487,15 @@ export async function renderReportPdfFromUrl(
 ) {
   return createPdf(
     async (page) => {
-      /**
-       * networkidle nie jest kryterium gotowości raportu.
-       * Połączenie, zasób lub skrypt może utrzymywać ruch,
-       * mimo że dokument jest już gotowy do wydruku.
-       */
       const response =
         await page.goto(input.url, {
+          /*
+           * Nie wracamy do networkidle.
+           * To powodowało poprzedni timeout.
+           */
           waitUntil:
             "domcontentloaded",
+
           timeout:
             NAVIGATION_TIMEOUT_MS,
         });
@@ -428,19 +522,28 @@ export async function renderReportPdfFromUrl(
 export async function renderReportPdfFromHtml(
   input: RenderReportPdfFromHtmlInput,
 ) {
-  const html = injectBaseHref(
-    input.html,
-    input.baseUrl,
-  );
+  const html =
+    injectBaseHref(
+      input.html,
+      input.baseUrl,
+    );
 
   return createPdf(
     async (page) => {
-      await page.setContent(html, {
-        waitUntil:
-          "domcontentloaded",
-        timeout:
-          NAVIGATION_TIMEOUT_MS,
-      });
+      await page.setContent(
+        html,
+        {
+          /*
+           * Tak samo tutaj:
+           * nie czekamy na networkidle.
+           */
+          waitUntil:
+            "domcontentloaded",
+
+          timeout:
+            NAVIGATION_TIMEOUT_MS,
+        },
+      );
     },
     input.cookieHeader,
   );
