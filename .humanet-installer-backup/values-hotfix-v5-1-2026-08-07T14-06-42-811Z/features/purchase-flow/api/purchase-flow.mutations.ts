@@ -205,8 +205,9 @@ export async function finalizeMarketingPurchaseOrder({
         createdAt: now,
         updatedAt: now,
       })
-      .onConflictDoNothing();
-      // @humanet-consultation-order-conflict-hotfix-v5-1
+      .onConflictDoNothing({
+        target: consultationEntitlements.orderId,
+      });
   }
 
   await writeSystemAuditLog({

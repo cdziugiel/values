@@ -2,6 +2,7 @@
 import { notFound } from "next/navigation";
 
 import {
+  finalizeMarketingPurchaseOrder,
   getOwnedMarketingOrder,
   OrderSuccessPage,
 } from "@/features/purchase-flow";
@@ -15,9 +16,21 @@ export default async function Page({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  const data = await getOwnedMarketingOrder(orderId);
+  let data = await getOwnedMarketingOrder(orderId);
 
   if (!data) notFound();
+
+  /**
+   * @humanet-consultation-paid-order-self-heal-v5-1
+   *
+   * Payment verification/report grant remains the source of truth.
+   * This only retries idempotent marketing fulfillment for an order that
+   * is already marked as paid. It never marks a pending order as paid.
+   */
+  if (data.order.status === "paid") {
+    await finalizeMarketingPurchaseOrder({ orderId });
+    data = (await getOwnedMarketingOrder(orderId)) ?? data;
+  }
 
   return <OrderSuccessPage data={data} />;
 }
