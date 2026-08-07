@@ -8,13 +8,6 @@ export type ComparisonObjectType =
 
 export type ComparisonMode = "tenant" | "peer";
 
-export type ComparisonDeltaMeaning =
-  | "same"
-  | "small"
-  | "medium"
-  | "large"
-  | "missing";
-
 export type ComparisonDimensionScore = {
   dimensionId: string;
   code: string;
@@ -23,24 +16,6 @@ export type ComparisonDimensionScore = {
   score: number | null;
   respondentCount?: number;
 };
-
-export type ComparisonCrossScoreMetric = {
-  rawScore?: number | null;
-  weightedScore?: number | null;
-  meanScore?: number | null;
-  weightedMeanScore?: number | null;
-  normalizedScore?: number | null;
-  completeness?: number | null;
-};
-
-export type ComparisonCrossScoreNode = ComparisonCrossScoreMetric & {
-  by?: Record<string, Record<string, ComparisonCrossScoreMetric>>;
-};
-
-export type ComparisonCrossScores = Record<
-  string,
-  Record<string, ComparisonCrossScoreNode>
->;
 
 export type ComparisonObjectResult = {
   type: ComparisonObjectType;
@@ -61,7 +36,6 @@ export type ComparisonObjectResult = {
   };
 
   scores: ComparisonDimensionScore[];
-  crossScores?: ComparisonCrossScores;
 };
 
 export type ComparisonDeltaRow = {
@@ -73,19 +47,7 @@ export type ComparisonDeltaRow = {
   rightScore: number | null;
   delta: number | null;
   absDelta: number | null;
-  meaning: ComparisonDeltaMeaning;
-};
-
-export type ComparisonCrossDeltaRow = {
-  targetCategory: string;
-  targetCode: string;
-  filterCategory: string;
-  filterCode: string;
-  leftScore: number | null;
-  rightScore: number | null;
-  delta: number | null;
-  absDelta: number | null;
-  meaning: ComparisonDeltaMeaning;
+  meaning: "same" | "small" | "medium" | "large" | "missing";
 };
 
 export type ComparisonScoreScale = {
@@ -105,7 +67,6 @@ export type ComparisonReportData = {
   left: ComparisonObjectResult;
   right: ComparisonObjectResult;
   rows: ComparisonDeltaRow[];
-  crossRows?: ComparisonCrossDeltaRow[];
   metadata: {
     generatedAt: string;
     minGroupSize: number;

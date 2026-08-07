@@ -5,7 +5,6 @@ import { getMyAssessmentTenantDbBySlug } from "@/features/my-assessment/api/my-a
 import { controlDb } from "@/server/db/control-db";
 
 import { buildComparisonDeltaRows } from "../lib/comparison-deltas";
-import { buildComparisonCrossDeltaRows } from "../lib/comparison-cross-deltas";
 import { resolveMySessionComparisonScores } from "../lib/resolve-my-session-comparison-scores";
 
 function asRecord(value: unknown): Record<string, any> {
@@ -129,128 +128,6 @@ function averageScores(scoreGroups: any[][]) {
   });
 }
 
-function averageNumbers(
-  values: Array<number | null | undefined>,
-) {
-  const valid = values.filter(
-    (value): value is number =>
-      typeof value === "number" &&
-      Number.isFinite(value),
-  );
-
-  if (!valid.length) return null;
-
-  return (
-    valid.reduce(
-      (sum, value) => sum + value,
-      0,
-    ) / valid.length
-  );
-}
-
-function averageCrossScores(
-  crossScoreGroups: any[],
-) {
-  const bucket = new Map<string, any>();
-
-  for (const crossScores of crossScoreGroups) {
-    if (!crossScores || typeof crossScores !== "object") continue;
-
-    for (const [targetCategory, targetCategoryValue] of Object.entries(
-      crossScores as Record<string, any>,
-    )) {
-      if (!targetCategoryValue || typeof targetCategoryValue !== "object") continue;
-
-      for (const [targetCode, targetNode] of Object.entries(
-        targetCategoryValue as Record<string, any>,
-      )) {
-        const by = (targetNode as any)?.by;
-        if (!by || typeof by !== "object") continue;
-
-        for (const [filterCategory, filterCategoryValue] of Object.entries(by)) {
-          if (!filterCategoryValue || typeof filterCategoryValue !== "object") continue;
-
-          for (const [filterCode, metric] of Object.entries(
-            filterCategoryValue as Record<string, any>,
-          )) {
-            const key = [
-              targetCategory,
-              targetCode,
-              filterCategory,
-              filterCode,
-            ].join("::");
-
-            const existing =
-              bucket.get(key) ?? {
-                targetCategory,
-                targetCode,
-                filterCategory,
-                filterCode,
-                meanScores: [],
-                weightedMeanScores: [],
-                completeness: [],
-              };
-
-            const rawMeanScore = (metric as any)?.meanScore;
-            const rawWeightedMeanScore = (metric as any)?.weightedMeanScore;
-            const rawCompleteness = (metric as any)?.completeness;
-
-            const meanScore =
-              rawMeanScore === null || rawMeanScore === undefined
-                ? null
-                : Number(rawMeanScore);
-
-            const weightedMeanScore =
-              rawWeightedMeanScore === null || rawWeightedMeanScore === undefined
-                ? null
-                : Number(rawWeightedMeanScore);
-
-            const completeness =
-              rawCompleteness === null || rawCompleteness === undefined
-                ? null
-                : Number(rawCompleteness);
-
-            if (meanScore !== null && Number.isFinite(meanScore)) {
-              existing.meanScores.push(meanScore);
-            }
-
-            if (
-              weightedMeanScore !== null &&
-              Number.isFinite(weightedMeanScore)
-            ) {
-              existing.weightedMeanScores.push(weightedMeanScore);
-            }
-
-            if (completeness !== null && Number.isFinite(completeness)) {
-              existing.completeness.push(completeness);
-            }
-
-            bucket.set(key, existing);
-          }
-        }
-      }
-    }
-  }
-
-  const result: Record<string, any> = {};
-
-  for (const item of bucket.values()) {
-    result[item.targetCategory] ??= {};
-    result[item.targetCategory][item.targetCode] ??= { by: {} };
-    result[item.targetCategory][item.targetCode].by[item.filterCategory] ??= {};
-
-    result[item.targetCategory][item.targetCode].by[item.filterCategory][
-      item.filterCode
-    ] = {
-      meanScore: averageNumbers(item.meanScores),
-      weightedMeanScore: averageNumbers(item.weightedMeanScores),
-      completeness: averageNumbers(item.completeness),
-    };
-  }
-
-  return result;
-}
-
 export function readComparisonDefinition(metadata: unknown) {
   const record = asRecord(metadata);
   const definition = asRecord(record.comparisonDefinition);
@@ -369,27 +246,9 @@ async function resolveComparisonGroupScores({
       ? visibleResults[0].scores
       : averageScores(visibleResults.map((result) => result.scores));
 
-  const crossScores =
-    visibleResults.length === 1
-      ? visibleResults[0].crossScores ?? {}
-      : averageCrossScores(
-          visibleResults.map(
-            (result) => result.crossScores ?? {},
-          ),
-        );
-
-  const resolvedLabel =
-    (
-      group.subjectType === "respondent" ||
-      group.subjectType === "shared_token"
-    ) &&
-    visibleResults.length === 1
-      ? visibleResults[0].label
-      : group.label;
-
   return {
     key: group.key,
-    label: resolvedLabel,
+    label: group.label,
     subjectType: group.subjectType,
     subjectId: group.subjectId,
 
@@ -409,7 +268,6 @@ async function resolveComparisonGroupScores({
         : questionnaireVersionId,
 
     scores,
-    crossScores,
 
     visibility: {
       canShow: visibleResults.length > 0 && scores.length > 0,
@@ -550,16 +408,6 @@ export async function getUserVsUserComparisonReport({
         })
       : [];
 
-  const crossRows =
-    warnings.length === 0
-      ? buildComparisonCrossDeltaRows({
-          leftCrossScores: left.crossScores,
-          rightCrossScores: right.crossScores,
-          targetCategory: "vMEME",
-          filterCategory: "AREA",
-        })
-      : [];
-
   const canRender = warnings.length === 0 && rows.length > 0;
 
   const payload = {
@@ -583,7 +431,7 @@ export async function getUserVsUserComparisonReport({
 
       left: {
         key: leftGroup.key,
-        label: left.label || leftGroup.label || "Pierwszy wynik",
+        label: leftGroup.label || "Pierwszy wynik",
         subjectType: leftGroup.subjectType,
         subjectId: leftGroup.subjectId,
 
@@ -594,7 +442,6 @@ export async function getUserVsUserComparisonReport({
         assessmentSessionIds: left.assessmentSessionIds,
 
         scores: left.scores,
-        crossScores: left.crossScores,
         questionnaireId: left.questionnaireId,
         questionnaireVersionId: left.questionnaireVersionId,
 
@@ -605,7 +452,7 @@ export async function getUserVsUserComparisonReport({
 
       right: {
         key: rightGroup.key,
-        label: right.label || rightGroup.label || "Drugi wynik",
+        label: rightGroup.label || "Drugi wynik",
         subjectType: rightGroup.subjectType,
         subjectId: rightGroup.subjectId,
 
@@ -616,7 +463,6 @@ export async function getUserVsUserComparisonReport({
         assessmentSessionIds: right.assessmentSessionIds,
 
         scores: right.scores,
-        crossScores: right.crossScores,
         questionnaireId: right.questionnaireId,
         questionnaireVersionId: right.questionnaireVersionId,
 
@@ -626,7 +472,6 @@ export async function getUserVsUserComparisonReport({
       },
 
       rows,
-      crossRows,
 
       metadata: {
         generatedAt: new Date().toISOString(),

@@ -6,14 +6,12 @@ import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { questionnaireDimensions } from "@/drizzle/schema";
 import {
   assessmentDimensionScores,
-  assessmentResultSnapshots,
   comparisonShares,
 } from "@/drizzle/schema/tenant";
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantAuditActorContext } from "@/server/audit/write-tenant-audit-log";
 
 import type { ComparisonObjectResult } from "../types/comparison-report.types";
-import { buildReportContext } from "@/features/report-builder/lib/report-context";
 import { respondentIdentities } from "@/drizzle/schema/tenant-schema";
 
 type ResolveComparisonTokenInput = {
@@ -188,33 +186,6 @@ const comparisonSubjectLabel =
     controlDb,
     dimensionIds: scores.map((row: any) => row.dimensionId),
   });
-  const [snapshot] = await db
-    .select({
-      payload: assessmentResultSnapshots.payload,
-    })
-    .from(assessmentResultSnapshots)
-    .where(
-      and(
-        eq(
-          assessmentResultSnapshots.assessmentSessionId,
-          share.assessmentSessionId,
-        ),
-        eq(
-          assessmentResultSnapshots.questionnaireVersionId,
-          questionnaireVersionId,
-        ),
-        isNull(assessmentResultSnapshots.deletedAt),
-      ),
-    )
-    .limit(1);
-
-  const crossScores =
-    snapshot?.payload
-      ? buildReportContext(
-          snapshot.payload as any,
-        ).crossScores
-      : {};
-
 return {
   type: "shared_token",
   id: share.id,
@@ -241,6 +212,5 @@ return {
     score: row.score == null ? null : Number(row.score),
     respondentCount: 1,
   })),
-  crossScores,
 };
 }

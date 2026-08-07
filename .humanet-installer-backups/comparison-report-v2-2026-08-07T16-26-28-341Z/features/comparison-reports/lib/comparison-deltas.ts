@@ -13,12 +13,6 @@ function resolveMeaning(absDelta: number | null): ComparisonDeltaRow["meaning"] 
   return "large";
 }
 
-export function resolveComparisonMeaning(
-  absDelta: number | null,
-): ComparisonDeltaRow["meaning"] {
-  return resolveMeaning(absDelta);
-}
-
 export function buildComparisonDeltaRows(params: {
   leftScores: ComparisonDimensionScore[];
   rightScores: ComparisonDimensionScore[];

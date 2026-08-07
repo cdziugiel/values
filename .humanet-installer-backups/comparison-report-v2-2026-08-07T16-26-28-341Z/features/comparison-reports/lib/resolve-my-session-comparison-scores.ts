@@ -8,12 +8,7 @@ import {
   assessmentDimensionScores,
   assessmentSessions,
 } from "@/drizzle/schema/tenant";
-import {
-  assessmentResultSnapshots,
-  respondentIdentities,
-} from "@/drizzle/schema/tenant-schema";
 import { controlDb } from "@/server/db/control-db";
-import { buildReportContext } from "@/features/report-builder/lib/report-context";
 
 import type { ComparisonObjectResult } from "../types/comparison-report.types";
 import { resolveQuestionnaireDimensionCategories } from "./resolve-questionnaire-dimension-categories";
@@ -68,37 +63,6 @@ return {
 };
   }
 
-  const [identity] = await db
-    .select({
-      firstName: respondentIdentities.firstName,
-      lastName: respondentIdentities.lastName,
-      email: respondentIdentities.email,
-    })
-    .from(respondentIdentities)
-    .where(
-      and(
-        eq(
-          respondentIdentities.respondentId,
-          session.respondentId,
-        ),
-        isNull(respondentIdentities.deletedAt),
-      ),
-    )
-    .limit(1);
-
-  const fullName = [
-    identity?.firstName,
-    identity?.lastName,
-  ]
-    .map((value) => value?.trim())
-    .filter(Boolean)
-    .join(" ");
-
-  const respondentLabel =
-    fullName ||
-    identity?.email?.trim() ||
-    "Respondent";
-
   const scores = await db
     .select({
       questionnaireId: assessmentDimensionScores.questionnaireId,
@@ -124,38 +88,11 @@ return {
     controlDb,
     dimensionIds: scores.map((row: any) => row.dimensionId),
   });
-  const [snapshot] = await db
-    .select({
-      payload: assessmentResultSnapshots.payload,
-    })
-    .from(assessmentResultSnapshots)
-    .where(
-      and(
-        eq(
-          assessmentResultSnapshots.assessmentSessionId,
-          assessmentSessionId,
-        ),
-        eq(
-          assessmentResultSnapshots.questionnaireVersionId,
-          questionnaireVersionId,
-        ),
-        isNull(assessmentResultSnapshots.deletedAt),
-      ),
-    )
-    .limit(1);
-
-  const crossScores =
-    snapshot?.payload
-      ? buildReportContext(
-          snapshot.payload as any,
-        ).crossScores
-      : {};
-
 
 return {
   type: "respondent",
   id: session.respondentId,
-  label: respondentLabel,
+  label: "Mój wynik",
   n: 1,
 
   respondentId: session.respondentId,
@@ -178,6 +115,5 @@ return {
     score: row.score == null ? null : Number(row.score),
     respondentCount: 1,
   })),
-  crossScores,
 };
 }
