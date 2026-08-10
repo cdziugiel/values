@@ -1869,7 +1869,7 @@ export function AssessmentResponseForm({
             </button>
 
             <div className="ml-3 flex min-w-0 flex-1 items-center gap-3 sm:ml-0 sm:flex-none">
-              {!isSuperAdmin ? (
+              {isSuperAdmin ? (
                 <button
                   type="button"
                   disabled={isPending || isAutoFilling}
