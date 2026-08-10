@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from "react";
 import { Settings2, X } from "lucide-react";
-import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -66,15 +65,6 @@ async function persistConsentForAuthenticatedUser(state: ConsentState) {
 }
 
 export function ConsentProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  // @humanet-hide-consent-on-print-v1
-  // Route groups such as (print) do not isolate us from the root layout.
-  // Hide only the consent UI when the public URL contains a /print segment.
-  const isPrintRoute = pathname
-    .split("/")
-    .filter(Boolean)
-    .includes("print");
-
   const [consent, setConsent] = useState<ConsentState>(() =>
     createDefaultConsentState(consentVersion),
   );
@@ -139,13 +129,9 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   return (
     <ConsentContext.Provider value={value}>
       {children}
-      {!isPrintRoute ? (
-        <>
-          <ConsentBanner />
-          <ConsentSettingsButton />
-          <ConsentSettingsDialog />
-        </>
-      ) : null}
+      <ConsentBanner />
+      <ConsentSettingsButton />
+      <ConsentSettingsDialog />
     </ConsentContext.Provider>
   );
 }
