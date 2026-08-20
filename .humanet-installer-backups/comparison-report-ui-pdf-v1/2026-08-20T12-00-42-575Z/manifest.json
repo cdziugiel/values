@@ -1,0 +1,32 @@
+{
+  "installerId": "comparison-report-ui-pdf-v1",
+  "createdAt": "2026-08-20T12:00:42.579Z",
+  "repoRoot": "/Users/cezary/Dev/humanet-values",
+  "backupDir": "/Users/cezary/Dev/humanet-values/.humanet-installer-backups/comparison-report-ui-pdf-v1/2026-08-20T12-00-42-575Z",
+  "entries": [
+    {
+      "path": "app/(protected)/my/assessment/comparison-reports/grants/[grantId]/page.tsx",
+      "existed": true,
+      "sha256Before": "84f336432f17bcd11ef0d62ec1ea0425e4c368628a84bbe0f56a55fadcc6395f",
+      "backupRelativePath": "files/app/(protected)/my/assessment/comparison-reports/grants/[grantId]/page.tsx"
+    },
+    {
+      "path": "features/comparison-reports/api/my-comparison-report-grant.queries.ts",
+      "existed": false,
+      "sha256Before": null,
+      "backupRelativePath": null
+    },
+    {
+      "path": "app/(print)/my/assessment/comparison-reports/grants/[grantId]/print/page.tsx",
+      "existed": false,
+      "sha256Before": null,
+      "backupRelativePath": null
+    },
+    {
+      "path": "app/(protected)/my/assessment/comparison-reports/grants/[grantId]/pdf/route.ts",
+      "existed": false,
+      "sha256Before": null,
+      "backupRelativePath": null
+    }
+  ]
+}

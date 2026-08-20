@@ -1,10 +1,9 @@
 // app/(protected)/my/assessment/comparison-reports/grants/[grantId]/page.tsx
-// HUMANET_INSTALLER: comparison-report-ui-pdf-v1
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq, isNull, or } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BarChart3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,6 @@ import {
 
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
-import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -182,38 +180,26 @@ export default async function MyComparisonReportGrantPage({
   });
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="text-sm text-muted-foreground">
-            HUMANET VALUES · Raport porównawczy
+    <main className="min-h-screen bg-[#f3f4f6]">
+      <div className="sticky top-0 z-10 border-b border-black/10 bg-white/90 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[rgba(45,212,191,0.14)] text-[#0f766e]">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7280]">
+                HUMANET VALUES
+              </div>
+
+              <h1 className="truncate text-base font-semibold tracking-[-0.02em] text-[#171717]">
+                Raport porównawczy
+              </h1>
+            </div>
           </div>
 
-          <h1 className="mt-1 text-3xl font-semibold">
-            Raport porównawczy
-          </h1>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            {reportTemplateVersion.name} · widoczne strony: {rendered.visiblePages.length}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button asChild>
-            <a
-              href={
-                "/my/assessment/comparison-reports/grants/" +
-                grantId +
-                "/pdf"
-              }
-              target="_blank"
-              rel="noreferrer"
-            >
-              Pobierz PDF
-            </a>
-          </Button>
-
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" size="sm">
             <Link href={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Wróć do raportów
@@ -222,7 +208,11 @@ export default async function MyComparisonReportGrantPage({
         </div>
       </div>
 
-      <ReportDocumentPreviewFrame html={rendered.html} />
+      <iframe
+        title="Raport porównawczy"
+        srcDoc={rendered.html}
+        className="h-[calc(100vh-65px)] w-full border-0 bg-white"
+      />
     </main>
   );
 }
