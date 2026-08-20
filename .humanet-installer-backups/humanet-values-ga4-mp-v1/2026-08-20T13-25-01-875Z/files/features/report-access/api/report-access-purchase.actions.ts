@@ -1,4 +1,3 @@
-// @humanet-ga4-mp-v1
 // features/report-access/api/report-access-purchase.actions.ts
 "use server";
 
@@ -41,9 +40,7 @@ import { redeemDiscountForCheckout } from "@/features/discount-codes/api/discoun
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { recordCurrentTermsAcceptance } from "@/features/legal/server";
 import { readReportAccessB2cOffer } from "@/features/report-access/lib/report-access-product-offer";
-import { readAnalyticsIdentityFromMetadata } from "@/features/analytics/server";
 import {
-  dispatchBeginCheckoutAnalytics,
   finalizeMarketingPurchaseOrder,
   getOwnedPurchaseIntentForCheckout,
   markPurchaseIntentCheckoutStarted,
@@ -436,9 +433,6 @@ if (existingGrantByReportType) {
     offerCode: purchaseIntent?.offerCode ?? null,
     reportType: purchaseIntent?.reportType ?? null,
     attribution: purchaseIntent?.attribution ?? null,
-    analyticsIdentity: purchaseIntent
-      ? readAnalyticsIdentityFromMetadata(purchaseIntent.metadata)
-      : null,
     b2cOffer: purchaseIntent ? b2cOffer : null,
 
     discount: discountRedemptionId
@@ -532,11 +526,6 @@ if (existingGrantByReportType) {
       purchaseIntentId: purchaseIntent.id,
       userId: authSession.user.id,
       orderId: order.id,
-    });
-
-    await dispatchBeginCheckoutAnalytics({
-      orderId: order.id,
-      userId: authSession.user.id,
     });
   }
 

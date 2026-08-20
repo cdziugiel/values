@@ -106,7 +106,6 @@ export function removeKnownAnalyticsCookies(): void {
         name === "_ga" ||
         name === "_gid" ||
         name === "_gat" ||
-        name === "humanet_ga_identity_v1" ||
         name.startsWith("_ga_") ||
         name === "_clck" ||
         name === "_clsk",

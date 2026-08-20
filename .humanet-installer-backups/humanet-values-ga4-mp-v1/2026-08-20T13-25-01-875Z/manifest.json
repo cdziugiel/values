@@ -1,0 +1,154 @@
+{
+  "installerId": "humanet-values-ga4-mp-v1",
+  "version": 1,
+  "createdAt": "2026-08-20T13:25:01.880Z",
+  "repo": "values",
+  "status": "installed",
+  "changes": [
+    {
+      "path": "features/analytics/types/analytics-identity.types.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "edfff1ce3115998e5a9ae931194e983a144024790241818c814fed5f68b842ed"
+    },
+    {
+      "path": "features/analytics/lib/analytics-identity.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "d3044131a722a5e5ba8c36d939a7570355975474e0b1d236c2e598d95de6584e"
+    },
+    {
+      "path": "features/analytics/lib/analytics-identity.test.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "eb1aed36960cffb5a29779a576cb162246e2ba10e370817a15faaabc4d7c8132"
+    },
+    {
+      "path": "features/analytics/lib/ga4-privacy.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "a199c9c385865d180e73ca85c41ee515ab0905e99793142318d15b934ef9bfa6"
+    },
+    {
+      "path": "features/analytics/lib/ga4-privacy.test.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "5d5bd229c4118b17ff2a8dd9dedf5930115e17196edf3470ac1ba0734081c985"
+    },
+    {
+      "path": "features/analytics/client/get-analytics-identity.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "276dd43fce2fd22ad63412695e23a699ae3f18db520486d177603f3f7bfb584e"
+    },
+    {
+      "path": "features/analytics/client/analytics-identity-cookie.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "ce0517415c5a816f9e889da2431b1d40ace2136b45b946015159d6f64c8fa59a"
+    },
+    {
+      "path": "features/analytics/client/analytics-identity-capture.tsx",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "1369a9e08093f5d2000a9b72a8bb789d7aa6fa0f573f90c9db254fa98e53dc16"
+    },
+    {
+      "path": "features/analytics/server/read-analytics-identity.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "2b88c0efde29bc5cea6444f2d535fbdb6ace7f5fe6e56015c0c4c691604e6cb0"
+    },
+    {
+      "path": "features/analytics/server/analytics-consent.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "0286f35949ddd33d6d3e77de59b9bb3b8e444e8cc2ba92fc0034ad2142991823"
+    },
+    {
+      "path": "features/analytics/server/ga4-measurement-protocol.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "4a8d746d230098568031f3f2c6e078f7eb62e41e37a5a7c669a1d78bd0ab4c87"
+    },
+    {
+      "path": "features/analytics/index.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "6a90c81a7d4ec3ea0384e84f310076eff0cb98c1d8b76a9cbe26b59445ded523"
+    },
+    {
+      "path": "features/analytics/server.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "57453afa48c24d8bba1e04e410a4efdaac0f72b1ab8180db3812c007aed97291"
+    },
+    {
+      "path": "features/purchase-flow/api/purchase-flow.analytics.ts",
+      "existed": false,
+      "originalSha256": null,
+      "installedSha256": "2245d2364017cc79080f67c35c9b520abc5db1ea7cf64efbe811ca4680d572a7"
+    },
+    {
+      "path": "features/consent/components/dynamic-analytics.tsx",
+      "existed": true,
+      "originalSha256": "0a4e4b3cdbac3f5bf1d2d31b904002284bfb5af4411913e1868429c86c4270d6",
+      "installedSha256": "769633b6b407b54864addf8bd21fd4a60e1dc2246eebd29941610f7135b88220"
+    },
+    {
+      "path": "app/layout.tsx",
+      "existed": true,
+      "originalSha256": "4d609a4c92a5cdee41d95d0559b24b9ddba24ca47e74830bfca28340d2e0cf84",
+      "installedSha256": "ad8e26711914695de6f015076277bfa4ab245281cfe1e5edf62653f8e7ad8e2a"
+    },
+    {
+      "path": "features/consent/lib/consent-cookie.ts",
+      "existed": true,
+      "originalSha256": "16f5cd3ecd1b34cb9a4474d5f0c55e5f0d857a4f37912ecd58d84a7563ea2a37",
+      "installedSha256": "170466bf0882f4608807073f96199f30103d72034457ae0b055579e4c307b383"
+    },
+    {
+      "path": "features/purchase-flow/types/purchase-flow.types.ts",
+      "existed": true,
+      "originalSha256": "8e85de54fd5a4d2c50db560898feef6dd654308610f059347ba27cadeeec0543",
+      "installedSha256": "f0f37ea53183ca50520d81f54b0aa6d10d660ce7379fd1facf7884b05f7b40b1"
+    },
+    {
+      "path": "features/purchase-flow/api/start-purchase-flow.action.ts",
+      "existed": true,
+      "originalSha256": "c35644407598986a3bc2dd854a9093a42deee5927f47760089a1f911a3420112",
+      "installedSha256": "58166b786cc183031f7b85d542d294cbb88ca7a1040aa35cbe33fab98a220416"
+    },
+    {
+      "path": "features/purchase-flow/api/purchase-flow.mutations.ts",
+      "existed": true,
+      "originalSha256": "85c7f98bd6c9d7f5bf64015046389114b976000eac5128e3dccbe6a09dc8b1b7",
+      "installedSha256": "8c31a83a3cb64508a7c7f44feebfd390e35029d750e355679c4eb5eed6e485c1"
+    },
+    {
+      "path": "features/report-access/api/report-access-purchase.actions.ts",
+      "existed": true,
+      "originalSha256": "61fcf25d6fe5964f18a8a104ebf5fb0180344f7a31437f53f6f86fcbe9577d0b",
+      "installedSha256": "78cb32e79f593afe163291822b773cffb028f082b2fb053cf940d0604b18fbad"
+    },
+    {
+      "path": "features/purchase-flow/components/purchase-analytics.tsx",
+      "existed": true,
+      "originalSha256": "8c737e7072a75b99325b8287dca8954fa88ea6f48068d134d8680cd5e5fae52c",
+      "installedSha256": "17ad52ee9f86783ef64d72174779a1b2a5b85dc7692bb4a982d1d693d7a792a0"
+    },
+    {
+      "path": "features/purchase-flow/server.ts",
+      "existed": true,
+      "originalSha256": "71e817a747af13197b13b7c216738b24371d6c0a7205171b7a5431c94d787c25",
+      "installedSha256": "409ee0d75c0e4b4ff2b13652223a4a91f640258ca1f7679c0f91b07e681ee4fd"
+    },
+    {
+      "path": "app/api/webhooks/calcom/route.ts",
+      "existed": true,
+      "originalSha256": "158ce44530460d7c7f7043ce1fc97419ba60fbaebbc1605969a2d7e94207ba6c",
+      "installedSha256": "c8f4717984924cce17a74df403b27c534bdf93be0bb0dd3cc73a74f79add11b9"
+    }
+  ],
+  "finishedAt": "2026-08-20T13:25:01.891Z"
+}

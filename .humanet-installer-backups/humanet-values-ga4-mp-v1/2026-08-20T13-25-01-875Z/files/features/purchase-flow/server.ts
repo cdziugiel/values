@@ -9,9 +9,3 @@ export {
   markPurchaseIntentCheckoutStarted,
   finalizeMarketingPurchaseOrder,
 } from "./api/purchase-flow.mutations";
-export {
-  dispatchBeginCheckoutAnalytics,
-  dispatchPackageConsultationBookedAnalytics,
-  dispatchPurchaseAnalytics,
-} from "./api/purchase-flow.analytics";
-// @humanet-ga4-mp-v1
