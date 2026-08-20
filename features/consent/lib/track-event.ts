@@ -16,11 +16,19 @@ export function trackEvent(
 
   const version =
     process.env.NEXT_PUBLIC_CONSENT_VERSION?.trim() || "2026-08-01";
+
   const consent = readConsentCookie(version);
 
   if (!consent?.analytics) return;
 
   window.dataLayer = window.dataLayer || [];
+
+  if ("ecommerce" in params) {
+    window.dataLayer.push({
+      ecommerce: null,
+    });
+  }
+
   window.dataLayer.push({
     event,
     ...params,
