@@ -10,6 +10,7 @@ import { getActiveReportAccessGrantForSession } from "@/features/report-access/a
 import { requireSession } from "@/server/auth/require-session";
 import { assertCanViewMyAssessmentReport } from "@/features/report-access/api/report-access-guard.queries";
 import { Button } from "@/components/ui/button";
+import { FunnelViewEvent } from "@/features/analytics/components/funnel-view-event";
 
 type ReportPdfDownloadButtonProps = {
   tenantSlug: string;
@@ -221,6 +222,12 @@ if (!grant) {
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-6 py-8">
+      {/* @humanet-funnel-analytics-v1 */}
+      <FunnelViewEvent
+        eventName="view_report"
+        dedupeKey={`${sessionId}:${reportTemplateVersionId}`}
+        questionnaireVersionId={questionnaireVersionId ?? null}
+      />
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-sm text-muted-foreground">

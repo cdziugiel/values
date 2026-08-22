@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import { getMyAssessmentTenantDbBySlug } from "@/features/my-assessment/api/my-assessment-tenant-db";
+import { dispatchAssessmentFunnelEvent } from "@/features/analytics/server/assessment-funnel.analytics";
 import { requireSession } from "@/server/auth/require-session";
 import {
   normativeProfileFormSchema,
@@ -336,6 +337,16 @@ try {
       userAgent,
       input: parsedInput.data,
     });
+
+  // @humanet-funnel-analytics-v1
+  // "create" + accepted consent is the authoritative first join to the research dataset.
+  if (mode === "create" && normalizedValues.consentAccepted) {
+    await dispatchAssessmentFunnelEvent({
+      userId: authSession.user.id,
+      name: "join_research_program",
+      surface: "normative_profile",
+    });
+  }
 } catch (error) {
   console.error(
     "completeNormativeProfileAction failed:",

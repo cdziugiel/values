@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FunnelViewEvent } from "@/features/analytics/components/funnel-view-event";
 import { getMyAssessmentReportAccessState } from "@/features/my-assessment/api/my-assessment-report-link.queries";
 import { ReportDocumentPreviewFrame } from "@/features/report-builder/components/report-document-preview-frame";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
@@ -146,6 +147,12 @@ export default async function MyReportTeaserPage({
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6">
+      {/* @humanet-funnel-analytics-v1 */}
+      <FunnelViewEvent
+        eventName="view_basic_result"
+        dedupeKey={`${sessionId}:${reportTemplateVersionId}`}
+        questionnaireVersionId={questionnaireVersionId ?? null}
+      />
       <div className="mb-6 flex flex-col gap-5 rounded-2xl border border-black/10 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-medium text-[#0f766e]">

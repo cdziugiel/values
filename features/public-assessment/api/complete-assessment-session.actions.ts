@@ -31,6 +31,7 @@ import { hashAssessmentAccessToken } from "@/server/security/assessment-token";
 import { decryptSecret } from "@/server/security/encryption";
 import { createAssessmentResultSnapshot } from "./assessment-result-snapshot.mutations";
 import { autoGrantReportAccessForCompletedSession } from "@/features/report-access/api/report-access-auto-grant.mutations";
+import { dispatchAssessmentFunnelEvent } from "@/features/analytics/server/assessment-funnel.analytics";
 
 export type CompleteAssessmentSessionState = {
   status: "idle" | "success" | "error";
@@ -603,6 +604,17 @@ export async function completeAssessmentSessionAction(
           questionnaireVersionId:
             currentProjectQuestionnaire.questionnaireVersionId,
         },
+      });
+
+      // @humanet-funnel-analytics-v1
+      // Analytics is deliberately AFTER the authoritative business transaction.
+      await dispatchAssessmentFunnelEvent({
+        userId: actorUserId,
+        name: "assessment_complete",
+        questionnaireVersionId:
+          currentProjectQuestionnaire.questionnaireVersionId,
+        surface: "my_assessment_completion",
+        occurredAt: now,
       });
 
       const completedHref = buildMyAssessmentCompletedHref({

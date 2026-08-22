@@ -5,6 +5,7 @@
 import { redirect } from "next/navigation";
 
 import { readAttributionForRequest } from "@/features/attribution";
+import { dispatchAssessmentFunnelEvent } from "@/features/analytics/server/assessment-funnel.analytics";
 import { readAnalyticsIdentityFromRequest } from "@/features/analytics/server";
 import { startOrContinuePublicAssessmentSession } from "@/features/my-assessment/api/start-or-continue-public-assessment-session";
 import { requireSession } from "@/server/auth/require-session";
@@ -56,6 +57,18 @@ export async function startPurchaseFlowAction(formData: FormData) {
       attribution,
       analyticsIdentity,
     },
+  });
+
+  // @humanet-funnel-analytics-v1
+  await dispatchAssessmentFunnelEvent({
+    userId: session.user.id,
+    name: "assessment_start",
+    questionnaireVersionId:
+      combination.questionnaire.questionnaireVersionId,
+    reportType,
+    entryFlow: "purchase_flow",
+    surface: "values_purchase_flow",
+    offerCode,
   });
 
   const target = new URL(started.href, "https://values.humanet.me");

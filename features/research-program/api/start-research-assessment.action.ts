@@ -2,6 +2,9 @@
 
 import { redirect } from "next/navigation";
 
+import { dispatchAssessmentFunnelEvent } from "@/features/analytics/server/assessment-funnel.analytics";
+import { requireSession } from "@/server/auth/require-session";
+
 import { startOrContinuePublicAssessmentSession } from "@/features/my-assessment/api/start-or-continue-public-assessment-session";
 import { getPurchaseFlowConfig } from "@/features/purchase-flow/config/purchase-flow.config";
 import { reportTypeSchema } from "@/features/purchase-flow/forms/start-flow.schema";
@@ -13,6 +16,8 @@ function read(formData: FormData, name: string) {
 }
 
 export async function startResearchAssessmentAction(formData: FormData) {
+  // @humanet-funnel-analytics-v1
+  const authSession = await requireSession();
   const reportType = reportTypeSchema.parse(read(formData, "reportType"));
   const config = getPurchaseFlowConfig();
   const report = config.reports[reportType];
@@ -27,6 +32,15 @@ export async function startResearchAssessmentAction(formData: FormData) {
 
   const started = await startOrContinuePublicAssessmentSession({
     questionnaireVersionId: questionnaire.questionnaireVersionId,
+  });
+
+  await dispatchAssessmentFunnelEvent({
+    userId: authSession.user.id,
+    name: "assessment_start",
+    questionnaireVersionId: questionnaire.questionnaireVersionId,
+    reportType,
+    entryFlow: "research_program",
+    surface: "values_research_program",
   });
 
   const target = new URL(started.href, "https://values.humanet.me");
