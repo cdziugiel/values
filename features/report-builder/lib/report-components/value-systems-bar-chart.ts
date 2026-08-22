@@ -94,7 +94,21 @@ function cssLengthOrFallback(value: unknown, fallback: string) {
   return fallback;
 }
 
+function isPercentScale(
+  scale: Required<ValueSystemsBarChartScale>,
+) {
+  return scale.min === -3 && scale.max === 3;
+}
 
+function formatPercentScore(value: number) {
+  const percent = Math.round((value / 3) * 100);
+
+  if (percent === 0) {
+    return "0%";
+  }
+
+  return `${percent > 0 ? "" : "-"}${Math.abs(percent)}%`;
+}
 
 
 function buildChartSizeStyle(size: ValueSystemsBarChartSize | undefined) {
@@ -299,12 +313,30 @@ function getBarGeometry(value: number, scale: Required<ValueSystemsBarChartScale
   };
 }
 
-function formatScaleValue(value: number) {
+function formatScaleValue(
+  value: number,
+  scale: Required<ValueSystemsBarChartScale>,
+) {
+  if (isPercentScale(scale)) {
+    return formatPercentScore(value);
+  }
+
   const rounded = Math.abs(value) < 0.000001 ? 0 : value;
 
   return Number.isInteger(rounded)
     ? String(rounded).replace(".", ",")
     : rounded.toFixed(1).replace(".", ",");
+}
+
+function formatScore(
+  value: number,
+  scale: Required<ValueSystemsBarChartScale>,
+) {
+  if (isPercentScale(scale)) {
+    return formatPercentScore(value);
+  }
+
+  return value.toFixed(1).replace(".", ",");
 }
 
 
@@ -701,10 +733,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function formatScore(value: number) {
-  return value.toFixed(1).replace(".", ",");
-}
-
 
 function renderHorizontalChart({
   items,
@@ -730,7 +758,7 @@ function renderHorizontalChart({
             class="hr-vs-bar-chart-scale-tick"
             style="left: ${left.toFixed(4)}%;"
           >
-            ${escapeHtml(formatScaleValue(tick))}
+            ${escapeHtml(formatScaleValue(tick, scale))}
           </span>
         `;
       })
@@ -757,7 +785,7 @@ function renderHorizontalChart({
           <div
             class="hr-vs-bar-track"
             aria-label="${escapeHtml(item.label)}: ${escapeHtml(
-            formatScore(geometry.value),
+            formatScore(geometry.value, scale),
           )}"
           >
             <div
@@ -777,7 +805,7 @@ function renderHorizontalChart({
           </div>
 
           <div class="hr-vs-bar-value">
-            ${escapeHtml(formatScore(geometry.value))}
+            ${escapeHtml(formatScore(geometry.value, scale))}
           </div>
         </div>
       `;
@@ -854,7 +882,7 @@ function renderVerticalChart({
             class="hr-vs-bar-chart-vertical-scale-tick"
             style="top: ${topPercent.toFixed(4)}%;"
           >
-            ${escapeHtml(formatScaleValue(tick))}
+            ${escapeHtml(formatScaleValue(tick, scale))}
           </span>
         `;
       })
@@ -901,7 +929,7 @@ function renderVerticalChart({
               <div
                 class="hr-vs-bar-column-track"
                 aria-label="${escapeHtml(item.label)}: ${escapeHtml(
-          formatScore(geometry.value),
+          formatScore(geometry.value, scale),
         )}"
               >
                 <div
@@ -918,7 +946,7 @@ function renderVerticalChart({
   class="${valueLabelClass}"
   style="${escapeHtml(valueLabelStyle)}"
 >
-  ${escapeHtml(formatScore(item.value))}
+  ${escapeHtml(formatScore(item.value, scale))}
 </span>
               </div>
             </div>
@@ -1030,7 +1058,7 @@ export function renderValueSystemsBarChart(
       <p class="hr-vs-bar-summary-text">
         Najwyższy wynik widoczny jest w obszarze
         <strong>${escapeHtml(strongest.label)}</strong>
-        (${escapeHtml(formatScore(strongest.value))}).
+        (${escapeHtml(formatScore(strongest.value, scale))}).
       </p>
     </div>
 
@@ -1039,7 +1067,7 @@ export function renderValueSystemsBarChart(
       <p class="hr-vs-bar-summary-text">
         Najniższy wynik widoczny jest w obszarze
         <strong>${escapeHtml(weakest.label)}</strong>
-        (${escapeHtml(formatScore(weakest.value))}).
+        (${escapeHtml(formatScore(weakest.value, scale))}).
       </p>
     </div>
   </div>
