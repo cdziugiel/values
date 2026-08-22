@@ -96,15 +96,9 @@ export default async function MyAssessmentReportPrintPage({
     notFound();
   }
 
-  // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_PRINT_CONTEXT_BEGIN
-  const reportPayload = {
-    ...(result.payload as Record<string, unknown>),
-    respondent: result.respondent,
-  };
-  // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_PRINT_CONTEXT_END
   const rendered = renderReportDocument({
     reportTemplateVersion,
-    payload: reportPayload,
+    payload: result.payload,
   });
 
   return (

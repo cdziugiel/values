@@ -1,0 +1,7 @@
+{
+  "patchId": "humanet-values-individual-report-respondent-v1",
+  "target": "features/my-assessment/api/my-assessment-result.queries.ts",
+  "installedAt": "2026-08-22T12:57:17.359Z",
+  "originalSha256": "a70fdfa156e8441199ef02ee1dd583993790afae2ce725787c6220710f3c1181",
+  "patchedSha256": "a5b555292516f6a6def2c11b7da942d0eeda87ee7b96a64fbcb52df6410eb3be"
+}

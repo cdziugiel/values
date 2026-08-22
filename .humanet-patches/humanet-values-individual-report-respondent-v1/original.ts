@@ -93,12 +93,6 @@ export async function getMyAssessmentCompletedResult({
     .select({
       sessionId: assessmentSessions.id,
       sessionStatus: assessmentSessions.status,
-      // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_SELECT_BEGIN
-      respondentId: respondents.id,
-      respondentExternalCode: respondents.externalCode,
-      respondentFirstName: respondentIdentities.firstName,
-      respondentLastName: respondentIdentities.lastName,
-      // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_SELECT_END
       respondentEmail: respondentIdentities.email,
     })
     .from(assessmentSessions)
@@ -126,26 +120,6 @@ export async function getMyAssessmentCompletedResult({
   if (normalizeEmail(ownership.respondentEmail) !== email) {
     throw new Error("Ta sesja badania nie należy do zalogowanego użytkownika.");
   }
-  // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_IDENTITY_BEGIN
-  const respondentDisplayName =
-    [
-      ownership.respondentFirstName,
-      ownership.respondentLastName,
-    ]
-      .map((value) => value?.trim())
-      .filter(Boolean)
-      .join(" ") ||
-    ownership.respondentEmail?.trim() ||
-    ownership.respondentExternalCode?.trim() ||
-    "Respondent";
-
-  const respondent = {
-    id: ownership.respondentId,
-    displayName: respondentDisplayName,
-    email: ownership.respondentEmail ?? null,
-    externalCode: ownership.respondentExternalCode ?? null,
-  };
-  // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_IDENTITY_END
 
   const snapshotRows = await tenant.db
     .select({
@@ -257,15 +231,10 @@ export async function getMyAssessmentCompletedResult({
       questionnaireId: null,
       questionnaireVersionId: null,
 
-      // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_EMPTY_RETURN_BEGIN
-      respondent,
-      // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_EMPTY_RETURN_END
-
       snapshot: null,
       payload: null,
     };
   }
-
 
   return {
     tenantSlug: tenant.tenantSlug,
@@ -281,10 +250,6 @@ export async function getMyAssessmentCompletedResult({
 
     questionnaireVersionId:
       snapshot.questionnaireVersionId ?? null,
-
-    // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_FINAL_RETURN_BEGIN
-    respondent,
-    // HUMANET_PATCH_INDIVIDUAL_REPORT_RESPONDENT_V2_FINAL_RETURN_END
 
     snapshot,
     payload: snapshot.payload as any,
