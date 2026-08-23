@@ -86,15 +86,6 @@ function whereFor(
     );
   }
 
-  // @humanet-normative-exclusion-v1: admin can inspect all records, while analytical/export flows can request only included observations.
-  if (filters.inclusionStatus === "included") {
-    conditions.push(eq(normativeProfiles.excludedFromNorms, false));
-  }
-
-  if (filters.inclusionStatus === "excluded") {
-    conditions.push(eq(normativeProfiles.excludedFromNorms, true));
-  }
-
   return and(...conditions);
 }
 
@@ -137,7 +128,6 @@ export async function getSystemNormativeProfilesPageData({
     ownerName: users.name,
 
     revision: normativeProfiles.revision,
-    excludedFromNorms: normativeProfiles.excludedFromNorms,
 
     sex: normativeProfiles.sex,
     voivodeshipCode:
@@ -360,8 +350,6 @@ export async function getSystemNormativeProfileDetail({
 
         revision:
           normativeProfiles.revision,
-        excludedFromNorms:
-          normativeProfiles.excludedFromNorms,
 
         dateOfBirth:
           normativeProfiles.dateOfBirth,
@@ -399,12 +387,6 @@ export async function getSystemNormativeProfileDetail({
           normativeProfiles.dictionaryVersion,
         completedAt:
           normativeProfiles.completedAt,
-        normativeExclusionReason:
-          normativeProfiles.normativeExclusionReason,
-        normativeExcludedAt:
-          normativeProfiles.normativeExcludedAt,
-        normativeExcludedByUserId:
-          normativeProfiles.normativeExcludedByUserId,
 
         consentId:
           normativeDataConsents.id,
@@ -529,16 +511,6 @@ export async function getSystemNormativeProfileDetail({
     completedAt:
       profile.completedAt.toISOString(),
 
-    normativeExclusionReason:
-      profile.normativeExclusionReason ?? null,
-
-    normativeExcludedAt: iso(
-      profile.normativeExcludedAt,
-    ),
-
-    normativeExcludedByUserId:
-      profile.normativeExcludedByUserId ?? null,
-
     consentAcceptedAt: iso(
       profile.consentAcceptedAt,
     ),
@@ -619,8 +591,6 @@ export async function listSystemNormativeProfilesForExport() {
       filters: {
         page: 1,
         pageSize: MAX_PAGE_SIZE,
-        // @humanet-normative-exclusion-v1: exports are analytical datasets, so manually rejected observations must not leave the system as valid norm data.
-        inclusionStatus: "included",
       },
     });
 

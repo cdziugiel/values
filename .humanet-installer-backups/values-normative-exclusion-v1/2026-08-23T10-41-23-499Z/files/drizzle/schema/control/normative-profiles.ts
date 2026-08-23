@@ -1,4 +1,4 @@
-import { boolean, date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { auditColumns, id, softDelete, timestamps } from "../shared/common-columns";
 import { users } from "./users";
@@ -29,15 +29,6 @@ export const normativeProfiles = pgTable(
     employmentSector: text("employment_sector"),
     recruitmentChannel: text("recruitment_channel").notNull().default("discount_incentive"),
     completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
-
-    // @humanet-normative-exclusion-v1: manual quality-control exclusion; never hard-delete research observations.
-    excludedFromNorms: boolean("excluded_from_norms").notNull().default(false),
-    normativeExclusionReason: text("normative_exclusion_reason"),
-    normativeExcludedAt: timestamp("normative_excluded_at", { withTimezone: true }),
-    normativeExcludedByUserId: uuid("normative_excluded_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-
     ...timestamps,
     ...auditColumns,
     ...softDelete,
@@ -47,7 +38,6 @@ export const normativeProfiles = pgTable(
     index("normative_profiles_sex_idx").on(table.sex),
     index("normative_profiles_voivodeship_idx").on(table.voivodeshipCode),
     index("normative_profiles_completed_at_idx").on(table.completedAt),
-    index("normative_profiles_excluded_from_norms_idx").on(table.excludedFromNorms),
     index("normative_profiles_deleted_at_idx").on(table.deletedAt),
   ],
 );

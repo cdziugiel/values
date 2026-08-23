@@ -8,8 +8,6 @@ export type NormativeProfileAdminRowDto = {
   ownerEmail: string;
   ownerName: string | null;
   revision: number;
-  // @humanet-normative-exclusion-v1
-  excludedFromNorms: boolean;
   ageAtAssessment: number | null;
   sex: string;
   voivodeshipCode: string | null;
@@ -50,16 +48,12 @@ export type NormativeProfileAdminDetailDto = NormativeProfileAdminRowDto & {
   rewardType: string | null;
   rewardRedeemedAt: string | null;
   rewardRevokedAt: string | null;
-  normativeExclusionReason: string | null;
-  normativeExcludedAt: string | null;
-  normativeExcludedByUserId: string | null;
 };
 
 export type NormativeProfilesAdminFilters = {
   query?: string;
   consentStatus?: "all" | "active" | "withdrawn";
   rewardStatus?: "all" | NormativeProfileRewardStatus;
-  inclusionStatus?: "all" | "included" | "excluded";
   page?: number;
   pageSize?: number;
 };
@@ -70,10 +64,4 @@ export type NormativeProfilesAdminPageDto = {
   page: number;
   pageSize: number;
   pageCount: number;
-};
-
-
-export type NormativeProfileExclusionActionResult = {
-  status: "success" | "error";
-  message: string;
 };

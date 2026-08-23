@@ -11,8 +11,6 @@ function href(filters: NormativeProfilesAdminFilters, page: number) {
   if (filters.query) p.set("query", filters.query);
   if (filters.consentStatus && filters.consentStatus !== "all") p.set("consentStatus", filters.consentStatus);
   if (filters.rewardStatus && filters.rewardStatus !== "all") p.set("rewardStatus", filters.rewardStatus);
-  // @humanet-normative-exclusion-v1
-  if (filters.inclusionStatus && filters.inclusionStatus !== "all") p.set("inclusionStatus", filters.inclusionStatus);
   p.set("page", String(page));
   return `/dashboard/normative-data?${p.toString()}`;
 }
@@ -23,10 +21,10 @@ export function NormativeProfilesAdminPage({ data, filters }: { data: NormativeP
     <Card>
       <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div><CardTitle>Profile użytkowników</CardTitle><p className="mt-1 text-sm text-muted-foreground">Łącznie: {data.total}</p></div>
-        <Button asChild variant="outline"><a href="/dashboard/normative-data/export">Eksport CSV (tylko włączone)</a></Button>
+        <Button asChild variant="outline"><a href="/dashboard/normative-data/export">Eksport CSV</a></Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_210px_210px_190px_auto]">
+        <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px_auto]">
           <Input name="query" defaultValue={filters.query ?? ""} placeholder="E-mail, nazwa, ID profilu lub użytkownika" />
           <select name="consentStatus" defaultValue={filters.consentStatus ?? "all"} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
             <option value="all">Wszystkie zgody</option><option value="active">Zgoda aktywna</option><option value="withdrawn">Zgoda wycofana</option>
@@ -34,18 +32,14 @@ export function NormativeProfilesAdminPage({ data, filters }: { data: NormativeP
           <select name="rewardStatus" defaultValue={filters.rewardStatus ?? "all"} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
             <option value="all">Wszystkie nagrody</option><option value="pending">Oczekuje</option><option value="issued">Wydana</option><option value="redeemed">Wykorzystana</option><option value="expired">Wygasła</option><option value="revoked">Cofnięta</option>
           </select>
-          <select name="inclusionStatus" defaultValue={filters.inclusionStatus ?? "all"} className="h-10 rounded-md border border-input bg-background px-3 text-sm" aria-label="Status w danych normatywnych">
-            <option value="all">Wszystkie rekordy</option><option value="included">Włączone do analiz</option><option value="excluded">Wyłączone z analiz</option>
-          </select>
           <Button type="submit">Filtruj</Button>
         </form>
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[1220px] text-sm">
-            <thead className="bg-muted/50 text-left"><tr><th className="px-4 py-3">Użytkownik</th><th className="px-4 py-3">Profil</th><th className="px-4 py-3">Do analiz</th><th className="px-4 py-3">Demografia</th><th className="px-4 py-3">Sesje</th><th className="px-4 py-3">Zgoda</th><th className="px-4 py-3">Rabat</th><th /></tr></thead>
-            <tbody>{data.rows.map(row => <tr key={row.profileId} className={row.excludedFromNorms ? "border-t bg-destructive/5 align-top" : "border-t align-top"}>
+          <table className="w-full min-w-[1100px] text-sm">
+            <thead className="bg-muted/50 text-left"><tr><th className="px-4 py-3">Użytkownik</th><th className="px-4 py-3">Profil</th><th className="px-4 py-3">Demografia</th><th className="px-4 py-3">Sesje</th><th className="px-4 py-3">Zgoda</th><th className="px-4 py-3">Rabat</th><th /></tr></thead>
+            <tbody>{data.rows.map(row => <tr key={row.profileId} className="border-t align-top">
               <td className="px-4 py-3"><div className="font-medium">{row.ownerName ?? "—"}</div><div className="text-muted-foreground">{row.ownerEmail}</div></td>
               <td className="px-4 py-3"><div className="font-mono text-xs">{row.profileId}</div><div className="text-xs text-muted-foreground">rew. {row.revision}</div></td>
-              <td className="px-4 py-3">{row.excludedFromNorms ? <Badge variant="destructive">Wyłączony</Badge> : <Badge variant="outline">Włączony</Badge>}</td>
               <td className="px-4 py-3"><div>{row.ageAtAssessment ?? "—"} lat</div><div className="text-muted-foreground">{row.sex} / {row.voivodeshipCode ?? "—"}</div></td>
               <td className="px-4 py-3">{row.sessionCount} sesji<br/><span className="text-muted-foreground">{row.tenantCount} tenantów</span></td>
               <td className="px-4 py-3">{row.consentWithdrawnAt ? <Badge variant="destructive">Wycofana</Badge> : <Badge>Aktywna</Badge>}</td>

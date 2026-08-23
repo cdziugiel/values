@@ -1,21 +1,14 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/shared/ui";
 import type { NormativeProfileAdminDetailDto } from "../types/normative-admin.types";
-import { NormativeProfileExclusionControl } from "./normative-profile-exclusion-control";
-// @humanet-normative-exclusion-v1
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) { return <div className="grid gap-1 border-b py-3 sm:grid-cols-[220px_1fr]"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="text-sm font-medium">{value ?? "—"}</dd></div>; }
 
 export function NormativeProfileAdminDetail({ profile }: { profile: NormativeProfileAdminDetailDto }) {
   return <div className="space-y-6">
-    <PageHeader title="Profil normatywny" description="Globalny profil użytkownika i jego powiązania ze wszystkimi tenantami." actions={<div className="flex flex-wrap items-center gap-2"><NormativeProfileExclusionControl profileId={profile.profileId} excludedFromNorms={profile.excludedFromNorms} /><Button asChild variant="outline"><Link href="/dashboard/normative-data">Wróć</Link></Button></div>} />
-    <Card className={profile.excludedFromNorms ? "border-destructive/40" : undefined}><CardHeader><CardTitle>Status w danych normatywnych</CardTitle></CardHeader><CardContent><dl>
-      <Row label="Status" value={profile.excludedFromNorms ? <Badge variant="destructive">Wyłączony z dalszych analiz</Badge> : <Badge variant="outline">Włączony do analiz</Badge>} />
-      {profile.excludedFromNorms ? <><Row label="Powód wyłączenia" value={profile.normativeExclusionReason} /><Row label="Wyłączono" value={profile.normativeExcludedAt} /><Row label="SUPER_ADMIN" value={profile.normativeExcludedByUserId ? <span className="font-mono text-xs">{profile.normativeExcludedByUserId}</span> : "—"} /></> : null}
-    </dl></CardContent></Card>
+    <PageHeader title="Profil normatywny" description="Globalny profil użytkownika i jego powiązania ze wszystkimi tenantami." actions={<Button asChild variant="outline"><Link href="/dashboard/normative-data">Wróć</Link></Button>} />
     <Card><CardHeader><CardTitle>Użytkownik i profil</CardTitle></CardHeader><CardContent><dl>
       <Row label="Użytkownik" value={`${profile.ownerName ?? "—"} (${profile.ownerEmail})`} />
       <Row label="ID użytkownika" value={<span className="font-mono text-xs">{profile.ownerUserId}</span>} />

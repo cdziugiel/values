@@ -12,7 +12,6 @@ describe("buildNormativeProfilesCsv", () => {
         ownerName: "Jan Kowalski",
 
         revision: 1,
-        excludedFromNorms: false, // @humanet-normative-exclusion-v1.1-test-contract
         ageAtAssessment: 36,
         sex: "female",
         voivodeshipCode: "14",
