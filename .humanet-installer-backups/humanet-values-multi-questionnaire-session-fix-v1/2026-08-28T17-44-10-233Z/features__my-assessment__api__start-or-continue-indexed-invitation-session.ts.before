@@ -63,20 +63,11 @@ export async function startOrContinueIndexedInvitationSession({
   }
 
   if (invitation.status === "completed" && invitation.tenantSessionId) {
-    // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_RESULT_SCOPE
-    const completedParams = new URLSearchParams({
-      tenant: invitation.tenantSlug,
-      projectQuestionnaireId:
-        invitation.tenantProjectQuestionnaireId,
-      questionnaireVersionId:
-        invitation.questionnaireVersionId,
-    });
-
     return {
       ok: true as const,
       href:
         `/my/assessment/sessions/${encodeURIComponent(invitation.tenantSessionId)}` +
-        `/completed?${completedParams.toString()}`,
+        `/completed?tenant=${encodeURIComponent(invitation.tenantSlug)}`,
     };
   }
 

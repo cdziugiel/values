@@ -292,41 +292,6 @@ export async function syncAssessmentInvitationIndexForProjectRespondent({
 
   const completedSession = completedSessionRows[0] ?? null;
 
-  // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_SYNC_BEGIN
-  /**
-   * assessmentInvitationIndex jest źródłem prawdy dla statusu pojedynczego
-   * kwestionariusza. assessment_session opisuje cały pakiet i nie może
-   * nadpisywać granularnego statusu już istniejącego wpisu.
-   */
-  const existingIndexRows = await controlDb
-    .select({
-      projectQuestionnaireId:
-        assessmentInvitationIndex.tenantProjectQuestionnaireId,
-      status: assessmentInvitationIndex.status,
-      tenantSessionId: assessmentInvitationIndex.tenantSessionId,
-      startedAt: assessmentInvitationIndex.startedAt,
-      completedAt: assessmentInvitationIndex.completedAt,
-    })
-    .from(assessmentInvitationIndex)
-    .where(
-      and(
-        eq(assessmentInvitationIndex.tenantId, ctx.tenantId),
-        eq(
-          assessmentInvitationIndex.tenantProjectRespondentId,
-          projectRespondentId,
-        ),
-        isNull(assessmentInvitationIndex.deletedAt),
-      ),
-    );
-
-  const existingIndexByProjectQuestionnaireId = new Map(
-    existingIndexRows.map((indexRow) => [
-      indexRow.projectQuestionnaireId,
-      indexRow,
-    ]),
-  );
-  // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_SYNC_END
-
   const now = new Date();
 
   for (const row of rows) {
@@ -350,31 +315,12 @@ export async function syncAssessmentInvitationIndexForProjectRespondent({
     let startedAt: Date | null = null;
     let completedAt: Date | null = null;
 
-    const existingIndex =
-      existingIndexByProjectQuestionnaireId.get(
-        row.projectQuestionnaireId,
-      ) ?? null;
-
-    if (!shouldBeDeleted && existingIndex) {
-      /**
-       * Nie propagujemy statusu całej assessment_session na wszystkie
-       * kwestionariusze. Konkretne przejścia invited -> in_progress ->
-       * completed są wykonywane przez markAssessmentInvitationIndexSession().
-       */
-      status = existingIndex.status;
-      tenantSessionId = existingIndex.tenantSessionId ?? null;
-      startedAt = existingIndex.startedAt ?? null;
-      completedAt = existingIndex.completedAt ?? null;
-    } else if (!shouldBeDeleted && activeSession) {
+    if (!shouldBeDeleted && activeSession) {
       status = "in_progress";
       tenantSessionId = activeSession.id;
       startedAt = activeSession.startedAt ?? null;
       completedAt = null;
     } else if (!shouldBeDeleted && completedSession) {
-      /**
-       * Fallback wyłącznie dla historycznych/brakujących wpisów indeksu.
-       * Istniejący granularny wpis nigdy nie trafia do tej gałęzi.
-       */
       status = "completed";
       tenantSessionId = completedSession.id;
       startedAt = completedSession.startedAt ?? null;

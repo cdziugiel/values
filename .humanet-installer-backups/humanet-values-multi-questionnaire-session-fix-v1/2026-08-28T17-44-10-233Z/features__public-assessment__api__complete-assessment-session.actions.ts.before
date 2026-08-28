@@ -32,7 +32,6 @@ import { decryptSecret } from "@/server/security/encryption";
 import { createAssessmentResultSnapshot } from "./assessment-result-snapshot.mutations";
 import { autoGrantReportAccessForCompletedSession } from "@/features/report-access/api/report-access-auto-grant.mutations";
 import { dispatchAssessmentFunnelEvent } from "@/features/analytics/server/assessment-funnel.analytics";
-import { areAllProjectQuestionnairesCompleted } from "../lib/assessment-package-completion";
 
 export type CompleteAssessmentSessionState = {
   status: "idle" | "success" | "error";
@@ -460,10 +459,6 @@ export async function completeAssessmentSessionAction(
         .where(
           and(
             eq(assessmentResponses.assessmentSessionId, session.sessionId),
-            eq(
-              assessmentResponses.questionnaireVersionId,
-              currentProjectQuestionnaire.questionnaireVersionId,
-            ),
             isNull(assessmentResponses.deletedAt),
           ),
         );
@@ -525,103 +520,45 @@ export async function completeAssessmentSessionAction(
         });
       }
 
-      // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_BEGIN
-      step = "load-active-project-questionnaires";
-      const activeProjectQuestionnaires =
-        await listActiveProjectQuestionnaires({
-          db,
-          assessmentProjectId: session.assessmentProjectId,
-        });
+      step = "update-assessment-session";
+      /**
+       * Na tym etapie kończymy całą assessment_session, bo w aktualnym modelu
+       * sesja zawiera odpowiedzi dla jednego wypełnianego kwestionariusza.
+       *
+       * Nie oznaczamy automatycznie wszystkich projectQuestionnaires jako completed.
+       * Nie używamy listy wszystkich aktywnych przypisań projektu.
+       */
+      await db
+        .update(assessmentSessions)
+        .set({
+          status: "completed",
+          completedAt: now,
+          updatedAt: now,
+          updatedBy: actorUserId,
+        })
+        .where(eq(assessmentSessions.id, session.sessionId));
 
-      if (activeProjectQuestionnaires.length === 0) {
-        return {
-          status: "error",
-          message: "Ten projekt nie ma aktywnych kwestionariuszy.",
-        };
-      }
-
-      step = "load-completed-project-questionnaires";
-      const completedProjectQuestionnaireIds =
-        await listCompletedProjectQuestionnaireIdsFromIndex({
-          tenantId: resolved.tenantId,
-          projectRespondentId: session.projectRespondentId,
-        });
-
-      const allQuestionnairesCompleted =
-        areAllProjectQuestionnairesCompleted({
-          activeProjectQuestionnaireIds:
-            activeProjectQuestionnaires.map(
-              (row: any) => row.projectQuestionnaireId,
-            ),
-          completedProjectQuestionnaireIds,
-          currentProjectQuestionnaireId:
-            currentProjectQuestionnaire.projectQuestionnaireId,
-        });
-
-      step = "update-assessment-session-lifecycle";
-
-      if (allQuestionnairesCompleted) {
-        await db
-          .update(assessmentSessions)
-          .set({
-            status: "completed",
-            completedAt: now,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(eq(assessmentSessions.id, session.sessionId));
-      } else {
-        await db
-          .update(assessmentSessions)
-          .set({
-            status: "in_progress",
-            completedAt: null,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(eq(assessmentSessions.id, session.sessionId));
-      }
-
-      step = "update-project-respondent-lifecycle";
-
-      if (allQuestionnairesCompleted) {
-        await db
-          .update(assessmentProjectRespondents)
-          .set({
-            status: "completed",
-            completedAt: now,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(
-            eq(
-              assessmentProjectRespondents.id,
-              session.projectRespondentId,
-            ),
-          );
-      } else {
-        await db
-          .update(assessmentProjectRespondents)
-          .set({
-            status: "started",
-            completedAt: null,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(
-            eq(
-              assessmentProjectRespondents.id,
-              session.projectRespondentId,
-            ),
-          );
-      }
+      /**
+       * ProjectRespondent oznacz jako completed tylko dlatego, że obecny model
+       * nie ma jeszcze osobnego statusu per respondent + questionnaire.
+       * Docelowo ten status powinien oznaczać ukończenie całego pakietu.
+       */
+      step = "update-project-respondent";
+      await db
+        .update(assessmentProjectRespondents)
+        .set({
+          status: "completed",
+          completedAt: now,
+          updatedAt: now,
+          updatedBy: actorUserId,
+        })
+        .where(eq(assessmentProjectRespondents.id, session.projectRespondentId));
 
       step = "calculate-scores";
       const scoringResult = await calculateAssessmentSessionScores({
         db,
         sessionId: session.sessionId,
       });
-
       step = "create-result-snapshot";
       const snapshot = await createAssessmentResultSnapshot({
         db,
@@ -633,7 +570,16 @@ export async function completeAssessmentSessionAction(
         questionnaireVersionId:
           currentProjectQuestionnaire.questionnaireVersionId,
       });
-
+      /*       step = "auto-grant-report-access";
+            const autoGrantResult = await safeAutoGrantReportAccessForCompletedSession({
+              db,
+              tenantSlug,
+              sessionId: session.sessionId,
+              actorUserId,
+              actorEmail,
+              projectQuestionnaireId: currentProjectQuestionnaire.projectQuestionnaireId,
+              questionnaireVersionId: currentProjectQuestionnaire.questionnaireVersionId,
+            }); */
       const reportAccessGrantResult = {
         granted: false,
         mode: "manual_partner_grant_required",
@@ -641,11 +587,11 @@ export async function completeAssessmentSessionAction(
           "Dostęp do raportu nie jest nadawany automatycznie. Może go nadać partner po zakończeniu sesji.",
       };
 
-      step = "insert-questionnaire-audit-log";
+      step = "insert-audit-log";
       await db.insert(tenantAuditLog).values({
         actorUserId,
         actorRole: "RESPONDENT",
-        action: "assessment_questionnaire_completed",
+        action: "assessment_session_completed",
         entityType: "assessment_session",
         entityId: session.sessionId,
         after: {
@@ -657,32 +603,8 @@ export async function completeAssessmentSessionAction(
             currentProjectQuestionnaire.projectQuestionnaireId,
           questionnaireVersionId:
             currentProjectQuestionnaire.questionnaireVersionId,
-          snapshotCreated: Boolean(snapshot),
-          allQuestionnairesCompleted,
         },
       });
-
-      if (allQuestionnairesCompleted) {
-        step = "insert-session-audit-log";
-
-        await db.insert(tenantAuditLog).values({
-          actorUserId,
-          actorRole: "RESPONDENT",
-          action: "assessment_session_completed",
-          entityType: "assessment_session",
-          entityId: session.sessionId,
-          after: {
-            completedAt: now.toISOString(),
-            mode: "my-assessment",
-            reason: "all_project_questionnaires_completed",
-            projectQuestionnaireIds:
-              activeProjectQuestionnaires.map(
-                (row: any) => row.projectQuestionnaireId,
-              ),
-          },
-        });
-      }
-      // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_END
 
       // @humanet-funnel-analytics-v1
       // Analytics is deliberately AFTER the authoritative business transaction.

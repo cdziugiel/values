@@ -407,19 +407,10 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       completedAt: row.completedAt,
     });
 
-    const completedHrefParams = new URLSearchParams({
-      tenant: row.tenantSlug,
-      projectQuestionnaireId:
-        row.tenantProjectQuestionnaireId,
-      questionnaireVersionId:
-        row.questionnaireVersionId,
-    });
-
-    // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_RESULT_SCOPE
     const actionHref =
       status === "completed" && row.tenantSessionId
         ? `/my/assessment/sessions/${encodeURIComponent(row.tenantSessionId)}` +
-          `/completed?${completedHrefParams.toString()}`
+          `/completed?tenant=${encodeURIComponent(row.tenantSlug)}`
         : status === "in_progress" && row.tenantSessionId
           ? buildMyQuestionnaireHref({
               tenantSlug: row.tenantSlug,

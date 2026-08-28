@@ -1,0 +1,54 @@
+{
+  "patchId": "humanet-values-multi-questionnaire-session-fix-v1",
+  "installedAt": "2026-08-28T17:44:10.237Z",
+  "files": {
+    "features/public-assessment/api/complete-assessment-session.actions.ts": {
+      "existedBefore": true,
+      "backupPath": ".humanet-installer-backups/humanet-values-multi-questionnaire-session-fix-v1/2026-08-28T17-44-10-233Z/features__public-assessment__api__complete-assessment-session.actions.ts.before",
+      "beforeGitBlobSha": "2a1b69ef93cf662b2064fde90521c078683aa149",
+      "beforeSha256": "bf0eab85a1de6787173e91e9ff16b3b8b1f8445be1b79fe2780058f6849f680c",
+      "afterGitBlobSha": "359447df335f50d098068c65b572f7e8843ad08b",
+      "afterSha256": "00f0863018d0fa0e79ea8b3988825b7b971600efd3ce018f801bfd25920bb4f5"
+    },
+    "features/my-assessment/api/assessment-invitation-index.mutations.ts": {
+      "existedBefore": true,
+      "backupPath": ".humanet-installer-backups/humanet-values-multi-questionnaire-session-fix-v1/2026-08-28T17-44-10-233Z/features__my-assessment__api__assessment-invitation-index.mutations.ts.before",
+      "beforeGitBlobSha": "5f3ac71be885fdca7e336ce327db2a2cf0c8538a",
+      "beforeSha256": "04a8a4e79613a03f402798cb90f89db53656bfb647ba96a92f0cc1c11c4a5854",
+      "afterGitBlobSha": "23ce47eb59081883f940869f6296ce1784beafa2",
+      "afterSha256": "e63ebf9eed5c9aedcaa1873b349380d1b517190a29899fce70f9c04e1440910d"
+    },
+    "features/my-assessment/api/start-or-continue-indexed-invitation-session.ts": {
+      "existedBefore": true,
+      "backupPath": ".humanet-installer-backups/humanet-values-multi-questionnaire-session-fix-v1/2026-08-28T17-44-10-233Z/features__my-assessment__api__start-or-continue-indexed-invitation-session.ts.before",
+      "beforeGitBlobSha": "9d68f6329dd3cd5fdab39131a13c7b1e32ae3489",
+      "beforeSha256": "b42278ff45195c75c0893c7f6a790f9472015e7110165d20683a38a950286724",
+      "afterGitBlobSha": "be5a5bf68e8d75226da5a2811425a225bd9d9757",
+      "afterSha256": "83e1b20db3ac6765b5593281a569664b112805a96164a5eaf3d0cbebd74ceabf"
+    },
+    "features/my-assessment/api/my-assessment.queries.ts": {
+      "existedBefore": true,
+      "backupPath": ".humanet-installer-backups/humanet-values-multi-questionnaire-session-fix-v1/2026-08-28T17-44-10-233Z/features__my-assessment__api__my-assessment.queries.ts.before",
+      "beforeGitBlobSha": "20d3e760fa8cc9b6a3bbb69156d7ece24bd2fd49",
+      "beforeSha256": "7495038a5f746f79892de9283cd6e7af71c8b66791822ac097d26fe46439ac45",
+      "afterGitBlobSha": "7a7d67cf4f26c9e6a1787259b207071de1c8781e",
+      "afterSha256": "55c6b33d2a81143cbe0fb1ee9937642146d78506c171863d0418f7a6317e9974"
+    },
+    "features/public-assessment/lib/assessment-package-completion.ts": {
+      "existedBefore": false,
+      "backupPath": null,
+      "beforeGitBlobSha": null,
+      "beforeSha256": null,
+      "afterGitBlobSha": "54cb850543bd997a0662fac4570df624555e8bc5",
+      "afterSha256": "54c16e9fe362eba80dccbebacb4d917365706183db70a6e0c90552506a3a5b0f"
+    },
+    "features/public-assessment/lib/assessment-package-completion.test.ts": {
+      "existedBefore": false,
+      "backupPath": null,
+      "beforeGitBlobSha": null,
+      "beforeSha256": null,
+      "afterGitBlobSha": "b37b97b065333208d24fc402c44dae0c1fdc3ff9",
+      "afterSha256": "4f8d383c04336cb545f135e9172dbaf19911c62ef665a1e31552caff2bebb0c4"
+    }
+  }
+}
