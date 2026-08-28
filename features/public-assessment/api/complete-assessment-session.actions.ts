@@ -695,6 +695,11 @@ export async function completeAssessmentSessionAction(
         occurredAt: now,
       });
 
+      // HUMANET_MULTI_QUESTIONNAIRE_HOTFIX_V2_INTERMEDIATE_REDIRECT
+      if (!allQuestionnairesCompleted) {
+        redirect("/my/assessment");
+      }
+
       const completedHref = buildMyAssessmentCompletedHref({
         tenantSlug,
         sessionId,

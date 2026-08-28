@@ -252,6 +252,9 @@ export async function getMyAssessmentCompletedResult({
       tenantSlug: tenant.tenantSlug,
       sessionId,
 
+      // HUMANET_MULTI_QUESTIONNAIRE_HOTFIX_V2_SESSION_STATUS
+      sessionStatus: ownership.sessionStatus,
+
       snapshotId: null,
       projectQuestionnaireId: null,
       questionnaireId: null,
@@ -270,6 +273,9 @@ export async function getMyAssessmentCompletedResult({
   return {
     tenantSlug: tenant.tenantSlug,
     sessionId,
+
+    // HUMANET_MULTI_QUESTIONNAIRE_HOTFIX_V2_SESSION_STATUS
+    sessionStatus: ownership.sessionStatus,
 
     snapshotId: snapshot.id,
 

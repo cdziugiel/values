@@ -55,21 +55,14 @@ export default async function Page({
     );
   }
 
-  const [result, normativeProfileStatus] = await Promise.all([
-    getMyAssessmentCompletedResult({
-      tenantSlug: tenant,
-      sessionId,
-      projectQuestionnaireId:
-        projectQuestionnaireId ?? null,
-      questionnaireVersionId:
-        questionnaireVersionId ?? null,
-    }),
-
-    resolveMyNormativeProfile({
-      tenantSlug: tenant,
-      assessmentSessionId: sessionId,
-    }),
-  ]);
+  const result = await getMyAssessmentCompletedResult({
+    tenantSlug: tenant,
+    sessionId,
+    projectQuestionnaireId:
+      projectQuestionnaireId ?? null,
+    questionnaireVersionId:
+      questionnaireVersionId ?? null,
+  });
 
   if (!result) {
     return (
@@ -93,6 +86,18 @@ export default async function Page({
       </main>
     );
   }
+
+  // HUMANET_MULTI_QUESTIONNAIRE_HOTFIX_V2_NORMATIVE_GUARD
+  // Profil normatywny jest scope'owany do zakończonej CAŁEJ sesji/pakietu.
+  // Pojedynczy ukończony kwestionariusz może już mieć snapshot, podczas gdy
+  // wspólna assessment_session nadal prawidłowo pozostaje in_progress.
+  const normativeProfileStatus =
+    result.sessionStatus === "completed"
+      ? await resolveMyNormativeProfile({
+          tenantSlug: tenant,
+          assessmentSessionId: sessionId,
+        })
+      : null;
 
   if (!result.payload) {
     return (
@@ -141,11 +146,15 @@ export default async function Page({
         questionnaireVersionId:
           result.questionnaireVersionId ?? null,
       }}
-      normativeProfile={{
-        tenantSlug: tenant,
-        assessmentSessionId: sessionId,
-        status: normativeProfileStatus,
-      }}
+      normativeProfile={
+        normativeProfileStatus
+          ? {
+              tenantSlug: tenant,
+              assessmentSessionId: sessionId,
+              status: normativeProfileStatus,
+            }
+          : null
+      }
     />
   );
 }
