@@ -9,6 +9,7 @@ import {
 import { writeTenantAuditLog } from "@/server/audit/write-tenant-audit-log";
 import type { TenantDb } from "@/server/db/tenant-db";
 import type { TenantContext } from "@/server/tenant/tenant-context.types";
+import { syncAssessmentInvitationIndexForProject } from "@/features/my-assessment/api/assessment-invitation-index.mutations";
 
 import {
   addAssessmentProjectQuestionnaireSchema,
@@ -153,6 +154,12 @@ export async function addAssessmentProjectQuestionnaire({
       },
     });
 
+    await syncAssessmentInvitationIndexForProject({
+      db,
+      ctx,
+      assessmentProjectId: restored.assessmentProjectId,
+    });
+
     return restored;
   }
 
@@ -182,6 +189,12 @@ export async function addAssessmentProjectQuestionnaire({
       orderIndex: projectQuestionnaire.orderIndex,
       status: projectQuestionnaire.status,
     },
+  });
+
+  await syncAssessmentInvitationIndexForProject({
+    db,
+    ctx,
+    assessmentProjectId: projectQuestionnaire.assessmentProjectId,
   });
 
   return projectQuestionnaire;
@@ -253,6 +266,12 @@ export async function archiveAssessmentProjectQuestionnaire({
       status: archived.status,
       deletedAt: archived.deletedAt,
     },
+  });
+
+  await syncAssessmentInvitationIndexForProject({
+    db,
+    ctx,
+    assessmentProjectId: archived.assessmentProjectId,
   });
 
   return archived;
