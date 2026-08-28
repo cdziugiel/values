@@ -10,7 +10,6 @@ import {
   FileText,
   ListChecks,
   MoveLeft,
-  Sparkles,
   TriangleAlert,
 } from "lucide-react";
 import { completeAssessmentSessionAction } from "../api/complete-assessment-session.actions";
@@ -984,7 +983,6 @@ export function AssessmentResponseForm({
   mode = "token",
   tenantSlug = "",
   projectQuestionnaireId,
-  isSuperAdmin = false,
 }: AssessmentResponseFormProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -1305,10 +1303,9 @@ export function AssessmentResponseForm({
   }
 
   async function fillAllPagesRandomlyForSuperAdmin() {
-    /*     if (!isSuperAdmin || isAutoFilling ) {
-          return;
-        }
-     */
+    if (mode !== "my-assessment" || isAutoFilling || isPending) {
+      return;
+    }
     const form = formRef.current;
 
     if (!form) {
@@ -1368,6 +1365,36 @@ export function AssessmentResponseForm({
       setIsAutoFilling(false);
     }
   }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const shouldRunRandomFill =
+        event.metaKey &&
+        event.shiftKey &&
+        event.altKey &&
+        !event.ctrlKey &&
+        event.code === "KeyR";
+
+      if (
+        !shouldRunRandomFill ||
+        event.repeat ||
+        mode !== "my-assessment" ||
+        isAutoFilling ||
+        isPending
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      void fillAllPagesRandomlyForSuperAdmin();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  });
 
   function goToPreviousPage() {
     saveCurrentForm({
@@ -1869,21 +1896,6 @@ export function AssessmentResponseForm({
             </button>
 
             <div className="ml-3 flex min-w-0 flex-1 items-center gap-3 sm:ml-0 sm:flex-none">
-              {isSuperAdmin ? (
-                <button
-                  type="button"
-                  disabled={isPending || isAutoFilling}
-                  onClick={fillAllPagesRandomlyForSuperAdmin}
-                  className="hidden h-11 items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60 sm:inline-flex"
-                >
-                  <Sparkles size={16} />
-
-                  {isAutoFilling
-                    ? "Losowe uzupełnianie..."
-                    : "Losowo uzupełnij wszystkie strony"}
-                </button>
-              ) : null}
-
               {!isLastPage ? (
                 <button
                   type="button"
