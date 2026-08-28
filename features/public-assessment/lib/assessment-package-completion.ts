@@ -1,21 +1,24 @@
 type AssessmentPackageCompletionInput = {
   activeProjectQuestionnaireIds: readonly string[];
   completedProjectQuestionnaireIds: ReadonlySet<string>;
-  currentProjectQuestionnaireId: string;
 };
 
+/**
+ * Aggregate package completion is derived exclusively from durable,
+ * per-questionnaire completion evidence.
+ *
+ * The caller must create the current questionnaire snapshot first and then
+ * pass the full set of projectQuestionnaireIds that have snapshots.
+ */
 export function areAllProjectQuestionnairesCompleted({
   activeProjectQuestionnaireIds,
   completedProjectQuestionnaireIds,
-  currentProjectQuestionnaireId,
 }: AssessmentPackageCompletionInput) {
   if (activeProjectQuestionnaireIds.length === 0) {
     return false;
   }
 
-  return activeProjectQuestionnaireIds.every(
-    (projectQuestionnaireId) =>
-      projectQuestionnaireId === currentProjectQuestionnaireId ||
-      completedProjectQuestionnaireIds.has(projectQuestionnaireId),
+  return activeProjectQuestionnaireIds.every((projectQuestionnaireId) =>
+    completedProjectQuestionnaireIds.has(projectQuestionnaireId),
   );
 }

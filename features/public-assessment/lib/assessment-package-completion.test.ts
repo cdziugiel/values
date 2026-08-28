@@ -5,52 +5,47 @@ import { areAllProjectQuestionnairesCompleted } from "./assessment-package-compl
 describe("areAllProjectQuestionnairesCompleted", () => {
   const active = ["q1", "q2", "q3", "q4"];
 
-  it("keeps the package open after the first questionnaire", () => {
+  it("keeps a 4-questionnaire package open when only Q1 has a snapshot", () => {
     expect(
       areAllProjectQuestionnairesCompleted({
         activeProjectQuestionnaireIds: active,
-        completedProjectQuestionnaireIds: new Set(),
-        currentProjectQuestionnaireId: "q1",
+        completedProjectQuestionnaireIds: new Set(["q1"]),
       }),
     ).toBe(false);
   });
 
-  it("keeps the package open while another questionnaire remains", () => {
-    expect(
-      areAllProjectQuestionnairesCompleted({
-        activeProjectQuestionnaireIds: active,
-        completedProjectQuestionnaireIds: new Set(["q1", "q2"]),
-        currentProjectQuestionnaireId: "q3",
-      }),
-    ).toBe(false);
-  });
-
-  it("completes the package only with the last questionnaire", () => {
+  it("keeps the package open when Q1-Q3 have snapshots", () => {
     expect(
       areAllProjectQuestionnairesCompleted({
         activeProjectQuestionnaireIds: active,
         completedProjectQuestionnaireIds: new Set(["q1", "q2", "q3"]),
-        currentProjectQuestionnaireId: "q4",
+      }),
+    ).toBe(false);
+  });
+
+  it("completes the package only when all active questionnaires have snapshots", () => {
+    expect(
+      areAllProjectQuestionnairesCompleted({
+        activeProjectQuestionnaireIds: active,
+        completedProjectQuestionnaireIds: new Set(["q1", "q2", "q3", "q4"]),
       }),
     ).toBe(true);
   });
 
-  it("still completes a single-questionnaire assessment", () => {
+  it("completes a single-questionnaire package after its snapshot exists", () => {
     expect(
       areAllProjectQuestionnairesCompleted({
         activeProjectQuestionnaireIds: ["q1"],
-        completedProjectQuestionnaireIds: new Set(),
-        currentProjectQuestionnaireId: "q1",
+        completedProjectQuestionnaireIds: new Set(["q1"]),
       }),
     ).toBe(true);
   });
 
-  it("does not complete an invalid package without active questionnaires", () => {
+  it("does not complete an empty/invalid package", () => {
     expect(
       areAllProjectQuestionnairesCompleted({
         activeProjectQuestionnaireIds: [],
         completedProjectQuestionnaireIds: new Set(),
-        currentProjectQuestionnaireId: "q1",
       }),
     ).toBe(false);
   });

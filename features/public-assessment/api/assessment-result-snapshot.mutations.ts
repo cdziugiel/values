@@ -656,6 +656,11 @@ if (questionnaireVersionIds.length > 1) {
     .where(
       and(
         eq(assessmentDimensionScores.assessmentSessionId, sessionId),
+        // HUMANET_MULTI_QUESTIONNAIRE_V3_SNAPSHOT_SCORE_SCOPE
+        inArray(
+          assessmentDimensionScores.questionnaireVersionId,
+          questionnaireVersionIds,
+        ),
         isNull(assessmentDimensionScores.deletedAt),
       ),
     );

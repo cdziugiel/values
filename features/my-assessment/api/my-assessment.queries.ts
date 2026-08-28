@@ -407,28 +407,16 @@ export async function getMyAssessments(): Promise<MyAssessment> {
       completedAt: row.completedAt,
     });
 
-    const completedHrefParams = new URLSearchParams({
-      tenant: row.tenantSlug,
-      projectQuestionnaireId:
-        row.tenantProjectQuestionnaireId,
-      questionnaireVersionId:
-        row.questionnaireVersionId,
+    /**
+     * HUMANET_MULTI_QUESTIONNAIRE_V3_VALIDATED_ENTRY
+     *
+     * assessmentInvitationIndex is a projection. Every invitation click goes
+     * through the validated entry resolver, which checks the tenant DB and can
+     * repair an aggregate session prematurely closed by an older release.
+     */
+    const actionHref = buildInvitationStartHref({
+      invitationId: row.id,
     });
-
-    // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_RESULT_SCOPE
-    const actionHref =
-      status === "completed" && row.tenantSessionId
-        ? `/my/assessment/sessions/${encodeURIComponent(row.tenantSessionId)}` +
-          `/completed?${completedHrefParams.toString()}`
-        : status === "in_progress" && row.tenantSessionId
-          ? buildMyQuestionnaireHref({
-              tenantSlug: row.tenantSlug,
-              sessionId: row.tenantSessionId,
-              projectQuestionnaireId: row.tenantProjectQuestionnaireId,
-            })
-          : buildInvitationStartHref({
-              invitationId: row.id,
-            });
 
     invitedQuestionnaires.push({
       id: `invitation:${row.id}`,

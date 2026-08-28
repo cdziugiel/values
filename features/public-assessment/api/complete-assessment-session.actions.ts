@@ -19,6 +19,7 @@ import {
   assessmentProjectQuestionnaires,
   assessmentProjectRespondents,
   assessmentResponses,
+  assessmentResultSnapshots,
   assessmentSessions,
   respondentIdentities,
   respondents,
@@ -148,18 +149,59 @@ async function listActiveProjectQuestionnaires({
     );
 }
 
-async function listCompletedProjectQuestionnaireIdsFromIndex({
+async function listCompletedProjectQuestionnaireIdsFromSnapshots({
+  db,
+  sessionId,
+}: {
+  db: any;
+  sessionId: string;
+}): Promise<Set<string>> {
+  // HUMANET_MULTI_QUESTIONNAIRE_V3_1_1_TYPES
+  const rows = await db
+    .select({
+      projectQuestionnaireId:
+        assessmentResultSnapshots.projectQuestionnaireId,
+    })
+    .from(assessmentResultSnapshots)
+    .where(
+      and(
+        eq(
+          assessmentResultSnapshots.assessmentSessionId,
+          sessionId,
+        ),
+        isNull(assessmentResultSnapshots.deletedAt),
+      ),
+    );
+
+  return new Set<string>(
+    rows
+      .map((row: any) => row.projectQuestionnaireId)
+      .filter((value: unknown): value is string =>
+        typeof value === "string" && value.length > 0,
+      ),
+  );
+}
+
+async function reconcileInvitationIndexWithSnapshotTruth({
   tenantId,
   projectRespondentId,
+  sessionId,
+  completedProjectQuestionnaireIds,
 }: {
   tenantId: string;
   projectRespondentId: string;
+  sessionId: string;
+  completedProjectQuestionnaireIds: ReadonlySet<string>;
 }) {
   const rows = await controlDb
     .select({
-      tenantProjectQuestionnaireId:
+      id: assessmentInvitationIndex.id,
+      projectQuestionnaireId:
         assessmentInvitationIndex.tenantProjectQuestionnaireId,
       status: assessmentInvitationIndex.status,
+      tenantSessionId: assessmentInvitationIndex.tenantSessionId,
+      startedAt: assessmentInvitationIndex.startedAt,
+      completedAt: assessmentInvitationIndex.completedAt,
     })
     .from(assessmentInvitationIndex)
     .where(
@@ -173,11 +215,74 @@ async function listCompletedProjectQuestionnaireIdsFromIndex({
       ),
     );
 
-  return new Set(
-    rows
-      .filter((row: any) => row.status === "completed")
-      .map((row: any) => row.tenantProjectQuestionnaireId),
-  );
+  const now = new Date();
+
+  for (const row of rows) {
+    if (
+      row.status === "revoked" ||
+      row.status === "archived" ||
+      row.status === "cancelled" ||
+      row.status === "expired"
+    ) {
+      continue;
+    }
+
+    if (
+      completedProjectQuestionnaireIds.has(
+        row.projectQuestionnaireId,
+      )
+    ) {
+      await controlDb
+        .update(assessmentInvitationIndex)
+        .set({
+          status: "completed",
+          tenantSessionId: sessionId,
+          startedAt: row.startedAt ?? now,
+          completedAt: row.completedAt ?? now,
+          lastSyncedAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        })
+        .where(eq(assessmentInvitationIndex.id, row.id));
+
+      continue;
+    }
+
+    const wasAssociatedWithCurrentSession =
+      row.tenantSessionId === sessionId;
+
+    if (
+      row.status === "in_progress" ||
+      wasAssociatedWithCurrentSession
+    ) {
+      await controlDb
+        .update(assessmentInvitationIndex)
+        .set({
+          status: "in_progress",
+          tenantSessionId: sessionId,
+          startedAt: row.startedAt ?? now,
+          completedAt: null,
+          lastSyncedAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        })
+        .where(eq(assessmentInvitationIndex.id, row.id));
+
+      continue;
+    }
+
+    await controlDb
+      .update(assessmentInvitationIndex)
+      .set({
+        status: "invited",
+        tenantSessionId: null,
+        completedAt: null,
+        lastSyncedAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+      .where(eq(assessmentInvitationIndex.id, row.id));
+  }
 }
 
 async function getTenantDbBySlug(tenantSlug: string) {
@@ -486,46 +591,8 @@ export async function completeAssessmentSessionAction(
       }
 
       const now = new Date();
-      step = "check-existing-invitation-index";
 
-      const existingInvitationIndexRows = await controlDb
-        .select({
-          id: assessmentInvitationIndex.id,
-        })
-        .from(assessmentInvitationIndex)
-        .where(
-          and(
-            eq(assessmentInvitationIndex.tenantId, resolved.tenantId),
-            eq(
-              assessmentInvitationIndex.tenantProjectRespondentId,
-              session.projectRespondentId,
-            ),
-            eq(
-              assessmentInvitationIndex.tenantProjectQuestionnaireId,
-              currentProjectQuestionnaire.projectQuestionnaireId,
-            ),
-            isNull(assessmentInvitationIndex.deletedAt),
-          ),
-        )
-        .limit(1);
-
-      const hasExistingInvitationIndex = existingInvitationIndexRows.length > 0;
-
-      if (hasExistingInvitationIndex) {
-        step = "mark-current-questionnaire-completed";
-
-        await markAssessmentInvitationIndexSession({
-          tenantId: resolved.tenantId,
-          tenantProjectRespondentId: session.projectRespondentId,
-          tenantProjectQuestionnaireId:
-            currentProjectQuestionnaire.projectQuestionnaireId,
-          tenantSessionId: session.sessionId,
-          status: "completed",
-          userId: actorUserId,
-        });
-      }
-
-      // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_BEGIN
+      // HUMANET_MULTI_QUESTIONNAIRE_V3_AUTHORITATIVE_BEGIN
       step = "load-active-project-questionnaires";
       const activeProjectQuestionnaires =
         await listActiveProjectQuestionnaires({
@@ -540,82 +607,13 @@ export async function completeAssessmentSessionAction(
         };
       }
 
-      step = "load-completed-project-questionnaires";
-      const completedProjectQuestionnaireIds =
-        await listCompletedProjectQuestionnaireIdsFromIndex({
-          tenantId: resolved.tenantId,
-          projectRespondentId: session.projectRespondentId,
-        });
-
-      const allQuestionnairesCompleted =
-        areAllProjectQuestionnairesCompleted({
-          activeProjectQuestionnaireIds:
-            activeProjectQuestionnaires.map(
-              (row: any) => row.projectQuestionnaireId,
-            ),
-          completedProjectQuestionnaireIds,
-          currentProjectQuestionnaireId:
-            currentProjectQuestionnaire.projectQuestionnaireId,
-        });
-
-      step = "update-assessment-session-lifecycle";
-
-      if (allQuestionnairesCompleted) {
-        await db
-          .update(assessmentSessions)
-          .set({
-            status: "completed",
-            completedAt: now,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(eq(assessmentSessions.id, session.sessionId));
-      } else {
-        await db
-          .update(assessmentSessions)
-          .set({
-            status: "in_progress",
-            completedAt: null,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(eq(assessmentSessions.id, session.sessionId));
-      }
-
-      step = "update-project-respondent-lifecycle";
-
-      if (allQuestionnairesCompleted) {
-        await db
-          .update(assessmentProjectRespondents)
-          .set({
-            status: "completed",
-            completedAt: now,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(
-            eq(
-              assessmentProjectRespondents.id,
-              session.projectRespondentId,
-            ),
-          );
-      } else {
-        await db
-          .update(assessmentProjectRespondents)
-          .set({
-            status: "started",
-            completedAt: null,
-            updatedAt: now,
-            updatedBy: actorUserId,
-          })
-          .where(
-            eq(
-              assessmentProjectRespondents.id,
-              session.projectRespondentId,
-            ),
-          );
-      }
-
+      /**
+       * Najpierw zapisujemy trwały dowód ukończenia BIEŻĄCEGO
+       * kwestionariusza w tenant DB.
+       *
+       * assessmentInvitationIndex jest tylko projekcją do listy zaproszeń
+       * i nie może decydować o zamknięciu assessment_session.
+       */
       step = "calculate-scores";
       const scoringResult = await calculateAssessmentSessionScores({
         db,
@@ -633,6 +631,88 @@ export async function completeAssessmentSessionAction(
         questionnaireVersionId:
           currentProjectQuestionnaire.questionnaireVersionId,
       });
+
+      step = "mark-current-questionnaire-completed";
+      await markAssessmentInvitationIndexSession({
+        tenantId: resolved.tenantId,
+        tenantProjectRespondentId: session.projectRespondentId,
+        tenantProjectQuestionnaireId:
+          currentProjectQuestionnaire.projectQuestionnaireId,
+        tenantSessionId: session.sessionId,
+        status: "completed",
+        userId: actorUserId,
+      });
+
+      step = "load-completed-snapshot-questionnaires";
+      const completedProjectQuestionnaireIds =
+        await listCompletedProjectQuestionnaireIdsFromSnapshots({
+          db,
+          sessionId: session.sessionId,
+        });
+
+      step = "reconcile-invitation-index";
+      await reconcileInvitationIndexWithSnapshotTruth({
+        tenantId: resolved.tenantId,
+        projectRespondentId: session.projectRespondentId,
+        sessionId: session.sessionId,
+        completedProjectQuestionnaireIds,
+      });
+
+      const allQuestionnairesCompleted =
+        areAllProjectQuestionnairesCompleted({
+          activeProjectQuestionnaireIds:
+            activeProjectQuestionnaires.map(
+              (row: any) => row.projectQuestionnaireId,
+            ),
+          completedProjectQuestionnaireIds,
+        });
+
+      step = "update-assessment-session-lifecycle";
+
+      await db
+        .update(assessmentSessions)
+        .set(
+          allQuestionnairesCompleted
+            ? {
+                status: "completed",
+                completedAt: now,
+                updatedAt: now,
+                updatedBy: actorUserId,
+              }
+            : {
+                status: "in_progress",
+                completedAt: null,
+                updatedAt: now,
+                updatedBy: actorUserId,
+              },
+        )
+        .where(eq(assessmentSessions.id, session.sessionId));
+
+      step = "update-project-respondent-lifecycle";
+
+      await db
+        .update(assessmentProjectRespondents)
+        .set(
+          allQuestionnairesCompleted
+            ? {
+                status: "completed",
+                completedAt: now,
+                updatedAt: now,
+                updatedBy: actorUserId,
+              }
+            : {
+                status: "started",
+                completedAt: null,
+                updatedAt: now,
+                updatedBy: actorUserId,
+              },
+        )
+        .where(
+          eq(
+            assessmentProjectRespondents.id,
+            session.projectRespondentId,
+          ),
+        );
 
       const reportAccessGrantResult = {
         granted: false,
@@ -658,6 +738,10 @@ export async function completeAssessmentSessionAction(
           questionnaireVersionId:
             currentProjectQuestionnaire.questionnaireVersionId,
           snapshotCreated: Boolean(snapshot),
+          completedQuestionnaireCount:
+            completedProjectQuestionnaireIds.size,
+          activeQuestionnaireCount:
+            activeProjectQuestionnaires.length,
           allQuestionnairesCompleted,
         },
       });
@@ -674,7 +758,8 @@ export async function completeAssessmentSessionAction(
           after: {
             completedAt: now.toISOString(),
             mode: "my-assessment",
-            reason: "all_project_questionnaires_completed",
+            reason:
+              "all_active_project_questionnaires_have_result_snapshots",
             projectQuestionnaireIds:
               activeProjectQuestionnaires.map(
                 (row: any) => row.projectQuestionnaireId,
@@ -682,6 +767,7 @@ export async function completeAssessmentSessionAction(
           },
         });
       }
+      // HUMANET_MULTI_QUESTIONNAIRE_V3_AUTHORITATIVE_END
       // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_END
 
       // @humanet-funnel-analytics-v1
@@ -695,7 +781,7 @@ export async function completeAssessmentSessionAction(
         occurredAt: now,
       });
 
-      // HUMANET_MULTI_QUESTIONNAIRE_HOTFIX_V2_INTERMEDIATE_REDIRECT
+      // HUMANET_MULTI_QUESTIONNAIRE_V3_PARTIAL_REDIRECT
       if (!allQuestionnairesCompleted) {
         redirect("/my/assessment");
       }
@@ -976,18 +1062,26 @@ export async function completeAssessmentSessionAction(
       });
 
       const completedProjectQuestionnaireIds =
-        await listCompletedProjectQuestionnaireIdsFromIndex({
-          tenantId: connection.tenantId,
-          projectRespondentId: session.projectRespondentId,
+        await listCompletedProjectQuestionnaireIdsFromSnapshots({
+          db,
+          sessionId: session.sessionId,
         });
 
-      completedProjectQuestionnaireIds.add(
-        currentProjectQuestionnaire.projectQuestionnaireId,
-      );
+      await reconcileInvitationIndexWithSnapshotTruth({
+        tenantId: connection.tenantId,
+        projectRespondentId: session.projectRespondentId,
+        sessionId: session.sessionId,
+        completedProjectQuestionnaireIds,
+      });
 
-      const allQuestionnairesCompleted = activeProjectQuestionnaires.every((row: any) =>
-        completedProjectQuestionnaireIds.has(row.projectQuestionnaireId),
-      );
+      const allQuestionnairesCompleted =
+        areAllProjectQuestionnairesCompleted({
+          activeProjectQuestionnaireIds:
+            activeProjectQuestionnaires.map(
+              (row: any) => row.projectQuestionnaireId,
+            ),
+          completedProjectQuestionnaireIds,
+        });
 
       await db.insert(tenantAuditLog).values({
         actorUserId: null,
@@ -1056,9 +1150,9 @@ export async function completeAssessmentSessionAction(
      * w assessmentInvitationIndex.
      */
     const completedProjectQuestionnaireIds =
-      await listCompletedProjectQuestionnaireIdsFromIndex({
-        tenantId: connection.tenantId,
-        projectRespondentId: session.projectRespondentId,
+      await listCompletedProjectQuestionnaireIdsFromSnapshots({
+        db,
+        sessionId: session.sessionId,
       });
 
     const missingProjectQuestionnaires = activeProjectQuestionnaires.filter(

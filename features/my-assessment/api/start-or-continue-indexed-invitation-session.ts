@@ -5,6 +5,7 @@ import {
   assessmentProjectQuestionnaires,
   assessmentProjectRespondents,
   assessmentProjects,
+  assessmentResultSnapshots,
   assessmentSessions,
   respondentIdentities,
   respondents,
@@ -19,6 +20,30 @@ import { upsertRespondentIdentityIndex } from "@/server/respondents/respondent-i
 function normalizeEmail(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase();
   return normalized || null;
+}
+
+function buildCompletedQuestionnaireHref({
+  tenantSlug,
+  sessionId,
+  projectQuestionnaireId,
+  questionnaireVersionId,
+}: {
+  tenantSlug: string;
+  sessionId: string;
+  projectQuestionnaireId: string;
+  questionnaireVersionId: string;
+}) {
+  // HUMANET_MULTI_QUESTIONNAIRE_V3_BUILD_COMPLETED_HREF
+  const params = new URLSearchParams({
+    tenant: tenantSlug,
+    projectQuestionnaireId,
+    questionnaireVersionId,
+  });
+
+  return (
+    `/my/assessment/sessions/${encodeURIComponent(sessionId)}` +
+    `/completed?${params.toString()}`
+  );
 }
 
 export async function startOrContinueIndexedInvitationSession({
@@ -59,24 +84,6 @@ export async function startOrContinueIndexedInvitationSession({
     return {
       ok: false as const,
       message: "To zaproszenie nie jest już aktywne.",
-    };
-  }
-
-  if (invitation.status === "completed" && invitation.tenantSessionId) {
-    // HUMANET_MULTI_QUESTIONNAIRE_SESSION_FIX_V1_RESULT_SCOPE
-    const completedParams = new URLSearchParams({
-      tenant: invitation.tenantSlug,
-      projectQuestionnaireId:
-        invitation.tenantProjectQuestionnaireId,
-      questionnaireVersionId:
-        invitation.questionnaireVersionId,
-    });
-
-    return {
-      ok: true as const,
-      href:
-        `/my/assessment/sessions/${encodeURIComponent(invitation.tenantSessionId)}` +
-        `/completed?${completedParams.toString()}`,
     };
   }
 
@@ -175,25 +182,193 @@ export async function startOrContinueIndexedInvitationSession({
     email: row.respondentEmail,
     userId: authSession.user.id,
   });
-  const activeSessionRows = await db
+  // HUMANET_MULTI_QUESTIONNAIRE_V3_SESSION_REPAIR_BEGIN
+  /**
+   * Wybieramy najnowszą żywą sesję pakietu. Status "completed" nie jest
+   * bezwarunkowo zaufany: stara wersja aplikacji mogła zamknąć pakiet po Q1.
+   */
+  const candidateSessionRows = await db
     .select({
       id: assessmentSessions.id,
+      status: assessmentSessions.status,
+      completedAt: assessmentSessions.completedAt,
+      updatedAt: assessmentSessions.updatedAt,
+      createdAt: assessmentSessions.createdAt,
     })
     .from(assessmentSessions)
     .where(
       and(
-        eq(assessmentSessions.projectRespondentId, row.projectRespondentId),
-        inArray(assessmentSessions.status, ["in_progress"]),
-        isNull(assessmentSessions.completedAt),
+        eq(
+          assessmentSessions.projectRespondentId,
+          row.projectRespondentId,
+        ),
+        inArray(
+          assessmentSessions.status,
+          ["in_progress", "completed"],
+        ),
         isNull(assessmentSessions.cancelledAt),
         isNull(assessmentSessions.respondentArchivedAt),
         isNull(assessmentSessions.deletedAt),
       ),
     )
-    .orderBy(desc(assessmentSessions.updatedAt), desc(assessmentSessions.createdAt))
+    .orderBy(
+      desc(assessmentSessions.updatedAt),
+      desc(assessmentSessions.createdAt),
+    )
     .limit(1);
 
-  let sessionId = activeSessionRows[0]?.id ?? null;
+  const candidateSession = candidateSessionRows[0] ?? null;
+  let sessionId = candidateSession?.id ?? null;
+
+  if (candidateSession) {
+    const currentSnapshotRows = await db
+      .select({
+        id: assessmentResultSnapshots.id,
+      })
+      .from(assessmentResultSnapshots)
+      .where(
+        and(
+          eq(
+            assessmentResultSnapshots.assessmentSessionId,
+            candidateSession.id,
+          ),
+          eq(
+            assessmentResultSnapshots.projectQuestionnaireId,
+            row.projectQuestionnaireId,
+          ),
+          isNull(assessmentResultSnapshots.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (currentSnapshotRows[0]) {
+      return {
+        ok: true as const,
+        href: buildCompletedQuestionnaireHref({
+          tenantSlug: tenant.tenantSlug,
+          sessionId: candidateSession.id,
+          projectQuestionnaireId:
+            row.projectQuestionnaireId,
+          questionnaireVersionId:
+            invitation.questionnaireVersionId,
+        }),
+      };
+    }
+
+    if (candidateSession.status === "completed") {
+      const activeProjectQuestionnaireRows = await db
+        .select({
+          projectQuestionnaireId:
+            assessmentProjectQuestionnaires.id,
+        })
+        .from(assessmentProjectQuestionnaires)
+        .where(
+          and(
+            eq(
+              assessmentProjectQuestionnaires.assessmentProjectId,
+              row.projectId,
+            ),
+            eq(
+              assessmentProjectQuestionnaires.status,
+              "active",
+            ),
+            isNull(
+              assessmentProjectQuestionnaires.deletedAt,
+            ),
+          ),
+        );
+
+      const snapshotRows = await db
+        .select({
+          projectQuestionnaireId:
+            assessmentResultSnapshots.projectQuestionnaireId,
+        })
+        .from(assessmentResultSnapshots)
+        .where(
+          and(
+            eq(
+              assessmentResultSnapshots.assessmentSessionId,
+              candidateSession.id,
+            ),
+            isNull(assessmentResultSnapshots.deletedAt),
+          ),
+        );
+
+      const completedIds = new Set(
+        snapshotRows
+          .map((snapshot: any) =>
+            snapshot.projectQuestionnaireId,
+          )
+          .filter((value: unknown): value is string =>
+            typeof value === "string" &&
+            value.length > 0,
+          ),
+      );
+
+      const packageIsActuallyComplete =
+        activeProjectQuestionnaireRows.length > 0 &&
+        activeProjectQuestionnaireRows.every(
+          (questionnaire: any) =>
+            completedIds.has(
+              questionnaire.projectQuestionnaireId,
+            ),
+        );
+
+      if (!packageIsActuallyComplete) {
+        const now = new Date();
+
+        await db
+          .update(assessmentSessions)
+          .set({
+            status: "in_progress",
+            completedAt: null,
+            updatedAt: now,
+            updatedBy: authSession.user.id,
+          })
+          .where(
+            eq(
+              assessmentSessions.id,
+              candidateSession.id,
+            ),
+          );
+
+        await db
+          .update(assessmentProjectRespondents)
+          .set({
+            status: "started",
+            completedAt: null,
+            updatedAt: now,
+            updatedBy: authSession.user.id,
+          })
+          .where(
+            eq(
+              assessmentProjectRespondents.id,
+              row.projectRespondentId,
+            ),
+          );
+
+        console.warn(
+          "MY_ASSESSMENT_PREMATURE_SESSION_REOPENED",
+          {
+            sessionId: candidateSession.id,
+            projectRespondentId:
+              row.projectRespondentId,
+            activeQuestionnaires:
+              activeProjectQuestionnaireRows.length,
+            completedSnapshots:
+              completedIds.size,
+          },
+        );
+      } else {
+        return {
+          ok: false as const,
+          message:
+            "Sesja jest zakończona, ale dla tego kwestionariusza nie znaleziono snapshotu wyniku. Wymagana jest diagnostyka danych.",
+        };
+      }
+    }
+  }
+  // HUMANET_MULTI_QUESTIONNAIRE_V3_SESSION_REPAIR_END
 
   if (!sessionId) {
     const now = new Date();
