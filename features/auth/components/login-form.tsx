@@ -90,10 +90,6 @@ export function LoginForm() {
           />
         </div>
 
-        <p className="text-xs leading-5 text-[#6b7280]">
-          Użyj adresu email, na który otrzymałaś/otrzymałeś zaproszenie do
-          badania.
-        </p>
       </div>
 
 
