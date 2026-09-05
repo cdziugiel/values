@@ -102,6 +102,12 @@ const adminNavigationGroup: ProtectedNavigationGroup = {
       href: "/dashboard/tenants",
       icon: <Building2 className="h-4 w-4 shrink-0" />,
     },
+    // @humanet-respondent-directory-v1:admin-navigation
+    {
+      label: "Respondenci",
+      href: "/dashboard/respondents",
+      icon: <Users className="h-4 w-4 shrink-0" />,
+    },
     {
       label: "Migracje",
       href: "/dashboard/tenant-migrations",
