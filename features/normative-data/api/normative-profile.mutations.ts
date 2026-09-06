@@ -18,6 +18,17 @@ import type { TenantDb } from "@/server/db/tenant-db";
 import { normativeProfileFormSchema, type NormativeProfileFormInput } from "../forms/normative-profile.schema";
 import { calculateAgeAtAssessment } from "../lib/calculate-age-at-assessment";
 import {
+  answerToBoolean,
+  booleanToAnswer,
+  inferEmploymentFormFromLegacy,
+  inferLegacyWorkingStatus,
+  mapEmploymentFormToLegacyStatus,
+  mapOwnershipToLegacySector,
+  mapPkd2025ToLegacyIndustry,
+  resolveIsWorkingForNorms,
+} from "../lib/normative-profile-derived";
+// @humanet-normative-profile-v1_1-mutations
+import {
   NORMATIVE_CONSENT_VERSION,
   NORMATIVE_DICTIONARY_VERSION,
   NORMATIVE_PROFILE_SCHEMA_VERSION,
@@ -80,6 +91,19 @@ async function getCompletedOwnedSession({
 }
 
 function toValues(profile: typeof normativeProfiles.$inferSelect): NormativeProfileValuesDto {
+  const legacyWorking = inferLegacyWorkingStatus(profile.employmentStatus);
+  const isWorkingForNorms = profile.isWorkingForNorms ?? legacyWorking;
+
+  const workedLastWeek =
+    profile.workedLastWeek == null
+      ? (legacyWorking === true ? "yes" : legacyWorking === false ? "no" : "")
+      : booleanToAnswer(profile.workedLastWeek);
+
+  const hasJobTemporaryAbsence =
+    profile.hasJobTemporaryAbsence == null
+      ? (legacyWorking === true ? "not_applicable" : legacyWorking === false ? "no" : "")
+      : booleanToAnswer(profile.hasJobTemporaryAbsence);
+
   return {
     dateOfBirth: profile.dateOfBirth,
     sex: profile.sex,
@@ -88,11 +112,34 @@ function toValues(profile: typeof normativeProfiles.$inferSelect): NormativeProf
     localitySize: profile.localitySize ?? "",
     educationLevel: profile.educationLevel ?? "",
     educationFields: profile.educationFields,
+
+    workedLastWeek,
+    hasJobTemporaryAbsence,
+    isWorkingForNorms,
+    employmentForm:
+      profile.employmentForm ?? inferEmploymentFormFromLegacy(profile.employmentStatus),
+    workTime: profile.workTime ?? (isWorkingForNorms ? "" : "not_applicable"),
+    industrySection:
+      profile.industrySection ?? (isWorkingForNorms ? "" : "not_applicable"),
+    occupationMajorGroup:
+      profile.occupationMajorGroup ?? (isWorkingForNorms ? "" : "not_applicable"),
+    managesPeople:
+      profile.managesPeople == null
+        ? (isWorkingForNorms ? "" : "not_applicable")
+        : booleanToAnswer(profile.managesPeople),
+    ownershipSector:
+      profile.ownershipSector ??
+      (profile.employmentSector === "private" || profile.employmentSector === "public"
+        ? profile.employmentSector
+        : isWorkingForNorms ? "" : "not_applicable"),
+    organizationTenure:
+      profile.organizationTenure ?? (isWorkingForNorms ? "" : "not_applicable"),
+
     employmentStatus: profile.employmentStatus ?? "",
     industryCode: profile.industryCode ?? "",
-    jobLevel: profile.jobLevel ?? "",
-    jobFunction: profile.jobFunction ?? "",
-    organizationSize: profile.organizationSize ?? "",
+    jobLevel: profile.jobLevel ?? (isWorkingForNorms ? "" : "not_applicable"),
+    jobFunction: profile.jobFunction ?? (isWorkingForNorms ? "" : "not_applicable"),
+    organizationSize: profile.organizationSize ?? (isWorkingForNorms ? "" : "not_applicable"),
     employmentSector: profile.employmentSector ?? "",
   };
 }
@@ -288,6 +335,11 @@ const [existing] = await controlDb
   )
   .limit(1);
 
+  const isWorkingForNorms = resolveIsWorkingForNorms(
+    parsed.workedLastWeek,
+    parsed.hasJobTemporaryAbsence,
+  );
+
   const profileValues = {
     ownerUserId: userId,
     schemaVersion: NORMATIVE_PROFILE_SCHEMA_VERSION,
@@ -300,12 +352,33 @@ const [existing] = await controlDb
     localitySize: parsed.localitySize,
     educationLevel: parsed.educationLevel,
     educationFields: parsed.educationFields,
-    employmentStatus: parsed.employmentStatus,
-    industryCode: parsed.industryCode,
+
+    workedLastWeek: answerToBoolean(parsed.workedLastWeek),
+    hasJobTemporaryAbsence: answerToBoolean(parsed.hasJobTemporaryAbsence),
+    isWorkingForNorms,
+    employmentForm: parsed.employmentForm,
+    workTime: parsed.workTime,
+    industryClassification:
+      isWorkingForNorms && parsed.industrySection !== "not_applicable"
+        ? "PKD2025"
+        : null,
+    industrySection: parsed.industrySection,
+    occupationMajorGroup: parsed.occupationMajorGroup,
+    managesPeople: answerToBoolean(parsed.managesPeople),
+    ownershipSector: parsed.ownershipSector,
+    organizationTenure: parsed.organizationTenure,
+
+    // Legacy compatibility: deterministycznie wyprowadzone z v1.1.
+    employmentStatus: mapEmploymentFormToLegacyStatus(
+      parsed.employmentForm,
+      isWorkingForNorms,
+    ),
+    industryCode: mapPkd2025ToLegacyIndustry(parsed.industrySection),
     jobLevel: parsed.jobLevel,
     jobFunction: parsed.jobFunction,
     organizationSize: parsed.organizationSize,
-    employmentSector: parsed.employmentSector,
+    employmentSector: mapOwnershipToLegacySector(parsed.ownershipSector),
+
     updatedAt: now,
     updatedBy: userId,
   } as const;

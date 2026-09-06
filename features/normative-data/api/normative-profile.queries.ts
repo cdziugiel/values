@@ -8,7 +8,13 @@ import {
 } from "@/drizzle/schema/control";
 import { controlDb } from "@/server/db/control-db";
 
+import {
+  booleanToAnswer,
+  inferEmploymentFormFromLegacy,
+  inferLegacyWorkingStatus,
+} from "../lib/normative-profile-derived";
 import type { NormativeProfileStatusDto } from "../types/normative-profile.types";
+// @humanet-normative-profile-v1_1-queries
 
 export async function getNormativeProfileStatus({
   ownerUserId,
@@ -77,21 +83,51 @@ export async function getNormativeProfileStatus({
     revision: profile.revision,
     consentAcceptedAt: consent?.acceptedAt?.toISOString() ?? null,
     consentWithdrawnAt: consent?.withdrawnAt?.toISOString() ?? null,
-    profile: {
-      dateOfBirth: profile.dateOfBirth,
-      sex: profile.sex,
-      countryCode: profile.countryCode,
-      voivodeshipCode: profile.voivodeshipCode ?? "",
-      localitySize: profile.localitySize ?? "",
-      educationLevel: profile.educationLevel ?? "",
-      educationFields: profile.educationFields,
-      employmentStatus: profile.employmentStatus ?? "",
-      industryCode: profile.industryCode ?? "",
-      jobLevel: profile.jobLevel ?? "",
-      jobFunction: profile.jobFunction ?? "",
-      organizationSize: profile.organizationSize ?? "",
-      employmentSector: profile.employmentSector ?? "",
-    },
+    profile: (() => {
+      const legacyWorking = inferLegacyWorkingStatus(profile.employmentStatus);
+      const isWorkingForNorms = profile.isWorkingForNorms ?? legacyWorking;
+      return {
+        dateOfBirth: profile.dateOfBirth,
+        sex: profile.sex,
+        countryCode: profile.countryCode,
+        voivodeshipCode: profile.voivodeshipCode ?? "",
+        localitySize: profile.localitySize ?? "",
+        educationLevel: profile.educationLevel ?? "",
+        educationFields: profile.educationFields,
+
+        workedLastWeek:
+          profile.workedLastWeek == null
+            ? (legacyWorking === true ? "yes" : legacyWorking === false ? "no" : "")
+            : booleanToAnswer(profile.workedLastWeek),
+        hasJobTemporaryAbsence:
+          profile.hasJobTemporaryAbsence == null
+            ? (legacyWorking === true ? "not_applicable" : legacyWorking === false ? "no" : "")
+            : booleanToAnswer(profile.hasJobTemporaryAbsence),
+        isWorkingForNorms,
+        employmentForm:
+          profile.employmentForm ?? inferEmploymentFormFromLegacy(profile.employmentStatus),
+        workTime: profile.workTime ?? (isWorkingForNorms ? "" : "not_applicable"),
+        industrySection: profile.industrySection ?? (isWorkingForNorms ? "" : "not_applicable"),
+        occupationMajorGroup: profile.occupationMajorGroup ?? (isWorkingForNorms ? "" : "not_applicable"),
+        managesPeople:
+          profile.managesPeople == null
+            ? (isWorkingForNorms ? "" : "not_applicable")
+            : booleanToAnswer(profile.managesPeople),
+        ownershipSector:
+          profile.ownershipSector ??
+          (profile.employmentSector === "private" || profile.employmentSector === "public"
+            ? profile.employmentSector
+            : isWorkingForNorms ? "" : "not_applicable"),
+        organizationTenure: profile.organizationTenure ?? (isWorkingForNorms ? "" : "not_applicable"),
+
+        employmentStatus: profile.employmentStatus ?? "",
+        industryCode: profile.industryCode ?? "",
+        jobLevel: profile.jobLevel ?? (isWorkingForNorms ? "" : "not_applicable"),
+        jobFunction: profile.jobFunction ?? (isWorkingForNorms ? "" : "not_applicable"),
+        organizationSize: profile.organizationSize ?? (isWorkingForNorms ? "" : "not_applicable"),
+        employmentSector: profile.employmentSector ?? "",
+      };
+    })(),
     reward: reward ? {
       rewardId: reward.id,
       status: reward.status,

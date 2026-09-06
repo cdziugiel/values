@@ -40,16 +40,16 @@ import {
   claimNormativeRewardAction,
   completeNormativeProfileAction,
 } from "../api/normative-profile.actions";
+import { NormativeWorkFieldsV11 } from "./normative-work-fields-v11";
+// @humanet-normative-profile-v1_1-card
 import {
+  ALL_EDUCATION_LEVEL_OPTIONS,
   EDUCATION_FIELD_OPTIONS,
   EDUCATION_LEVEL_OPTIONS,
-  EMPLOYMENT_SECTOR_OPTIONS,
-  EMPLOYMENT_STATUS_OPTIONS,
   INDUSTRY_OPTIONS,
-  JOB_FUNCTION_OPTIONS,
+  INDUSTRY_SECTION_OPTIONS,
   JOB_LEVEL_OPTIONS,
   LOCALITY_SIZE_OPTIONS,
-  ORGANIZATION_SIZE_OPTIONS,
   SEX_OPTIONS,
   VOIVODESHIP_OPTIONS,
 } from "../lib/normative-profile-options";
@@ -65,11 +65,6 @@ import type {
 const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-
-const EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB = new Set([
-  "unemployed",
-  "retired",
-]);
 
 const EMPTY_STRING_ARRAY: string[] = [];
 
@@ -182,7 +177,7 @@ function ProfileSummary({
           Wykształcenie:
         </span>{" "}
         {getLabel(
-          EDUCATION_LEVEL_OPTIONS,
+          ALL_EDUCATION_LEVEL_OPTIONS,
           profile.educationLevel,
         )}
       </div>
@@ -190,10 +185,9 @@ function ProfileSummary({
         <span className="text-muted-foreground">
           Branża:
         </span>{" "}
-        {getLabel(
-          INDUSTRY_OPTIONS,
-          profile.industryCode,
-        )}
+        {profile.industrySection
+          ? getLabel(INDUSTRY_SECTION_OPTIONS, profile.industrySection)
+          : getLabel(INDUSTRY_OPTIONS, profile.industryCode)}
       </div>
       <div>
         <span className="text-muted-foreground">
@@ -328,34 +322,6 @@ export function NormativeProfileCard({
   }, [latestActionCode]);
 
 
-
-  const [employmentStatus, setEmploymentStatus] =
-    useState(
-      initialStatus.profile?.employmentStatus ??
-      "",
-    );
-
-  useEffect(() => {
-    if (!isEditing) {
-      return;
-    }
-
-    setEmploymentStatus(
-      state.values?.employmentStatus ??
-      profile?.employmentStatus ??
-      "",
-    );
-  }, [
-    isEditing,
-    state.formVersion,
-    state.values?.employmentStatus,
-    profile?.employmentStatus,
-  ]);
-
-  const hasNoCurrentEmployment =
-    EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB.has(
-      employmentStatus,
-    );
 
   const expiryLabel =
     useMemo(
@@ -758,124 +724,8 @@ export function NormativeProfileCard({
             </div>
           </section>
 
-          <section className="space-y-4">
-            <div>
-              <h3 className="font-semibold">
-                Sytuacja zawodowa
-              </h3>
+          <NormativeWorkFieldsV11 defaultValues={defaultValues} />
 
-              <p className="text-sm text-muted-foreground">
-                Dodatkowe pytania zawodowe pojawią się tylko wtedy, gdy dotyczą Twojej aktualnej sytuacji.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <SelectField
-                id="employmentStatus"
-                name="employmentStatus"
-                label="Aktualna sytuacja zawodowa"
-                options={EMPLOYMENT_STATUS_OPTIONS}
-                defaultValue={
-                  defaultValues?.employmentStatus
-                }
-                onChange={(event) => {
-                  setEmploymentStatus(
-                    event.target.value,
-                  );
-                }}
-              />
-
-              {!hasNoCurrentEmployment ? (
-                <>
-                  <SelectField
-                    id="industryCode"
-                    name="industryCode"
-                    label="Branża"
-                    options={INDUSTRY_OPTIONS}
-                    defaultValue={
-                      defaultValues?.industryCode
-                    }
-                  />
-
-                  <SelectField
-                    id="jobLevel"
-                    name="jobLevel"
-                    label="Poziom stanowiska"
-                    options={JOB_LEVEL_OPTIONS}
-                    defaultValue={
-                      defaultValues?.jobLevel
-                    }
-                  />
-
-                  <SelectField
-                    id="jobFunction"
-                    name="jobFunction"
-                    label="Obszar funkcjonalny"
-                    options={JOB_FUNCTION_OPTIONS}
-                    defaultValue={
-                      defaultValues?.jobFunction
-                    }
-                  />
-
-                  <SelectField
-                    id="organizationSize"
-                    name="organizationSize"
-                    label="Wielkość organizacji"
-                    options={ORGANIZATION_SIZE_OPTIONS}
-                    defaultValue={
-                      defaultValues?.organizationSize
-                    }
-                  />
-
-                  <SelectField
-                    id="employmentSector"
-                    name="employmentSector"
-                    label="Sektor"
-                    options={EMPLOYMENT_SECTOR_OPTIONS}
-                    defaultValue={
-                      defaultValues?.employmentSector
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <input
-                    type="hidden"
-                    name="industryCode"
-                    value="not_applicable"
-                  />
-
-                  <input
-                    type="hidden"
-                    name="jobLevel"
-                    value="not_applicable"
-                  />
-
-                  <input
-                    type="hidden"
-                    name="jobFunction"
-                    value="not_applicable"
-                  />
-
-                  <input
-                    type="hidden"
-                    name="organizationSize"
-                    value="not_applicable"
-                  />
-
-                  <input
-                    type="hidden"
-                    name="employmentSector"
-                    value="not_applicable"
-                  />
-
-                  <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground md:col-span-2">
-                    Pozostałe pytania zawodowe zostały pominięte i zapisane jako „Nie dotyczy”.
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
 
 <section
   className={[

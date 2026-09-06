@@ -25,11 +25,26 @@ export type NormativeProfileValuesDto = {
   localitySize: string;
   educationLevel: string;
   educationFields: string[];
-  employmentStatus: string;
-  industryCode: string;
+
+  // v1.1
+  workedLastWeek: string;
+  hasJobTemporaryAbsence: string;
+  isWorkingForNorms: boolean | null;
+  employmentForm: string;
+  workTime: string;
+  industrySection: string;
+  occupationMajorGroup: string;
+  managesPeople: string;
+  ownershipSector: string;
+  organizationTenure: string;
+
   jobLevel: string;
   jobFunction: string;
   organizationSize: string;
+
+  // legacy compatibility
+  employmentStatus: string;
+  industryCode: string;
   employmentSector: string;
 };
 

@@ -11,8 +11,8 @@ export const normativeProfiles = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     revision: integer("revision").notNull().default(1),
-    schemaVersion: text("schema_version").notNull().default("1.0"),
-    dictionaryVersion: text("dictionary_version").notNull().default("2026-01"),
+    schemaVersion: text("schema_version").notNull().default("1.1"),
+    dictionaryVersion: text("dictionary_version").notNull().default("2026-09"),
     dateOfBirth: date("date_of_birth").notNull(),
     birthYear: integer("birth_year").notNull(),
     sex: text("sex").notNull(),
@@ -21,12 +21,28 @@ export const normativeProfiles = pgTable(
     localitySize: text("locality_size"),
     educationLevel: text("education_level"),
     educationFields: jsonb("education_fields").$type<string[]>().notNull().default([]),
+
+    // v1.1 — screening pracy i benchmark "Pracujący w Polsce".
+    workedLastWeek: boolean("worked_last_week"),
+    hasJobTemporaryAbsence: boolean("has_job_temporary_absence"),
+    isWorkingForNorms: boolean("is_working_for_norms"),
+    employmentForm: text("employment_form"),
+    workTime: text("work_time"),
+    industryClassification: text("industry_classification"),
+    industrySection: text("industry_section"),
+    occupationMajorGroup: text("occupation_major_group"),
+    managesPeople: boolean("manages_people"),
+    ownershipSector: text("ownership_sector"),
+    organizationTenure: text("organization_tenure"),
+
+    // Pola HUMANET / legacy pozostają dla zgodności z istniejącymi raportami i adminem.
     employmentStatus: text("employment_status"),
     industryCode: text("industry_code"),
     jobLevel: text("job_level"),
     jobFunction: text("job_function"),
     organizationSize: text("organization_size"),
     employmentSector: text("employment_sector"),
+
     recruitmentChannel: text("recruitment_channel").notNull().default("discount_incentive"),
     completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
 
@@ -46,6 +62,8 @@ export const normativeProfiles = pgTable(
     uniqueIndex("normative_profiles_owner_user_uidx").on(table.ownerUserId),
     index("normative_profiles_sex_idx").on(table.sex),
     index("normative_profiles_voivodeship_idx").on(table.voivodeshipCode),
+    index("normative_profiles_working_idx").on(table.isWorkingForNorms),
+    index("normative_profiles_occupation_major_group_idx").on(table.occupationMajorGroup),
     index("normative_profiles_completed_at_idx").on(table.completedAt),
     index("normative_profiles_excluded_from_norms_idx").on(table.excludedFromNorms),
     index("normative_profiles_deleted_at_idx").on(table.deletedAt),

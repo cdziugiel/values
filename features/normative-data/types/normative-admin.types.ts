@@ -8,15 +8,33 @@ export type NormativeProfileAdminRowDto = {
   ownerEmail: string;
   ownerName: string | null;
   revision: number;
-  // @humanet-normative-exclusion-v1
   excludedFromNorms: boolean;
   ageAtAssessment: number | null;
+
   sex: string;
+  countryCode: string;
   voivodeshipCode: string | null;
+  localitySize: string | null;
   educationLevel: string | null;
+
+  workedLastWeek: boolean | null;
+  hasJobTemporaryAbsence: boolean | null;
+  isWorkingForNorms: boolean | null;
+  employmentForm: string | null;
+  workTime: string | null;
+  industrySection: string | null;
+  occupationMajorGroup: string | null;
+  managesPeople: boolean | null;
+  ownershipSector: string | null;
+  organizationTenure: string | null;
+
   employmentStatus: string | null;
   industryCode: string | null;
   jobLevel: string | null;
+  jobFunction: string | null;
+  organizationSize: string | null;
+  employmentSector: string | null;
+
   schemaVersion: string;
   dictionaryVersion: string;
   completedAt: string;
@@ -35,12 +53,7 @@ export type NormativeProfileAdminRowDto = {
 export type NormativeProfileAdminDetailDto = NormativeProfileAdminRowDto & {
   dateOfBirth: string;
   birthYear: number;
-  countryCode: string;
-  localitySize: string | null;
   educationFields: string[];
-  jobFunction: string | null;
-  organizationSize: string | null;
-  employmentSector: string | null;
   recruitmentChannel: string;
   consentId: string | null;
   consentType: string | null;
@@ -71,7 +84,6 @@ export type NormativeProfilesAdminPageDto = {
   pageSize: number;
   pageCount: number;
 };
-
 
 export type NormativeProfileExclusionActionResult = {
   status: "success" | "error";

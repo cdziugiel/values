@@ -1,26 +1,50 @@
 import type {
   NormativeProfileFormInput,
 } from "../forms/normative-profile.schema";
+import {
+  ageGroup,
+  mapEducationToBael,
+  mapLocalityToResidenceType,
+  mapPkd2025SectionToEconomicSector,
+} from "./normative-profile-derived";
 
 export type NormativeProfileSnapshot = {
   schemaVersion: string;
   dictionaryVersion: string;
   revision: number;
-  dateOfBirth: string;
+
+  // Celowo bez pełnej daty urodzenia — snapshot analityczny przechowuje tylko rok i wiek w chwili badania.
   birthYear: number;
   ageAtAssessment: number;
+  ageGroup: string | null;
+
   sex: string;
   countryCode: string;
   voivodeshipCode: string;
   localitySize: string;
+  residenceType: "urban" | "rural" | null;
+
   educationLevel: string;
+  baelEducationGroup: string | null;
   educationFields: string[];
-  employmentStatus: string;
-  industryCode: string;
+
+  workedLastWeek: string;
+  hasJobTemporaryAbsence: string;
+  isWorkingForNorms: boolean;
+  employmentForm: string;
+  workTime: string;
+
+  industryClassification: "PKD2025" | null;
+  industrySection: string;
+  economicSector: "agriculture" | "industry" | "services" | null;
+
+  occupationMajorGroup: string;
   jobLevel: string;
   jobFunction: string;
+  managesPeople: string;
   organizationSize: string;
-  employmentSector: string;
+  ownershipSector: string;
+  organizationTenure: string;
 };
 
 export function buildNormativeProfileSnapshot({
@@ -43,22 +67,39 @@ export function buildNormativeProfileSnapshot({
     schemaVersion,
     dictionaryVersion,
     revision,
-    dateOfBirth: data.dateOfBirth,
-    birthYear: Number(
-      data.dateOfBirth.slice(0, 4),
-    ),
+    birthYear: Number(data.dateOfBirth.slice(0, 4)),
     ageAtAssessment,
+    ageGroup: ageGroup(ageAtAssessment),
+
     sex: data.sex,
     countryCode: data.countryCode,
     voivodeshipCode: data.voivodeshipCode,
     localitySize: data.localitySize,
+    residenceType: mapLocalityToResidenceType(data.localitySize),
+
     educationLevel: data.educationLevel,
+    baelEducationGroup: mapEducationToBael(data.educationLevel),
     educationFields: [...data.educationFields],
-    employmentStatus: data.employmentStatus,
-    industryCode: data.industryCode,
+
+    workedLastWeek: data.workedLastWeek,
+    hasJobTemporaryAbsence: data.hasJobTemporaryAbsence,
+    isWorkingForNorms: data.isWorkingForNorms,
+    employmentForm: data.employmentForm,
+    workTime: data.workTime,
+
+    industryClassification:
+      data.isWorkingForNorms && data.industrySection !== "not_applicable"
+        ? "PKD2025"
+        : null,
+    industrySection: data.industrySection,
+    economicSector: mapPkd2025SectionToEconomicSector(data.industrySection),
+
+    occupationMajorGroup: data.occupationMajorGroup,
     jobLevel: data.jobLevel,
     jobFunction: data.jobFunction,
+    managesPeople: data.managesPeople,
     organizationSize: data.organizationSize,
-    employmentSector: data.employmentSector,
+    ownershipSector: data.ownershipSector,
+    organizationTenure: data.organizationTenure,
   };
 }

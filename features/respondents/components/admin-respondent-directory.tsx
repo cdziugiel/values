@@ -71,6 +71,8 @@ function formatDate(value: Date | string | null) {
   return new Intl.DateTimeFormat("pl-PL", {
     dateStyle: "medium",
     timeStyle: "short",
+    // @humanet-respondent-directory-timezone-fix-v1
+    timeZone: "Europe/Warsaw",
   }).format(date);
 }
 

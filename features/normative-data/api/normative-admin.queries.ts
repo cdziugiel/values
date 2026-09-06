@@ -140,15 +140,33 @@ export async function getSystemNormativeProfilesPageData({
     excludedFromNorms: normativeProfiles.excludedFromNorms,
 
     sex: normativeProfiles.sex,
+    countryCode: normativeProfiles.countryCode,
     voivodeshipCode:
       normativeProfiles.voivodeshipCode,
+    localitySize: normativeProfiles.localitySize,
     educationLevel:
       normativeProfiles.educationLevel,
+
+    workedLastWeek: normativeProfiles.workedLastWeek,
+    hasJobTemporaryAbsence: normativeProfiles.hasJobTemporaryAbsence,
+    isWorkingForNorms: normativeProfiles.isWorkingForNorms,
+    employmentForm: normativeProfiles.employmentForm,
+    workTime: normativeProfiles.workTime,
+    industrySection: normativeProfiles.industrySection,
+    occupationMajorGroup: normativeProfiles.occupationMajorGroup,
+    managesPeople: normativeProfiles.managesPeople,
+    ownershipSector: normativeProfiles.ownershipSector,
+    organizationTenure: normativeProfiles.organizationTenure,
+
     employmentStatus:
       normativeProfiles.employmentStatus,
     industryCode:
       normativeProfiles.industryCode,
     jobLevel: normativeProfiles.jobLevel,
+    jobFunction: normativeProfiles.jobFunction,
+    organizationSize: normativeProfiles.organizationSize,
+    employmentSector: normativeProfiles.employmentSector,
+    // @humanet-normative-profile-v1_1-admin
 
     schemaVersion:
       normativeProfiles.schemaVersion,
@@ -378,6 +396,27 @@ export async function getSystemNormativeProfileDetail({
           normativeProfiles.educationLevel,
         educationFields:
           normativeProfiles.educationFields,
+        workedLastWeek:
+          normativeProfiles.workedLastWeek,
+        hasJobTemporaryAbsence:
+          normativeProfiles.hasJobTemporaryAbsence,
+        isWorkingForNorms:
+          normativeProfiles.isWorkingForNorms,
+        employmentForm:
+          normativeProfiles.employmentForm,
+        workTime:
+          normativeProfiles.workTime,
+        industrySection:
+          normativeProfiles.industrySection,
+        occupationMajorGroup:
+          normativeProfiles.occupationMajorGroup,
+        managesPeople:
+          normativeProfiles.managesPeople,
+        ownershipSector:
+          normativeProfiles.ownershipSector,
+        organizationTenure:
+          normativeProfiles.organizationTenure,
+
         employmentStatus:
           normativeProfiles.employmentStatus,
         industryCode:
@@ -614,15 +653,33 @@ export async function listSystemNormativeProfilesForExport() {
   const admin =
     await requireSuperAdmin();
 
-  const data =
+  const firstPage =
     await getSystemNormativeProfilesPageData({
       filters: {
         page: 1,
         pageSize: MAX_PAGE_SIZE,
-        // @humanet-normative-exclusion-v1: exports are analytical datasets, so manually rejected observations must not leave the system as valid norm data.
         inclusionStatus: "included",
       },
     });
+
+  const rows = [...firstPage.rows];
+
+  for (
+    let page = 2;
+    page <= firstPage.pageCount;
+    page += 1
+  ) {
+    const nextPage =
+      await getSystemNormativeProfilesPageData({
+        filters: {
+          page,
+          pageSize: MAX_PAGE_SIZE,
+          inclusionStatus: "included",
+        },
+      });
+
+    rows.push(...nextPage.rows);
+  }
 
   await writeSystemAuditLog({
     actorUserId: admin.id,
@@ -633,5 +690,5 @@ export async function listSystemNormativeProfilesForExport() {
       "normative_profile",
   });
 
-  return data.rows;
+  return rows;
 }

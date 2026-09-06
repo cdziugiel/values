@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildNormativeProfilesCsv } from "./normative-profile-csv";
 
 describe("buildNormativeProfilesCsv", () => {
-  it("exports normative profile rows using the current admin DTO contract", () => {
+  it("exports v1.1 normative profile fields used for worker benchmarks", () => {
     const csv = buildNormativeProfilesCsv([
       {
         profileId: "profile-1",
@@ -11,23 +11,40 @@ describe("buildNormativeProfilesCsv", () => {
         ownerEmail: "owner@example.com",
         ownerName: "Jan Kowalski",
 
-        revision: 1,
-        excludedFromNorms: false, // @humanet-normative-exclusion-v1.1-test-contract
+        revision: 2,
+        excludedFromNorms: false,
         ageAtAssessment: 36,
+
         sex: "female",
+        countryCode: "PL",
         voivodeshipCode: "14",
+        localitySize: "city_100k_250k",
         educationLevel: "master",
+
+        workedLastWeek: true,
+        hasJobTemporaryAbsence: null,
+        isWorkingForNorms: true,
+        employmentForm: "employee",
+        workTime: "full_time",
+        industrySection: "N",
+        occupationMajorGroup: "2",
+        managesPeople: true,
+        ownershipSector: "private",
+        organizationTenure: "3_5_years",
+
         employmentStatus: "employed",
         industryCode: "professional_services",
         jobLevel: "director",
+        jobFunction: "general_management",
+        organizationSize: "medium",
+        employmentSector: "private",
 
-        schemaVersion: "1.0",
-        dictionaryVersion: "2026-01",
-
-        completedAt: "2026-06-27T10:00:00.000Z",
+        schemaVersion: "1.1",
+        dictionaryVersion: "2026-09",
+        completedAt: "2026-09-06T10:00:00.000Z",
 
         consentVersion: "2026-01",
-        consentAcceptedAt: "2026-06-27T10:05:00.000Z",
+        consentAcceptedAt: "2026-09-06T10:05:00.000Z",
         consentWithdrawnAt: null,
 
         rewardStatus: null,
@@ -42,9 +59,10 @@ describe("buildNormativeProfilesCsv", () => {
     ]);
 
     expect(csv).toContain('"profile-1"');
-    expect(csv).toContain('"owner@example.com"');
-    expect(csv).toContain('"professional_services"');
-    expect(csv).toContain('"2026-06-27T10:00:00.000Z"');
+    expect(csv).toContain('"is_working_for_norms"');
+    expect(csv).toContain('"industry_section_pkd2025"');
+    expect(csv).toContain('"N"');
+    expect(csv).toContain('"2"');
     expect(csv).toContain('"active"');
   });
 });

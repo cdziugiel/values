@@ -9,6 +9,13 @@ import { requireSession } from "@/server/auth/require-session";
 import {
   normativeProfileFormSchema,
 } from "../forms/normative-profile.schema";
+import {
+  mapEmploymentFormToLegacyStatus,
+  mapOwnershipToLegacySector,
+  mapPkd2025ToLegacyIndustry,
+  resolveIsWorkingForNorms,
+} from "../lib/normative-profile-derived";
+// @humanet-normative-profile-v1_1-actions
 import { redirect } from "next/navigation";
 
 import type {
@@ -49,73 +56,48 @@ function readStringArray(
 function readFormValues(
   formData: FormData,
 ): NormativeProfileFormValues {
+  const workedLastWeek = readText(formData, "workedLastWeek");
+  const hasJobTemporaryAbsence = readText(formData, "hasJobTemporaryAbsence");
+  const isWorkingForNorms = resolveIsWorkingForNorms(
+    workedLastWeek,
+    hasJobTemporaryAbsence,
+  );
+  const employmentForm = readText(formData, "employmentForm") || "not_applicable";
+  const industrySection = readText(formData, "industrySection") || "not_applicable";
+  const ownershipSector = readText(formData, "ownershipSector") || "not_applicable";
+
   return {
-    dateOfBirth:
-      readText(
-        formData,
-        "dateOfBirth",
-      ),
-    sex:
-      readText(formData, "sex"),
-    countryCode:
-      readText(
-        formData,
-        "countryCode",
-      ) || "PL",
-    voivodeshipCode:
-      readText(
-        formData,
-        "voivodeshipCode",
-      ),
-    localitySize:
-      readText(
-        formData,
-        "localitySize",
-      ),
-    educationLevel:
-      readText(
-        formData,
-        "educationLevel",
-      ),
-    educationFields:
-      readStringArray(
-        formData,
-        "educationFields",
-      ),
-    employmentStatus:
-      readText(
-        formData,
-        "employmentStatus",
-      ),
-    industryCode:
-      readText(
-        formData,
-        "industryCode",
-      ),
-    jobLevel:
-      readText(
-        formData,
-        "jobLevel",
-      ),
-    jobFunction:
-      readText(
-        formData,
-        "jobFunction",
-      ),
-    organizationSize:
-      readText(
-        formData,
-        "organizationSize",
-      ),
-    employmentSector:
-      readText(
-        formData,
-        "employmentSector",
-      ),
-    consentAccepted:
-      formData.get(
-        "consentAccepted",
-      ) === "on",
+    dateOfBirth: readText(formData, "dateOfBirth"),
+    sex: readText(formData, "sex"),
+    countryCode: readText(formData, "countryCode") || "PL",
+    voivodeshipCode: readText(formData, "voivodeshipCode"),
+    localitySize: readText(formData, "localitySize"),
+    educationLevel: readText(formData, "educationLevel"),
+    educationFields: readStringArray(formData, "educationFields"),
+
+    workedLastWeek,
+    hasJobTemporaryAbsence,
+    isWorkingForNorms,
+    employmentForm,
+    workTime: readText(formData, "workTime") || "not_applicable",
+    industrySection,
+    occupationMajorGroup: readText(formData, "occupationMajorGroup") || "not_applicable",
+    managesPeople: readText(formData, "managesPeople") || "not_applicable",
+    ownershipSector,
+    organizationTenure: readText(formData, "organizationTenure") || "not_applicable",
+    jobLevel: readText(formData, "jobLevel") || "not_applicable",
+    jobFunction: readText(formData, "jobFunction") || "not_applicable",
+    organizationSize: readText(formData, "organizationSize") || "not_applicable",
+
+    // Legacy compatibility — wartości nie pochodzą już bezpośrednio od respondenta.
+    employmentStatus: mapEmploymentFormToLegacyStatus(
+      employmentForm,
+      isWorkingForNorms,
+    ),
+    industryCode: mapPkd2025ToLegacyIndustry(industrySection),
+    employmentSector: mapOwnershipToLegacySector(ownershipSector),
+
+    consentAccepted: formData.get("consentAccepted") === "on",
   };
 }
 
@@ -189,10 +171,8 @@ async function resolveRequestContext(
   };
 }
 
-const EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB = new Set([
-  "unemployed",
-  "retired",
-]);
+// v1.1: status pracy jest wyliczany z dwustopniowego screenera.
+
 
 
 function resolveSafeCompletedRedirect({
@@ -244,19 +224,7 @@ export async function completeNormativeProfileAction(
     formData,
     "redirectTo",
   );
-const normalizedValues =
-  EMPLOYMENT_STATUSES_WITHOUT_CURRENT_JOB.has(
-    values.employmentStatus,
-  )
-    ? {
-        ...values,
-        industryCode: "not_applicable",
-        jobLevel: "not_applicable",
-        jobFunction: "not_applicable",
-        organizationSize: "not_applicable",
-        employmentSector: "not_applicable",
-      }
-    : values;
+const normalizedValues = values;
   const tenantSlug =
     readText(
       formData,
