@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildNormativeProfilesCsv } from "./normative-profile-csv";
 
+// @humanet-normative-admin-v1_1_2-r3-csv-test
 describe("buildNormativeProfilesCsv", () => {
   it("exports v1.1 normative profile fields used for worker benchmarks", () => {
     const csv = buildNormativeProfilesCsv([
@@ -13,20 +14,30 @@ describe("buildNormativeProfilesCsv", () => {
 
         revision: 2,
         excludedFromNorms: false,
+
+        birthYear: 1990,
         ageAtAssessment: 36,
 
         sex: "female",
         countryCode: "PL",
         voivodeshipCode: "14",
         localitySize: "city_100k_250k",
+
         educationLevel: "master",
+        educationFields: [
+          "social_sciences",
+        ],
 
         workedLastWeek: true,
         hasJobTemporaryAbsence: null,
         isWorkingForNorms: true,
+
         employmentForm: "employee",
         workTime: "full_time",
+
+        industryClassification: "PKD2025",
         industrySection: "N",
+
         occupationMajorGroup: "2",
         managesPeople: true,
         ownershipSector: "private",
@@ -38,6 +49,8 @@ describe("buildNormativeProfilesCsv", () => {
         jobFunction: "general_management",
         organizationSize: "medium",
         employmentSector: "private",
+
+        recruitmentChannel: "research_panel",
 
         schemaVersion: "1.1",
         dictionaryVersion: "2026-09",

@@ -146,12 +146,18 @@ export async function getSystemNormativeProfilesPageData({
     localitySize: normativeProfiles.localitySize,
     educationLevel:
       normativeProfiles.educationLevel,
+    birthYear:
+      normativeProfiles.birthYear,
+    educationFields:
+      normativeProfiles.educationFields,
 
     workedLastWeek: normativeProfiles.workedLastWeek,
     hasJobTemporaryAbsence: normativeProfiles.hasJobTemporaryAbsence,
     isWorkingForNorms: normativeProfiles.isWorkingForNorms,
     employmentForm: normativeProfiles.employmentForm,
     workTime: normativeProfiles.workTime,
+    industryClassification:
+      normativeProfiles.industryClassification,
     industrySection: normativeProfiles.industrySection,
     occupationMajorGroup: normativeProfiles.occupationMajorGroup,
     managesPeople: normativeProfiles.managesPeople,
@@ -166,7 +172,10 @@ export async function getSystemNormativeProfilesPageData({
     jobFunction: normativeProfiles.jobFunction,
     organizationSize: normativeProfiles.organizationSize,
     employmentSector: normativeProfiles.employmentSector,
+    recruitmentChannel:
+      normativeProfiles.recruitmentChannel,
     // @humanet-normative-profile-v1_1-admin
+    // @humanet-normative-admin-v1_1_2-r3-query
 
     schemaVersion:
       normativeProfiles.schemaVersion,
@@ -406,6 +415,8 @@ export async function getSystemNormativeProfileDetail({
           normativeProfiles.employmentForm,
         workTime:
           normativeProfiles.workTime,
+        industryClassification:
+          normativeProfiles.industryClassification,
         industrySection:
           normativeProfiles.industrySection,
         occupationMajorGroup:
