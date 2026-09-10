@@ -28,7 +28,9 @@ describe("buildNormativeProfilesCsv", () => {
           "social_sciences",
         ],
 
-        workedLastWeek: true,
+        // @humanet-normative-work-situation-v1_2-csv-test
+        workSituation: "working",
+        workedLastWeek: null,
         hasJobTemporaryAbsence: null,
         isWorkingForNorms: true,
 
@@ -52,8 +54,8 @@ describe("buildNormativeProfilesCsv", () => {
 
         recruitmentChannel: "research_panel",
 
-        schemaVersion: "1.1",
-        dictionaryVersion: "2026-09",
+        schemaVersion: "1.2",
+        dictionaryVersion: "2026-09-10",
         completedAt: "2026-09-06T10:00:00.000Z",
 
         consentVersion: "2026-01",

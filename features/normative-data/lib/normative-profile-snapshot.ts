@@ -28,8 +28,8 @@ export type NormativeProfileSnapshot = {
   baelEducationGroup: string | null;
   educationFields: string[];
 
-  workedLastWeek: string;
-  hasJobTemporaryAbsence: string;
+  // @humanet-normative-work-situation-v1_2-snapshot
+  workSituation: string;
   isWorkingForNorms: boolean;
   employmentForm: string;
   workTime: string;
@@ -81,8 +81,7 @@ export function buildNormativeProfileSnapshot({
     baelEducationGroup: mapEducationToBael(data.educationLevel),
     educationFields: [...data.educationFields],
 
-    workedLastWeek: data.workedLastWeek,
-    hasJobTemporaryAbsence: data.hasJobTemporaryAbsence,
+    workSituation: data.workSituation,
     isWorkingForNorms: data.isWorkingForNorms,
     employmentForm: data.employmentForm,
     workTime: data.workTime,

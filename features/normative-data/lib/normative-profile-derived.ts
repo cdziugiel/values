@@ -10,6 +10,28 @@ export type BaelEducationGroup =
 export type ResidenceType = "urban" | "rural" | null;
 export type EconomicSector = "agriculture" | "industry" | "services" | null;
 
+// @humanet-normative-work-situation-v1_2-derived
+export type WorkSituation = "working" | "temporarily_not_working" | "not_working";
+
+export function resolveIsWorkingForNormsFromSituation(value: string): boolean {
+  return value === "working" || value === "temporarily_not_working";
+}
+
+export function inferWorkSituationFromLegacy(input: {
+  workSituation?: string | null;
+  workedLastWeek?: boolean | null;
+  hasJobTemporaryAbsence?: boolean | null;
+  employmentStatus?: string | null;
+}): WorkSituation | "" {
+  if (input.workSituation === "working" || input.workSituation === "temporarily_not_working" || input.workSituation === "not_working") return input.workSituation;
+  if (input.workedLastWeek === true) return "working";
+  if (input.workedLastWeek === false && input.hasJobTemporaryAbsence === true) return "temporarily_not_working";
+  if (input.workedLastWeek === false && input.hasJobTemporaryAbsence === false) return "not_working";
+  if (input.employmentStatus === "employed" || input.employmentStatus === "self_employed") return "working";
+  if (input.employmentStatus === "unemployed" || input.employmentStatus === "retired") return "not_working";
+  return "";
+}
+
 export function answerToBoolean(value: string): boolean | null {
   if (value === "yes") return true;
   if (value === "no") return false;

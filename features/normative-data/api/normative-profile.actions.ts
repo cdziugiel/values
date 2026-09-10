@@ -13,7 +13,7 @@ import {
   mapEmploymentFormToLegacyStatus,
   mapOwnershipToLegacySector,
   mapPkd2025ToLegacyIndustry,
-  resolveIsWorkingForNorms,
+  resolveIsWorkingForNormsFromSituation,
 } from "../lib/normative-profile-derived";
 // @humanet-normative-profile-v1_1-actions
 import { redirect } from "next/navigation";
@@ -56,12 +56,9 @@ function readStringArray(
 function readFormValues(
   formData: FormData,
 ): NormativeProfileFormValues {
-  const workedLastWeek = readText(formData, "workedLastWeek");
-  const hasJobTemporaryAbsence = readText(formData, "hasJobTemporaryAbsence");
-  const isWorkingForNorms = resolveIsWorkingForNorms(
-    workedLastWeek,
-    hasJobTemporaryAbsence,
-  );
+  // @humanet-normative-work-situation-v1_2-actions
+  const workSituation = readText(formData, "workSituation");
+  const isWorkingForNorms = resolveIsWorkingForNormsFromSituation(workSituation);
   const employmentForm = readText(formData, "employmentForm") || "not_applicable";
   const industrySection = readText(formData, "industrySection") || "not_applicable";
   const ownershipSector = readText(formData, "ownershipSector") || "not_applicable";
@@ -75,8 +72,7 @@ function readFormValues(
     educationLevel: readText(formData, "educationLevel"),
     educationFields: readStringArray(formData, "educationFields"),
 
-    workedLastWeek,
-    hasJobTemporaryAbsence,
+    workSituation,
     isWorkingForNorms,
     employmentForm,
     workTime: readText(formData, "workTime") || "not_applicable",
@@ -171,7 +167,7 @@ async function resolveRequestContext(
   };
 }
 
-// v1.1: status pracy jest wyliczany z dwustopniowego screenera.
+// v1.2: status pracy jest wyliczany z jednego pytania o obecną sytuację zawodową.
 
 
 

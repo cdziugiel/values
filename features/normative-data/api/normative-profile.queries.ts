@@ -12,9 +12,12 @@ import {
   booleanToAnswer,
   inferEmploymentFormFromLegacy,
   inferLegacyWorkingStatus,
+  inferWorkSituationFromLegacy,
 } from "../lib/normative-profile-derived";
+import { NORMATIVE_DICTIONARY_VERSION, NORMATIVE_PROFILE_SCHEMA_VERSION } from "../lib/normative-profile-options";
 import type { NormativeProfileStatusDto } from "../types/normative-profile.types";
 // @humanet-normative-profile-v1_1-queries
+// @humanet-normative-work-situation-v1_2-queries
 
 export async function getNormativeProfileStatus({
   ownerUserId,
@@ -35,6 +38,7 @@ export async function getNormativeProfileStatus({
     return {
       completed: false,
       linkedToCurrentSession: false,
+      needsProfileUpgrade: false,
       profileId: null,
       revision: null,
       consentAcceptedAt: null,
@@ -79,6 +83,7 @@ export async function getNormativeProfileStatus({
   return {
     completed: true,
     linkedToCurrentSession: Boolean(links[0]),
+    needsProfileUpgrade: profile.schemaVersion !== NORMATIVE_PROFILE_SCHEMA_VERSION || profile.dictionaryVersion !== NORMATIVE_DICTIONARY_VERSION,
     profileId: profile.id,
     revision: profile.revision,
     consentAcceptedAt: consent?.acceptedAt?.toISOString() ?? null,
@@ -95,14 +100,12 @@ export async function getNormativeProfileStatus({
         educationLevel: profile.educationLevel ?? "",
         educationFields: profile.educationFields,
 
-        workedLastWeek:
-          profile.workedLastWeek == null
-            ? (legacyWorking === true ? "yes" : legacyWorking === false ? "no" : "")
-            : booleanToAnswer(profile.workedLastWeek),
-        hasJobTemporaryAbsence:
-          profile.hasJobTemporaryAbsence == null
-            ? (legacyWorking === true ? "not_applicable" : legacyWorking === false ? "no" : "")
-            : booleanToAnswer(profile.hasJobTemporaryAbsence),
+        workSituation: inferWorkSituationFromLegacy({
+          workSituation: profile.workSituation,
+          workedLastWeek: profile.workedLastWeek,
+          hasJobTemporaryAbsence: profile.hasJobTemporaryAbsence,
+          employmentStatus: profile.employmentStatus,
+        }),
         isWorkingForNorms,
         employmentForm:
           profile.employmentForm ?? inferEmploymentFormFromLegacy(profile.employmentStatus),

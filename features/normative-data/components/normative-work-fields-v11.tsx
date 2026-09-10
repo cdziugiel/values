@@ -14,10 +14,12 @@ import {
   ORGANIZATION_SIZE_OPTIONS,
   ORGANIZATION_TENURE_OPTIONS,
   OWNERSHIP_SECTOR_OPTIONS,
+  WORK_SITUATION_OPTIONS,
   WORK_TIME_OPTIONS,
-  YES_NO_OPTIONS,
 } from "../lib/normative-profile-options";
+import { resolveIsWorkingForNormsFromSituation } from "../lib/normative-profile-derived";
 import type { NormativeProfileFormValues } from "../types/normative-profile-action.types";
+// @humanet-normative-work-situation-v1_2-form
 
 const selectClassName =
   "mt-auto flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
@@ -85,26 +87,16 @@ export function NormativeWorkFieldsV11({
 }: {
   defaultValues?: NormativeProfileFormValues;
 }) {
-  const [workedLastWeek, setWorkedLastWeek] = useState(
-    defaultValues?.workedLastWeek ?? "",
-  );
-  const [temporaryAbsence, setTemporaryAbsence] = useState(
-    defaultValues?.hasJobTemporaryAbsence === "not_applicable"
-      ? ""
-      : (defaultValues?.hasJobTemporaryAbsence ?? ""),
+  const [workSituation, setWorkSituation] = useState(
+    defaultValues?.workSituation ?? "",
   );
 
   const isWorking = useMemo(
-    () =>
-      workedLastWeek === "yes" ||
-      (workedLastWeek === "no" && temporaryAbsence === "yes"),
-    [workedLastWeek, temporaryAbsence],
+    () => resolveIsWorkingForNormsFromSituation(workSituation),
+    [workSituation],
   );
 
-  const screeningComplete =
-    workedLastWeek === "yes" ||
-    (workedLastWeek === "no" &&
-      (temporaryAbsence === "yes" || temporaryAbsence === "no"));
+  const situationSelected = workSituation.length > 0;
 
   return (
     <section className="space-y-5">
@@ -112,38 +104,16 @@ export function NormativeWorkFieldsV11({
         <h3 className="font-semibold">Sytuacja zawodowa</h3>
       </div>
 
-      <div className="grid gap-4">
-        <SelectFieldV111
-          id="workedLastWeek"
-          name="workedLastWeek"
-          label="Czy pracowałeś/-aś w ostatnich 7 dniach?"
-          helper="Co najmniej 1 godzinę za wynagrodzeniem lub dochodem, także w rodzinnej działalności."
-          options={YES_NO_OPTIONS}
-          defaultValue={workedLastWeek}
-          onChange={(event) => {
-            setWorkedLastWeek(event.target.value);
-            if (event.target.value === "yes") {
-              setTemporaryAbsence("");
-            }
-          }}
-        />
+      <SelectFieldV111
+        id="workSituation"
+        name="workSituation"
+        label="Która odpowiedź najlepiej opisuje Twoją obecną sytuację?"
+        options={WORK_SITUATION_OPTIONS}
+        defaultValue={workSituation}
+        onChange={(event) => setWorkSituation(event.target.value)}
+      />
 
-        {workedLastWeek === "no" ? (
-          <SelectFieldV111
-            id="hasJobTemporaryAbsence"
-            name="hasJobTemporaryAbsence"
-            label="Czy nadal masz pracę lub działalność?"
-            helper="Mimo że w ostatnich 7 dniach czasowo nie pracowałeś/-aś."
-            options={YES_NO_OPTIONS}
-            defaultValue={temporaryAbsence}
-            onChange={(event) => setTemporaryAbsence(event.target.value)}
-          />
-        ) : workedLastWeek === "yes" ? (
-          <input type="hidden" name="hasJobTemporaryAbsence" value="not_applicable" />
-        ) : null}
-      </div>
-
-      {screeningComplete && isWorking ? (
+      {situationSelected && isWorking ? (
         <>
           <div className="border-t pt-4">
             <p className="text-sm font-semibold">Główna praca</p>
@@ -225,7 +195,7 @@ export function NormativeWorkFieldsV11({
             />
           </div>
         </>
-      ) : screeningComplete ? (
+      ) : situationSelected ? (
         <>
           <input type="hidden" name="employmentForm" value="not_applicable" />
           <input type="hidden" name="workTime" value="not_applicable" />

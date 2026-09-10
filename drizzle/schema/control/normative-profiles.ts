@@ -11,8 +11,8 @@ export const normativeProfiles = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     revision: integer("revision").notNull().default(1),
-    schemaVersion: text("schema_version").notNull().default("1.1"),
-    dictionaryVersion: text("dictionary_version").notNull().default("2026-09"),
+    schemaVersion: text("schema_version").notNull().default("1.2"),
+    dictionaryVersion: text("dictionary_version").notNull().default("2026-09-10"),
     dateOfBirth: date("date_of_birth").notNull(),
     birthYear: integer("birth_year").notNull(),
     sex: text("sex").notNull(),
@@ -22,7 +22,10 @@ export const normativeProfiles = pgTable(
     educationLevel: text("education_level"),
     educationFields: jsonb("education_fields").$type<string[]>().notNull().default([]),
 
-    // v1.1 — screening pracy i benchmark "Pracujący w Polsce".
+    // @humanet-normative-work-situation-v1_2-db
+    workSituation: text("work_situation"),
+
+    // v1.1 legacy — historyczny screener 7-dniowy.
     workedLastWeek: boolean("worked_last_week"),
     hasJobTemporaryAbsence: boolean("has_job_temporary_absence"),
     isWorkingForNorms: boolean("is_working_for_norms"),
@@ -62,6 +65,7 @@ export const normativeProfiles = pgTable(
     uniqueIndex("normative_profiles_owner_user_uidx").on(table.ownerUserId),
     index("normative_profiles_sex_idx").on(table.sex),
     index("normative_profiles_voivodeship_idx").on(table.voivodeshipCode),
+    index("normative_profiles_work_situation_idx").on(table.workSituation),
     index("normative_profiles_working_idx").on(table.isWorkingForNorms),
     index("normative_profiles_occupation_major_group_idx").on(table.occupationMajorGroup),
     index("normative_profiles_completed_at_idx").on(table.completedAt),

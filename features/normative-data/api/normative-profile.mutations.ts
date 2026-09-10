@@ -22,10 +22,11 @@ import {
   booleanToAnswer,
   inferEmploymentFormFromLegacy,
   inferLegacyWorkingStatus,
+  inferWorkSituationFromLegacy,
   mapEmploymentFormToLegacyStatus,
   mapOwnershipToLegacySector,
   mapPkd2025ToLegacyIndustry,
-  resolveIsWorkingForNorms,
+  resolveIsWorkingForNormsFromSituation,
 } from "../lib/normative-profile-derived";
 // @humanet-normative-profile-v1_1-mutations
 import {
@@ -94,15 +95,12 @@ function toValues(profile: typeof normativeProfiles.$inferSelect): NormativeProf
   const legacyWorking = inferLegacyWorkingStatus(profile.employmentStatus);
   const isWorkingForNorms = profile.isWorkingForNorms ?? legacyWorking;
 
-  const workedLastWeek =
-    profile.workedLastWeek == null
-      ? (legacyWorking === true ? "yes" : legacyWorking === false ? "no" : "")
-      : booleanToAnswer(profile.workedLastWeek);
-
-  const hasJobTemporaryAbsence =
-    profile.hasJobTemporaryAbsence == null
-      ? (legacyWorking === true ? "not_applicable" : legacyWorking === false ? "no" : "")
-      : booleanToAnswer(profile.hasJobTemporaryAbsence);
+  const workSituation = inferWorkSituationFromLegacy({
+    workSituation: profile.workSituation,
+    workedLastWeek: profile.workedLastWeek,
+    hasJobTemporaryAbsence: profile.hasJobTemporaryAbsence,
+    employmentStatus: profile.employmentStatus,
+  });
 
   return {
     dateOfBirth: profile.dateOfBirth,
@@ -113,8 +111,7 @@ function toValues(profile: typeof normativeProfiles.$inferSelect): NormativeProf
     educationLevel: profile.educationLevel ?? "",
     educationFields: profile.educationFields,
 
-    workedLastWeek,
-    hasJobTemporaryAbsence,
+    workSituation,
     isWorkingForNorms,
     employmentForm:
       profile.employmentForm ?? inferEmploymentFormFromLegacy(profile.employmentStatus),
@@ -252,6 +249,9 @@ export async function ensureNormativeProfileLinkedToSession({
 
   if (!profile) return null;
 
+  // @humanet-normative-work-situation-v1_2-mutations
+  if (profile.schemaVersion !== NORMATIVE_PROFILE_SCHEMA_VERSION || profile.dictionaryVersion !== NORMATIVE_DICTIONARY_VERSION) return null;
+
   const session = await getCompletedOwnedSession({ db, assessmentSessionId, userEmail });
   const ageAtAssessment = calculateAgeAtAssessment(profile.dateOfBirth, session.completedAt);
   const snapshot = buildNormativeProfileSnapshot({
@@ -335,10 +335,7 @@ const [existing] = await controlDb
   )
   .limit(1);
 
-  const isWorkingForNorms = resolveIsWorkingForNorms(
-    parsed.workedLastWeek,
-    parsed.hasJobTemporaryAbsence,
-  );
+  const isWorkingForNorms = resolveIsWorkingForNormsFromSituation(parsed.workSituation);
 
   const profileValues = {
     ownerUserId: userId,
@@ -353,8 +350,10 @@ const [existing] = await controlDb
     educationLevel: parsed.educationLevel,
     educationFields: parsed.educationFields,
 
-    workedLastWeek: answerToBoolean(parsed.workedLastWeek),
-    hasJobTemporaryAbsence: answerToBoolean(parsed.hasJobTemporaryAbsence),
+    workSituation: parsed.workSituation,
+    // v1.1 raw screener fields are historical only; never fake them from the new question.
+    workedLastWeek: null,
+    hasJobTemporaryAbsence: null,
     isWorkingForNorms,
     employmentForm: parsed.employmentForm,
     workTime: parsed.workTime,

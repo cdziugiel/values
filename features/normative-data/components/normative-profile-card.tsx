@@ -239,8 +239,10 @@ export function NormativeProfileCard({
   const [consentError, setConsentError] =
     useState(false);
 
-  const [isEditing, setIsEditing] =
-    useState(!initialStatus.completed);
+  // @humanet-normative-work-situation-v1_2-card
+  const [isEditing, setIsEditing] = useState(
+    !initialStatus.completed || initialStatus.needsProfileUpgrade,
+  );
 
   const [copied, setCopied] =
     useState(false);

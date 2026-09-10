@@ -17,12 +17,12 @@ import {
   ORGANIZATION_TENURE_OPTIONS,
   OWNERSHIP_SECTOR_OPTIONS,
   SEX_OPTIONS,
-  TEMPORARY_ABSENCE_OPTIONS,
   VOIVODESHIP_OPTIONS,
+  WORK_SITUATION_OPTIONS,
   WORK_TIME_OPTIONS,
-  YES_NO_OPTIONS,
 } from "../lib/normative-profile-options";
-import { resolveIsWorkingForNorms } from "../lib/normative-profile-derived";
+import { resolveIsWorkingForNormsFromSituation } from "../lib/normative-profile-derived";
+// @humanet-normative-work-situation-v1_2-schema
 
 function optionValues<const T extends readonly { value: string }[]>(options: T) {
   return options.map((option) => option.value) as [
@@ -71,9 +71,8 @@ export const normativeProfileFormSchema = z.object({
     .array(z.enum(optionValues(EDUCATION_FIELD_OPTIONS)))
     .default([]),
 
-  // v1.1 — screening pracy zgodny z logiką "pracuje / nie pracuje".
-  workedLastWeek: z.enum(optionValues(YES_NO_OPTIONS)),
-  hasJobTemporaryAbsence: z.enum(optionValues(TEMPORARY_ABSENCE_OPTIONS)),
+  // v1.2 — jedno pytanie o obecną sytuację zawodową.
+  workSituation: z.enum(optionValues(WORK_SITUATION_OPTIONS)),
   isWorkingForNorms: z.boolean(),
 
   employmentForm: z.enum(optionValues(EMPLOYMENT_FORM_OPTIONS)),
@@ -92,32 +91,13 @@ export const normativeProfileFormSchema = z.object({
   industryCode: z.enum(optionValues(INDUSTRY_OPTIONS)),
   employmentSector: z.enum(optionValues(EMPLOYMENT_SECTOR_OPTIONS)),
 }).superRefine((data, ctx) => {
-  const expectedWorking = resolveIsWorkingForNorms(
-    data.workedLastWeek,
-    data.hasJobTemporaryAbsence,
-  );
+  const expectedWorking = resolveIsWorkingForNormsFromSituation(data.workSituation);
 
   if (data.isWorkingForNorms !== expectedWorking) {
     ctx.addIssue({
       code: "custom",
       path: ["isWorkingForNorms"],
       message: "Niespójny status pracy.",
-    });
-  }
-
-  if (data.workedLastWeek === "yes" && data.hasJobTemporaryAbsence !== "not_applicable") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["hasJobTemporaryAbsence"],
-      message: "Dla osoby pracującej w ostatnich 7 dniach pole powinno mieć wartość „Nie dotyczy”.",
-    });
-  }
-
-  if (data.workedLastWeek === "no" && data.hasJobTemporaryAbsence === "not_applicable") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["hasJobTemporaryAbsence"],
-      message: "Określ, czy masz pracę, z której czasowo nie wykonywałeś/-aś obowiązków.",
     });
   }
 

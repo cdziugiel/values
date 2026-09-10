@@ -102,6 +102,15 @@ function rewardLabel(
     : null;
 }
 
+// @humanet-normative-work-situation-v1_2-admin-page
+function currentSituationLabel(row: { workSituation: string | null; workedLastWeek: boolean | null; hasJobTemporaryAbsence: boolean | null; employmentStatus: string | null }) {
+  if (row.workSituation) return enumLabel("workSituation", row.workSituation);
+  if (row.workedLastWeek === true) return "Historycznie: pracował(a) w okresie 7 dni";
+  if (row.workedLastWeek === false && row.hasJobTemporaryAbsence === true) return "Historycznie: czasowa nieobecność w pracy";
+  if (row.workedLastWeek === false && row.hasJobTemporaryAbsence === false) return "Historycznie: niepracujący(a)";
+  return row.employmentStatus ? `Legacy: ${enumLabel("employmentStatus", row.employmentStatus)}` : "—";
+}
+
 function workingLabel(
   row: {
     isWorkingForNorms: boolean | null;
@@ -466,7 +475,10 @@ export function NormativeProfilesAdminPage({
 
                     <td className="px-4 py-3">
                       <div className="font-medium">
-                        {workingLabel(row)}
+                        {currentSituationLabel(row)}
+                      </div>
+                      <div className="text-muted-foreground">
+                        Normy: {workingLabel(row)}
                       </div>
                       <div className="text-muted-foreground">
                         {workFormLabel(row)}

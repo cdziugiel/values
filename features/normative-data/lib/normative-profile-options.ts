@@ -1,6 +1,6 @@
 // @humanet-normative-profile-v1_1
-export const NORMATIVE_PROFILE_SCHEMA_VERSION = "1.1" as const;
-export const NORMATIVE_DICTIONARY_VERSION = "2026-09" as const;
+export const NORMATIVE_PROFILE_SCHEMA_VERSION = "1.2" as const;
+export const NORMATIVE_DICTIONARY_VERSION = "2026-09-10" as const;
 export const NORMATIVE_CONSENT_VERSION = "2026-01" as const;
 
 export const SEX_OPTIONS = [
@@ -98,6 +98,13 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
   { value: "retired", label: "Emerytura / renta" },
   { value: "other", label: "Inna sytuacja" },
   { value: "prefer_not_to_say", label: "Wolę nie podawać" },
+] as const;
+
+// @humanet-normative-work-situation-v1_2-options
+export const WORK_SITUATION_OPTIONS = [
+  { value: "working", label: "Pracuję" },
+  { value: "temporarily_not_working", label: "Mam pracę lub działalność, ale obecnie czasowo nie pracuję" },
+  { value: "not_working", label: "Obecnie nie pracuję" },
 ] as const;
 
 export const YES_NO_OPTIONS = [

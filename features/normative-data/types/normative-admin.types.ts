@@ -24,6 +24,8 @@ export type NormativeProfileAdminRowDto = {
   educationLevel: string | null;
   educationFields: string[];
 
+  // @humanet-normative-work-situation-v1_2-admin-types
+  workSituation: string | null;
   workedLastWeek: boolean | null;
   hasJobTemporaryAbsence: boolean | null;
   isWorkingForNorms: boolean | null;

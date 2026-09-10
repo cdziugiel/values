@@ -151,6 +151,8 @@ export async function getSystemNormativeProfilesPageData({
     educationFields:
       normativeProfiles.educationFields,
 
+    // @humanet-normative-work-situation-v1_2-admin-query
+    workSituation: normativeProfiles.workSituation,
     workedLastWeek: normativeProfiles.workedLastWeek,
     hasJobTemporaryAbsence: normativeProfiles.hasJobTemporaryAbsence,
     isWorkingForNorms: normativeProfiles.isWorkingForNorms,
@@ -405,6 +407,8 @@ export async function getSystemNormativeProfileDetail({
           normativeProfiles.educationLevel,
         educationFields:
           normativeProfiles.educationFields,
+        workSituation:
+          normativeProfiles.workSituation,
         workedLastWeek:
           normativeProfiles.workedLastWeek,
         hasJobTemporaryAbsence:

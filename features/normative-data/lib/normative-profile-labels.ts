@@ -16,6 +16,7 @@ import {
   OWNERSHIP_SECTOR_OPTIONS,
   SEX_OPTIONS,
   VOIVODESHIP_OPTIONS,
+  WORK_SITUATION_OPTIONS,
   WORK_TIME_OPTIONS,
   YES_NO_OPTIONS,
 } from "./normative-profile-options";
@@ -36,6 +37,8 @@ const maps = {
   educationLevel: buildLabelMap(ALL_EDUCATION_LEVEL_OPTIONS),
   educationField: buildLabelMap(EDUCATION_FIELD_OPTIONS),
 
+  // @humanet-normative-work-situation-v1_2-labels
+  workSituation: buildLabelMap(WORK_SITUATION_OPTIONS),
   workedLastWeek: buildLabelMap(YES_NO_OPTIONS),
   employmentForm: buildLabelMap(EMPLOYMENT_FORM_OPTIONS),
   workTime: buildLabelMap(WORK_TIME_OPTIONS),

@@ -25,6 +25,7 @@ import {
   OWNERSHIP_SECTOR_OPTIONS,
   SEX_OPTIONS,
   VOIVODESHIP_OPTIONS,
+  WORK_SITUATION_OPTIONS,
   WORK_TIME_OPTIONS,
 } from "./normative-profile-options";
 import {
@@ -188,13 +189,12 @@ export async function buildNormativeProfilesXlsx(
     { header: "education_fields_labels", key: "educationFieldsLabels", width: 54 },
     { header: "bael_education_group", key: "baelEducationGroup", width: 40 },
 
-    { header: "worked_last_week", key: "workedLastWeek", width: 20 },
-    {
-      header: "has_job_temporary_absence",
-      key: "hasJobTemporaryAbsence",
-      width: 30,
-    },
+    // @humanet-normative-work-situation-v1_2-xlsx
+    { header: "work_situation_code", key: "workSituationCode", width: 28 },
+    { header: "work_situation_label", key: "workSituationLabel", width: 58 },
     { header: "is_working_for_norms", key: "isWorkingForNorms", width: 24 },
+    { header: "legacy_worked_last_week_v1_1", key: "workedLastWeek", width: 28 },
+    { header: "legacy_has_job_temporary_absence_v1_1", key: "hasJobTemporaryAbsence", width: 38 },
 
     { header: "employment_form_code", key: "employmentFormCode", width: 32 },
     { header: "employment_form_label", key: "employmentFormLabel", width: 54 },
@@ -416,17 +416,11 @@ export async function buildNormativeProfilesXlsx(
       baelEducationGroup:
         baelEducationGroup ?? "",
 
-      workedLastWeek: booleanCode(
-        row.workedLastWeek,
-      ),
-      hasJobTemporaryAbsence:
-        booleanCode(
-          row.hasJobTemporaryAbsence,
-        ),
-      isWorkingForNorms:
-        booleanCode(
-          row.isWorkingForNorms,
-        ),
+      workSituationCode: row.workSituation ?? "",
+      workSituationLabel: label("workSituation", row.workSituation),
+      isWorkingForNorms: booleanCode(row.isWorkingForNorms),
+      workedLastWeek: booleanCode(row.workedLastWeek),
+      hasJobTemporaryAbsence: booleanCode(row.hasJobTemporaryAbsence),
 
       employmentFormCode:
         row.employmentForm ?? "",
@@ -718,18 +712,11 @@ export async function buildNormativeProfilesXlsx(
       "",
     ],
     [
-      "worked_last_week",
-      "Praca w ostatnich 7 dniach",
-      "true / false",
-      "Pierwszy etap screenera pracy.",
-      "",
-    ],
-    [
-      "has_job_temporary_absence",
-      "Praca/działalność mimo czasowej nieobecności",
-      "true / false / puste",
-      "Drugi etap screenera pracy.",
-      "Puste zwykle oznacza „nie dotyczy” lub brak pola w profilu v1.0.",
+      "work_situation_code",
+      "Obecna sytuacja zawodowa",
+      "working / temporarily_not_working / not_working",
+      "Podstawowa zmienna sytuacji zawodowej od schematu v1.2.",
+      "Jedno pytanie respondenta; nie jest rekonstrukcją tygodnia referencyjnego BAEL.",
     ],
     [
       "is_working_for_norms",
@@ -831,6 +818,13 @@ export async function buildNormativeProfilesXlsx(
     "Dziedzina wykształcenia",
     EDUCATION_FIELD_OPTIONS,
     "Wiele odpowiedzi w eksporcie jest rozdzielanych znakiem |.",
+  );
+
+  addLegendOptions(
+    legend,
+    "work_situation_code",
+    "Obecna sytuacja zawodowa",
+    WORK_SITUATION_OPTIONS,
   );
 
   addLegendOptions(

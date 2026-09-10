@@ -26,10 +26,11 @@ export type NormativeProfileValuesDto = {
   educationLevel: string;
   educationFields: string[];
 
-  // v1.1
-  workedLastWeek: string;
-  hasJobTemporaryAbsence: string;
+  // @humanet-normative-work-situation-v1_2-types
+  workSituation: string;
   isWorkingForNorms: boolean | null;
+  workedLastWeek?: string;
+  hasJobTemporaryAbsence?: string;
   employmentForm: string;
   workTime: string;
   industrySection: string;
@@ -63,6 +64,7 @@ export type NormativeProfileCompletionDto = {
 export type NormativeProfileStatusDto = {
   completed: boolean;
   linkedToCurrentSession: boolean;
+  needsProfileUpgrade: boolean;
   profileId: string | null;
   revision: number | null;
   consentAcceptedAt: string | null;

@@ -88,6 +88,15 @@ function rewardLabel(
     : "—";
 }
 
+// @humanet-normative-work-situation-v1_2-admin-detail
+function currentSituationValue(profile: NormativeProfileAdminDetailDto) {
+  if (profile.workSituation) return enumLabel("workSituation", profile.workSituation);
+  if (profile.workedLastWeek === true) return "Historyczny profil v1.1: pracował(a) w okresie referencyjnym 7 dni";
+  if (profile.workedLastWeek === false && profile.hasJobTemporaryAbsence === true) return "Historyczny profil v1.1: czasowa nieobecność w pracy";
+  if (profile.workedLastWeek === false && profile.hasJobTemporaryAbsence === false) return "Historyczny profil v1.1: niepracujący(a)";
+  return "Nieustalone";
+}
+
 function workingLabel(
   profile: NormativeProfileAdminDetailDto,
 ) {
@@ -446,16 +455,8 @@ export function NormativeProfileAdminDetail({
         <CardContent>
           <dl>
             <Row
-              label="Praca w ostatnich 7 dniach"
-              value={boolLabel(
-                profile.workedLastWeek,
-              )}
-            />
-            <Row
-              label="Czasowa nieobecność"
-              value={absenceLabel(
-                profile,
-              )}
+              label="Obecna sytuacja zawodowa"
+              value={currentSituationValue(profile)}
             />
             <Row
               label="Kwalifikacja „Pracujący”"
@@ -573,6 +574,8 @@ export function NormativeProfileAdminDetail({
           </p>
 
           <dl>
+            <Row label="Praca w okresie 7 dni (v1.1)" value={boolLabel(profile.workedLastWeek)} />
+            <Row label="Czasowa nieobecność (v1.1)" value={absenceLabel(profile)} />
             <Row
               label="Status zawodowy"
               value={enumLabel(
