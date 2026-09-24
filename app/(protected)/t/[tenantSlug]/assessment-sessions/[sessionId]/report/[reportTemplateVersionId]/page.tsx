@@ -95,7 +95,6 @@ function buildSessionResultsHref({
   const searchParams = buildReportSearchParams({
     projectQuestionnaireId,
     questionnaireVersionId,
-    source,
   });
 
   return appendSearchParams(
@@ -140,6 +139,7 @@ function TenantReportPdfDownloadButton({
     reportTemplateVersionId,
     projectQuestionnaireId,
     questionnaireVersionId,
+    source,
   });
 
   return (
