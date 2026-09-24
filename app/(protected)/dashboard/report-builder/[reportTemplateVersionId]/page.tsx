@@ -8,7 +8,10 @@ import { requireSuperAdmin } from "@/server/auth/require-super-admin";
 
 import { getReportTemplateVersionEditor } from "@/features/report-builder/api/report-builder.queries";
 import { ReportTemplateVersionEditor } from "@/features/report-builder/components/report-template-version-editor";
-import { ReportConditionHelpDialog } from "@/features/report-builder";
+import {
+  ReportBuilderTransferControls,
+  ReportConditionHelpDialog,
+} from "@/features/report-builder";
 import { ReportDataReferencePanel } from "@/features/report-builder/components/report-data-reference-panel";
 import { listReportPreviewSessionOptions } from "@/features/report-builder/api/report-preview-session.queries";
 import { getReportPreviewDefinition } from "@/features/report-builder/api/report-preview-data.queries";
@@ -74,6 +77,10 @@ export default async function ReportBuilderPage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
+          <ReportBuilderTransferControls
+            reportTemplateVersionId={reportTemplateVersionId}
+            status={reportTemplateVersion.status}
+          />
           <ReportConditionHelpDialog />
 <ReportDataPreviewPicker
   reportTemplateVersionId={reportTemplateVersionId}

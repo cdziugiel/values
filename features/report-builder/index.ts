@@ -80,6 +80,7 @@ export { ReportTemplateVersionEditor } from "./components/report-template-versio
 export { ReportA4PreviewFrame } from "./components/report-a4-preview-frame";
 export { ReportDocumentPreviewFrame } from "./components/report-document-preview-frame";
 export { ReportConditionHelpDialog } from "./components/report-condition-help-dialog";
+export { ReportBuilderTransferControls } from "./components/report-builder-transfer-controls";
 
 export { getReportTemplateVersionEditor } from "./api/report-builder.queries";
 export { getReportTemplateVersionForRender } from "./api/report-render.queries";
