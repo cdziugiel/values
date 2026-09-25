@@ -232,6 +232,13 @@
       "when": 1789062902193,
       "tag": "0032_calm_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790239460025,
+      "tag": "0033_report-multi-output-binding-v1",
+      "breakpoints": true
     }
   ]
 }

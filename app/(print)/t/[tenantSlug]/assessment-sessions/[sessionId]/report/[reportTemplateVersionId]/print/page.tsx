@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { getTenantAssessmentSessionReport } from "@/features/assessment-results/api/assessment-session-report.queries";
 import { getReportTemplateVersionForRender } from "@/features/report-builder/api/report-render.queries";
+import { getSuperAdminBuilderPreviewReport } from "@/features/report-builder/api/report-preview-real-session.queries";
 import { renderReportDocument } from "@/features/report-builder/lib/report-template-renderer";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ type PageProps = {
   searchParams: Promise<{
     projectQuestionnaireId?: string;
     questionnaireVersionId?: string;
+    source?: string;
   }>;
 };
 
@@ -39,7 +41,10 @@ export default async function TenantAssessmentReportPrintPage({
   const {
     projectQuestionnaireId,
     questionnaireVersionId,
+    source,
   } = await searchParams;
+
+  const isBuilderPreview = source === "builder-preview";
 
   if (
     !tenantSlug.trim() ||
@@ -55,17 +60,28 @@ export default async function TenantAssessmentReportPrintPage({
     reportTemplateVersionId,
     projectQuestionnaireId,
     questionnaireVersionId,
+    source,
   });
 
-  const result = await getTenantAssessmentSessionReport({
-    tenantSlug,
-    sessionId,
-    reportTemplateVersionId,
-    projectQuestionnaireId:
-      projectQuestionnaireId?.trim() || null,
-    questionnaireVersionId:
-      questionnaireVersionId?.trim() || null,
-  });
+  const result = isBuilderPreview
+    ? await getSuperAdminBuilderPreviewReport({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId,
+        projectQuestionnaireId:
+          projectQuestionnaireId?.trim() || null,
+        questionnaireVersionId:
+          questionnaireVersionId?.trim() || null,
+      })
+    : await getTenantAssessmentSessionReport({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId,
+        projectQuestionnaireId:
+          projectQuestionnaireId?.trim() || null,
+        questionnaireVersionId:
+          questionnaireVersionId?.trim() || null,
+      });
 
   if (!result?.payload) {
     notFound();

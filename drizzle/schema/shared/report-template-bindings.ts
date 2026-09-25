@@ -60,7 +60,9 @@ export const questionnaireReportTemplateBindings = pgTable(
     oneActiveDefaultPerQuestionnaireVersion: uniqueIndex(
       "qrtb_one_default_per_questionnaire_version_idx",
     )
-      .on(table.questionnaireVersionId, table.isDefault)
-      .where(sql`deleted_at is null`),
+      .on(table.questionnaireVersionId)
+      .where(
+        sql`deleted_at is null and status = 'active' and is_default = true`,
+      ),
   }),
 );

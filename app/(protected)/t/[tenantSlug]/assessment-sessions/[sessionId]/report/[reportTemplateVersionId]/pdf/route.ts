@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { getTenantAssessmentSessionReport } from "@/features/assessment-results/api/assessment-session-report.queries";
+import { getSuperAdminBuilderPreviewReport } from "@/features/report-builder/api/report-preview-real-session.queries";
 import { renderReportPdfFromUrl } from "@/features/report-builder/lib/render-report-pdf";
 import { resolveReportRenderOrigin } from "@/features/report-builder/lib/resolve-report-render-origin";
 
@@ -39,28 +40,40 @@ export async function GET(
     request.nextUrl.searchParams.get("questionnaireVersionId"),
   );
 
+  const source = normalizeOptionalString(
+    request.nextUrl.searchParams.get("source"),
+  );
+
+  const isBuilderPreview = source === "builder-preview";
+
   console.log("TENANT_REPORT_PDF_PARAMS", {
     tenantSlug,
     sessionId,
     reportTemplateVersionId,
     projectQuestionnaireId,
     questionnaireVersionId,
+    source,
   });
 
   /*
-   * To query pełni tutaj rolę tenantowego guarda:
-   * - wymaga sesji,
-   * - rozwiązuje tenant context,
-   * - sprawdza uprawnienie,
-   * - sprawdza sesję i wersję raportu.
+   * Zwykły tryb zachowuje tenantowy guard i wymóg aktywnego grantu.
+   * Builder preview korzysta wyłącznie z audytowanej ścieżki SUPER_ADMIN.
    */
-  const report = await getTenantAssessmentSessionReport({
-    tenantSlug,
-    sessionId,
-    reportTemplateVersionId,
-    projectQuestionnaireId,
-    questionnaireVersionId,
-  });
+  const report = isBuilderPreview
+    ? await getSuperAdminBuilderPreviewReport({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId,
+        projectQuestionnaireId,
+        questionnaireVersionId,
+      })
+    : await getTenantAssessmentSessionReport({
+        tenantSlug,
+        sessionId,
+        reportTemplateVersionId,
+        projectQuestionnaireId,
+        questionnaireVersionId,
+      });
 
   if (!report?.payload) {
     console.warn("TENANT_REPORT_PDF_ACCESS_DENIED", {
@@ -69,6 +82,7 @@ export async function GET(
       reportTemplateVersionId,
       projectQuestionnaireId,
       questionnaireVersionId,
+      source,
     });
 
     return new Response("Brak dostępu do raportu.", {
@@ -92,6 +106,13 @@ export async function GET(
     printUrl.searchParams.set(
       "questionnaireVersionId",
       questionnaireVersionId,
+    );
+  }
+
+  if (isBuilderPreview) {
+    printUrl.searchParams.set(
+      "source",
+      "builder-preview",
     );
   }
 

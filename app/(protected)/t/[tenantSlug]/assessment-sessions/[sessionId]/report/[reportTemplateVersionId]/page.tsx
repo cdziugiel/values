@@ -35,6 +35,7 @@ type TenantReportPdfDownloadButtonProps = ReportScope & {
   tenantSlug: string;
   sessionId: string;
   reportTemplateVersionId: string;
+  source?: "builder-preview" | null;
 };
 
 function normalizeOptionalString(value?: string | null) {
@@ -46,7 +47,10 @@ function normalizeOptionalString(value?: string | null) {
 function buildReportSearchParams({
   projectQuestionnaireId,
   questionnaireVersionId,
-}: ReportScope) {
+  source,
+}: ReportScope & {
+  source?: "builder-preview" | null;
+}) {
   const searchParams = new URLSearchParams();
 
   if (projectQuestionnaireId) {
@@ -61,6 +65,10 @@ function buildReportSearchParams({
       "questionnaireVersionId",
       questionnaireVersionId,
     );
+  }
+
+  if (source === "builder-preview") {
+    searchParams.set("source", "builder-preview");
   }
 
   return searchParams;
@@ -101,10 +109,12 @@ function buildReportPdfHref({
   reportTemplateVersionId,
   projectQuestionnaireId,
   questionnaireVersionId,
+  source,
 }: TenantReportPdfDownloadButtonProps) {
   const searchParams = buildReportSearchParams({
     projectQuestionnaireId,
     questionnaireVersionId,
+    source,
   });
 
   return appendSearchParams(
@@ -121,6 +131,7 @@ function TenantReportPdfDownloadButton({
   reportTemplateVersionId,
   projectQuestionnaireId = null,
   questionnaireVersionId = null,
+  source = null,
 }: TenantReportPdfDownloadButtonProps) {
   const href = buildReportPdfHref({
     tenantSlug,
@@ -128,6 +139,7 @@ function TenantReportPdfDownloadButton({
     reportTemplateVersionId,
     projectQuestionnaireId,
     questionnaireVersionId,
+    source,
   });
 
   return (
@@ -326,6 +338,11 @@ if (!reportTemplateVersion) {
             }
             questionnaireVersionId={
               normalizedQuestionnaireVersionId
+            }
+            source={
+              isBuilderPreview
+                ? "builder-preview"
+                : null
             }
           />
 

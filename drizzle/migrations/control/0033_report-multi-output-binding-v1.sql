@@ -1,0 +1,2 @@
+DROP INDEX "qrtb_one_default_per_questionnaire_version_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "qrtb_one_default_per_questionnaire_version_idx" ON "questionnaire_report_template_bindings" USING btree ("questionnaire_version_id") WHERE deleted_at is null and status = 'active' and is_default = true;

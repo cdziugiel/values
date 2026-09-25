@@ -12,7 +12,7 @@ import {
     tenants,
 } from "@/drizzle/schema/control";
 
-import { questionnaireReportTemplateBindings } from "@/drizzle/schema/shared/report-template-bindings";
+import { reportTemplateVersions } from "@/drizzle/schema/shared/report-builder";
 
 import {
     assessmentProjectQuestionnaires,
@@ -46,25 +46,25 @@ export async function listReportPreviewSessionOptions(input: {
 }): Promise<ReportPreviewSessionOption[]> {
     await requireSuperAdmin();
 
-    const [binding] = await controlDb
+    const [reportVersion] = await controlDb
         .select({
             questionnaireVersionId:
-                questionnaireReportTemplateBindings.questionnaireVersionId,
+                reportTemplateVersions.questionnaireVersionId,
         })
-        .from(questionnaireReportTemplateBindings)
+        .from(reportTemplateVersions)
         .where(
             and(
-                eq(
-                    questionnaireReportTemplateBindings.reportTemplateVersionId,
-                    input.reportTemplateVersionId,
-                ),
-                eq(questionnaireReportTemplateBindings.status, "active"),
-                isNull(questionnaireReportTemplateBindings.deletedAt),
+                eq(reportTemplateVersions.id, input.reportTemplateVersionId),
+                isNull(reportTemplateVersions.deletedAt),
             ),
         )
         .limit(1);
 
-    if (!binding) {
+    // Real-data preview dla raportów single-source korzysta z wersji
+    // kwestionariusza przypisanej bezpośrednio do report_template_versions.
+    // Raporty composite nadal rozwiązują wiele źródeł własnym mechanizmem
+    // sources/composite i nie są przez tę ścieżkę modyfikowane.
+    if (!reportVersion?.questionnaireVersionId) {
         return [];
     }
 
@@ -134,7 +134,7 @@ export async function listReportPreviewSessionOptions(input: {
                     ),
                     eq(
                         assessmentProjectQuestionnaires.questionnaireVersionId,
-                        binding.questionnaireVersionId,
+                        reportVersion.questionnaireVersionId,
                     ),
                 ),
             )
